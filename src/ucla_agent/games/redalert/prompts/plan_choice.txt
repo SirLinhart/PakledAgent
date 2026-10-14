@@ -1,0 +1,13 @@
+Choose the plan of our Red Alert army. The summary above has one key=value group per line:
+t=game seconds/seconds left. me=our family, en=enemy family.
+cash=money we can spend, pw=power left over, harv=our harvesters.
+bal=value we destroyed minus value we lost, army=our army value, assets=our assets value.
+grp guard=, main=, raid=: units/strength of each group.
+bld=our buildings by type and count.
+en seen=1 if the enemy base was found, def=enemy defenses known, army=enemy army value, harv=enemy harvesters known, veh=1 if the enemy fields vehicles, age=seconds since an enemy building was in sight.
+threat=none, minor or major attack on our base. plan=the plan in force.
+The plans:
+HOLD: stay home, grow the economy and the army, defend.
+RAID: a small fast group hits the enemy's harvesters and economy where no defense covers them; the main army stays home.
+PRESS: the main army attacks the enemy base once it is strong, and the raids go on.
+Prefer RAID while the enemy economy is open, PRESS when our army clearly outweighs the enemy's, HOLD when our base is threatened or we are weaker. Never risk a lead late in the match.

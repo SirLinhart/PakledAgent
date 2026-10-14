@@ -1,0 +1,51 @@
+{
+  "_source": "guide-derived, unverified on the platform: the draft observation of docs/reference/altruagent/pokemon.md section 4, its placeholders filled in after the first pick; the practice harness checks its field names and value kinds against this file",
+  "observation": {
+    "phase": "draft",
+    "draft_complete": false,
+    "battle_format": "gen9vgc2025regi",
+    "current_seat": "agent_b",
+    "pick_number": 2,
+    "picks_remaining": 11,
+    "first_drafter": "agent_a",
+    "available_card_ids": ["vgc-urshifu-rapid-strike", "vgc-gyarados"],
+    "available_cards": [
+      {
+        "card_id": "vgc-urshifu-rapid-strike",
+        "species": "Urshifu-Rapid-Strike",
+        "item": "Mystic Water",
+        "ability": "Unseen Fist",
+        "nature": "Adamant",
+        "level": 50,
+        "evs": {"hp": 4, "atk": 252, "spe": 252},
+        "ivs": {},
+        "moves": ["Surging Strikes", "Close Combat", "Aqua Jet", "Protect"]
+      }
+    ],
+    "rosters": {"agent_a": [{"card_id": "vgc-incineroar", "species": "Incineroar"}], "agent_b": []},
+    "picks": [
+      {
+        "pick_number": 1,
+        "seat_id": "agent_a",
+        "card_id": "vgc-incineroar",
+        "species": "Incineroar",
+        "public_reason": "Intimidate support and Fake Out pressure.",
+        "auto": false,
+        "auto_reason": null
+      }
+    ],
+    "decision_timeout_seconds": 15,
+    "decision_deadline_at": "2026-10-16T17:00:15+00:00",
+    "battle_starting": false
+  },
+  "legal_action": {
+    "action_id": "draft_pick:vgc-gyarados",
+    "label": "Draft Gyarados",
+    "input": {
+      "session_id": "practice-pokemon",
+      "action_id": "draft_pick:vgc-gyarados",
+      "state_version": 1,
+      "action": {"type": "draft_pick", "card_id": "vgc-gyarados"}
+    }
+  }
+}

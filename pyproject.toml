@@ -1,0 +1,28 @@
+[project]
+name = "ucla-agent"
+version = "0.1.0"
+description = "Self-hosted agent for the UCLA Agent Tournament on the AltruAgent platform."
+requires-python = ">=3.11"
+dependencies = [
+    "httpx>=0.27",
+    "python-dotenv>=1.0",
+    # Same bounds as the vendored starter: it imports the mcp 1.x client
+    # names (streamablehttp_client), which the 2.x line renames.
+    "mcp>=1.12.0,<2.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["altruagent*", "agent*", "ucla_agent*"]

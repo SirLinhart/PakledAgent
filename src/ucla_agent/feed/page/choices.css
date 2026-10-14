@@ -1,0 +1,118 @@
+/* The #choices panel: one row per request to a model, the exchange with the model opening under it. */
+#choices .count {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+#choices .choice + .choice {
+  border-top: 1px solid var(--rule);
+}
+
+#choices .choice-row {
+  display: grid;
+  grid-template-columns: 52px 96px minmax(0, 1fr) 64px 132px;
+  gap: 2px 10px;
+  align-items: baseline;
+  width: 100%;
+  padding: 6px 2px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+#choices .choice-row:hover {
+  background: var(--ground);
+}
+
+#choices .time,
+#choices .latency {
+  font-variant-numeric: tabular-nums;
+}
+
+#choices .latency {
+  text-align: right;
+}
+
+#choices .source {
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#choices .options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+#choices .option {
+  padding: 0 6px;
+  border: 1px solid var(--rule);
+  color: var(--muted);
+  font: 600 13px/1.5 var(--figure-face);
+  font-stretch: condensed;
+}
+
+#choices .option.chosen {
+  border-color: var(--ours);
+  background: var(--ours);
+  color: var(--sheet);
+}
+
+#choices .option.off-list,
+#choices .no-answer {
+  border-color: var(--theirs);
+  color: var(--theirs);
+}
+
+#choices .no-answer {
+  font-style: italic;
+}
+
+#choices .written {
+  white-space: pre-wrap;
+}
+
+#choices .outcome.fell-back {
+  color: var(--theirs);
+}
+
+#choices .model-reason {
+  grid-column: 3 / -1;
+  color: var(--muted);
+  font-style: italic;
+}
+
+#choices .choice-io {
+  padding: 4px 2px 10px 62px;
+}
+
+#choices .io {
+  margin: 0;
+}
+
+#choices .io dt {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+#choices .io dd {
+  margin: 2px 0 0;
+}
+
+#choices .io pre {
+  margin: 0;
+  padding: 6px 8px;
+  max-height: 320px;
+  overflow: auto;
+  background: var(--ground);
+  border-left: 3px solid var(--rule);
+  font: 12px/1.45 var(--raw-face);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

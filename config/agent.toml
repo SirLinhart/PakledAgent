@@ -1,0 +1,201 @@
+# Settings that affect how the agent plays. This file is tracked; secrets never
+# go here (they live in the untracked .env).
+
+[models]
+# Start the included local model server together with the agent.
+autostart = true
+# The roles of config/models.toml it starts. The Werewolf and Pokémon chains
+# ask strong (about 30 GB of VRAM, about 2 GB of RAM) and the Red Alert chains
+# ask jev9b (JevK5-9B, a systemone role, about 23 GB of VRAM): about 53 GB of
+# VRAM together, on the 96 GB card. small (the 4B) and fast stay defined in
+# config/models.toml but are not started, and no chain asks them. An empty
+# list starts no role, and every choice is then the script's.
+autostart_roles = ["strong", "jev9b"]
+# How many of a model's own recent picks each Red Alert question shows (the
+# plan, commander and scout questions), each with what came of it since; 0
+# shows none.
+history_picks = 3
+
+[decide]
+# How long a choice asked of a model or a service may take, in milliseconds,
+# before the game goes on with its own scripted choice.
+default_deadline_ms = 1500
+# Whether a local model or Claude is asked for a short reason (at most 12
+# words) with each choice. The reason goes into the match record for people to
+# read and never changes which option is played; a choice without one is used
+# all the same. Off, a model answers with the choice alone.
+choice_reasons = true
+
+[decide.chains]
+# For each kind of choice, the sources that are asked, in order, until one
+# gives an answer that is used. An entry is "local:<role>", a role of
+# config/models.toml, "claude:<alias>", a model of [claude.models],
+# "systemone:<name>", a systemone server of [systemone], or "jev".
+# Red Alert's chains never name Claude: a real-time game cannot wait for it.
+# They ask jev9b, JevK5-9B: quick enough for a real-time game, and a choice it
+# does not give in time, or gives while it is down, is the script's own. The
+# 4B (small) is defined but unused; a chain entry "local:small", with small
+# listed in autostart_roles, would select it.
+# The plan among the open ones; asked only with model_plan_choice of
+# [redalert] on.
+red_alert_plan = ["systemone:jev9b"]
+# Where each designated scout of Red Alert's scout slots goes next, among the
+# script's candidates; asked only with model_scout_choice of [redalert] on.
+red_alert_scout = ["systemone:jev9b"]
+# The one checked action the model commander picks every batch for the first
+# scout, then for main; asked only with model_commander of [redalert] on.
+red_alert_commander = ["systemone:jev9b"]
+# Werewolf's choice among the script's candidates for a vote, kill or
+# investigation, and its chat messages. To have Claude answer first, list
+# "claude:sonnet" before "local:strong" and set enabled = true in [claude].
+werewolf_choice = ["local:strong"]
+werewolf_message = ["local:strong"]
+# Pokémon's choice among the script's best candidates for a draft card, a
+# team preview lineup or a doubles turn.
+pokemon_choice = ["local:strong"]
+
+[redalert]
+# Red Alert ships with the model (jev9b) choosing the plan and commanding;
+# the script still checks every option it is offered and plays its own choice
+# when no answer comes in time. For script-only play set model_plan_choice
+# and model_commander to false (and drop jev9b from autostart_roles).
+# Whether the red_alert_plan chain is asked to choose among the discretionary
+# plans (HOLD, RAID, PRESS) when more than one is open; off, the script's own
+# choice is played.
+model_plan_choice = true
+# Whether command shorthand written by a model is turned into orders.
+model_commands = false
+# Whether a model choosing the plan is briefed in plain words: the situation,
+# both armies by type with a glossary of every type named, the strength ratio,
+# how old what is known of the enemy is, and what each open plan would do now
+# and why each closed one is closed, answered with a reason of at most 30
+# words before the choice. Off, it reads the compact summary and answers with
+# the choice. Changes nothing while model_plan_choice is false.
+model_briefing = true
+# How the plan question is put to a model: "briefing" as model_briefing says,
+# or "compact", whatever model_briefing says: a prompt of at most 1,500
+# characters, the state as key=value lines (time left, threat, both armies'
+# values and their ratio, money, both economies, the raid group, what keeps
+# PRESS shut) and one line for each open plan, answered with the choice first
+# and a reason of at most 12 words, in at most 48 tokens. Changes nothing
+# while model_plan_choice is false.
+plan_prompt = "briefing"
+# Whether the red_alert_scout chain is asked where each designated scout goes
+# next, among the script's best places to look at, each with what was last
+# seen there; the script's own choice stands until an answer arrives, and
+# whenever none does. Changes nothing while scout_slots of [scouting] in
+# config/redalert/tuning.toml is false.
+model_scout_choice = false
+# Whether the red_alert_commander chain is asked every batch to pick one of
+# the script's checked actions for one unit group, sent in an order slot kept
+# for it: the first scout until 6 own combat units stand, then main for the
+# rest of the match (handover_combat_units of [commander] in
+# config/redalert/tuning.toml). A scout's flight and base defense against a
+# major threat beyond the guard and the static defenses override it. Off, the
+# script commands every group.
+model_commander = true
+
+[redalert.sparring]
+# A seat name (Multi0, Multi1) -> the discretionary plan it is pinned to, for
+# sparring between two copies of the agent. Used in test matches only.
+seat_plans = {}
+
+[werewolf]
+# Whether the werewolf_choice chain is asked to choose among the script's
+# candidates when there are two or more; off, the script's first is played.
+model_choices = true
+# Whether the werewolf_message chain writes the chat messages; off, the
+# scripted messages of config/werewolf/tuning.toml are sent. A written message
+# that fails a check is replaced by the scripted one either way.
+model_messages = true
+# How long a choice may take, in milliseconds, before the script's stands.
+choice_deadline_ms = 15000
+# How long a message may take, in milliseconds; never longer than leaves
+# [chat] deadline_margin_ms of config/werewolf/tuning.toml before the
+# discussion window closes.
+message_deadline_ms = 20000
+
+[pokemon]
+# Whether the pokemon_choice chain is asked to choose among the script's best
+# candidates when there are two or more; off, the script's best is played.
+model_choices = true
+# How many of the script's best candidates the chain chooses among (1 to 9).
+top_k = 4
+# How long a choice may take, in milliseconds, before the script's best is
+# played. A draft pick has 15 s on the platform's clock (at most 12000 here).
+# A lineup has 85 s and a battle decision 50 s before the platform plays a
+# random choice (at most 60000 here), and the observation's clock cuts these
+# two further, by the four settings below.
+draft_deadline_ms = 6000
+preview_deadline_ms = 20000
+turn_deadline_ms = 20000
+# Seconds kept back from the decision's clock for the script and the answer's
+# journey: a lineup or a turn never waits past the clock less this margin.
+decision_margin_seconds = 10
+# The most of the 420 s battle bank one battle decision may spend waiting on
+# the model (above 0, at most 1).
+bank_share = 0.10
+# Waiting on the model never takes the bank below this many seconds; with the
+# bank at or below it no model is asked and the script's best is sent at once.
+bank_reserve_seconds = 90
+# The longest a lineup or a turn waits on the model, in milliseconds, before
+# Showdown has reported the clock for the decision.
+no_clock_deadline_ms = 5000
+# Whether the model is briefed in full: the draft pool and both rosters with
+# every set, both sixes with a matchup table at team preview, and in battle
+# every Pokémon's set, the field, the speed order and what beats what. Off,
+# it reads the one-line summary of the rosters or the board.
+model_briefing = true
+# Whether the model decides from a wider shortlist put plainly: the script's
+# best decide_top_k candidates, described without the script's scores and
+# listed in an order shuffled for each decision, with a reason of at most
+# decide_reason_words words written before the choice. Off, the model chooses
+# among the best top_k as described above.
+model_decides = true
+# How many of the script's best candidates a deciding model is offered (2 to 9).
+decide_top_k = 6
+# The most words of the reason a deciding model writes before its choice
+# (1 to 60).
+decide_reason_words = 40
+
+[jev]
+# The Jev decision service. While enabled is false no request is ever sent to
+# it, whatever the chains above list. Its key is JEV_API_KEY in .env.
+enabled = false
+base_url = "https://api.jevai.net"
+# An answer Jev is less sure of than this is not used.
+min_confidence = 0.55
+
+[jev.fields]
+# The names of the fields of Jev's /v1/decide request (state, output_schema)
+# and where its answer holds the chosen option and the confidence (value,
+# confidence; a dot leads into a nested object).
+state = "state"
+output_schema = "output_schema"
+value = "value.choice"
+confidence = "confidence"
+
+[claude]
+# Claude, through the Anthropic Messages API. While enabled is false no
+# request is ever sent to it, whatever the chains above list: a "claude:"
+# entry is then passed over at once. Its key is ANTHROPIC_API_KEY in .env.
+enabled = false
+base_url = "https://api.anthropic.com"
+api_version = "2023-06-01"
+# Input plus output tokens one Claude source may use in a match; once it has
+# used them, its chain goes on to its next source for the rest of the match.
+max_tokens_per_match = 300000
+
+[claude.models]
+# An alias a chain entry names ("claude:<alias>") -> the model id sent to the API.
+sonnet = "claude-sonnet-4-5"
+opus = "claude-opus-4-1"
+haiku = "claude-haiku-4-5"
+
+[systemone.jev9b]
+# JevK5-9B, served alone by the jev9b systemone role of config/models.toml and
+# asked as "systemone:jev9b" on that role's own port (base_url may name
+# another loopback address instead). It answers with a confidence from 0 to 1
+# and no reason; an answer less confident than this is not used, and the
+# script's own choice is played.
+min_confidence = 0.0

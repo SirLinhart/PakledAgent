@@ -1,0 +1,515 @@
+# What each Red Alert unit and building type is, in plain words, for a model
+# that knows the game by name but not its units. The plan choice briefing
+# names every type it lists with one line built from its entry here, the cost
+# taken from the item table: "Heavy Tank (3tnk), Soviet vehicle, 1,150: the
+# Soviet main battle tank ...; strong vs ...; weak vs ...".
+#
+# One table per type of config/redalert/items.toml, and no other:
+#
+#   name       the type's name in the game
+#   side       "Allies", "Soviets" or "both": who can build it, as the item
+#              table's factions say
+#   kind       "infantry", "vehicle", "aircraft", "ship", "building" or
+#              "defense" (a building that shoots)
+#   role       one short sentence: what it is for
+#   strong_vs  what it beats
+#   weak_vs    what beats it
+#
+# Written from docs/research/red-alert-unit-matchups.md (its duels, group
+# fights and summary for production decisions) and the item table. The file
+# is read strictly: a missing or unknown key, a side or kind outside the words
+# above, or a text that is empty, longer than one line or too long is an
+# error, and tests/redalert/test_glossary.py checks that every type of the
+# item table has an entry.
+
+# -- buildings ---------------------------------------------------------------
+
+[fact]
+name = "Construction Yard"
+side = "both"
+kind = "building"
+role = "builds every other building; without it no new building can be made"
+strong_vs = "nothing: it has no weapon"
+weak_vs = "artillery, V2 rockets, tanks, grenadiers and flamethrowers"
+
+[powr]
+name = "Power Plant"
+side = "both"
+kind = "building"
+role = "gives 100 power; with too little power everything is built slowly"
+strong_vs = "nothing: it has no weapon"
+weak_vs = "artillery, V2 rockets, tanks, grenadiers and flamethrowers"
+
+[apwr]
+name = "Advanced Power Plant"
+side = "both"
+kind = "building"
+role = "gives 200 power"
+strong_vs = "nothing: it has no weapon"
+weak_vs = "artillery, V2 rockets, tanks, grenadiers and flamethrowers"
+
+[tent]
+name = "Allied Barracks"
+side = "Allies"
+kind = "building"
+role = "trains Allied infantry"
+strong_vs = "nothing: it has no weapon"
+weak_vs = "artillery, V2 rockets, tanks, grenadiers and flamethrowers"
+
+[barr]
+name = "Soviet Barracks"
+side = "Soviets"
+kind = "building"
+role = "trains Soviet infantry"
+strong_vs = "nothing: it has no weapon"
+weak_vs = "artillery, V2 rockets, tanks, grenadiers and flamethrowers"
+
+[proc]
+name = "Ore Refinery"
+side = "both"
+kind = "building"
+role = "turns the ore harvesters bring into money; the heart of the economy"
+strong_vs = "nothing: it has no weapon"
+weak_vs = "artillery, V2 rockets, tanks, grenadiers and flamethrowers"
+
+[weap]
+name = "War Factory"
+side = "both"
+kind = "building"
+role = "builds vehicles: tanks, trucks and harvesters"
+strong_vs = "nothing: it has no weapon"
+weak_vs = "artillery, V2 rockets, tanks, grenadiers and flamethrowers"
+
+[fix]
+name = "Service Depot"
+side = "both"
+kind = "building"
+role = "repairs vehicles; needed for medium and heavy tanks and new MCVs"
+strong_vs = "nothing: it has no weapon"
+weak_vs = "artillery, V2 rockets, tanks, grenadiers and flamethrowers"
+
+[dome]
+name = "Radar Dome"
+side = "both"
+kind = "building"
+role = "shows the minimap; needed for artillery, V2 rockets, aircraft and the tech center"
+strong_vs = "nothing: it has no weapon"
+weak_vs = "artillery, V2 rockets, tanks, grenadiers and flamethrowers"
+
+[kenn]
+name = "Kennel"
+side = "Soviets"
+kind = "building"
+role = "trains attack dogs"
+strong_vs = "nothing: it has no weapon"
+weak_vs = "artillery, V2 rockets, tanks, grenadiers and flamethrowers"
+
+[atek]
+name = "Allied Tech Center"
+side = "Allies"
+kind = "building"
+role = "unlocks the most advanced Allied units"
+strong_vs = "nothing: it has no weapon"
+weak_vs = "artillery, V2 rockets, tanks, grenadiers and flamethrowers"
+
+[stek]
+name = "Soviet Tech Center"
+side = "Soviets"
+kind = "building"
+role = "unlocks the most advanced Soviet units, such as the Mammoth Tank"
+strong_vs = "nothing: it has no weapon"
+weak_vs = "artillery, V2 rockets, tanks, grenadiers and flamethrowers"
+
+[hpad]
+name = "Helipad"
+side = "Allies"
+kind = "building"
+role = "builds and rearms Allied helicopters"
+strong_vs = "nothing: it has no weapon"
+weak_vs = "artillery, V2 rockets, tanks, grenadiers and flamethrowers"
+
+[afld]
+name = "Airfield"
+side = "Soviets"
+kind = "building"
+role = "builds and rearms Soviet planes"
+strong_vs = "nothing: it has no weapon"
+weak_vs = "artillery, V2 rockets, tanks, grenadiers and flamethrowers"
+
+[syrd]
+name = "Naval Yard"
+side = "Allies"
+kind = "building"
+role = "builds Allied ships; stands on water"
+strong_vs = "nothing: it has no weapon"
+weak_vs = "submarines, ships and long-range guns"
+
+[spen]
+name = "Sub Pen"
+side = "Soviets"
+kind = "building"
+role = "builds Soviet submarines; stands on water"
+strong_vs = "nothing: it has no weapon"
+weak_vs = "destroyers, gunboats and long-range guns"
+
+[silo]
+name = "Ore Silo"
+side = "both"
+kind = "building"
+role = "stores money when the refineries are full"
+strong_vs = "nothing: it has no weapon"
+weak_vs = "artillery, V2 rockets, tanks, grenadiers and flamethrowers"
+
+# -- defenses ----------------------------------------------------------------
+
+[pbox]
+name = "Pillbox"
+side = "Allies"
+kind = "defense"
+role = "cheap machine-gun bunker, range 6"
+strong_vs = "infantry"
+weak_vs = "tanks and artillery"
+
+[hbox]
+name = "Camo Pillbox"
+side = "Allies"
+kind = "defense"
+role = "camouflaged machine-gun bunker, range 6"
+strong_vs = "infantry"
+weak_vs = "tanks and artillery"
+
+[gun]
+name = "Turret"
+side = "Allies"
+kind = "defense"
+role = "cannon tower, range 6.5: the Allied defense against vehicles"
+strong_vs = "tanks and other vehicles"
+weak_vs = "artillery, V2 rockets and Mammoth Tanks"
+
+[ftur]
+name = "Flame Tower"
+side = "Soviets"
+kind = "defense"
+role = "flame-throwing tower, range 5: the Soviet defense against infantry"
+strong_vs = "infantry"
+weak_vs = "tanks and artillery"
+
+[tsla]
+name = "Tesla Coil"
+side = "Soviets"
+kind = "defense"
+role = "lightning tower, range 7; needs much power and stops when power is low"
+strong_vs = "infantry and vehicles"
+weak_vs = "artillery, V2 rockets, Mammoth Tanks and low power"
+
+[agun]
+name = "AA Gun"
+side = "Allies"
+kind = "defense"
+role = "anti-aircraft gun, range 10; cannot shoot at ground units"
+strong_vs = "aircraft"
+weak_vs = "every ground unit"
+
+[sam]
+name = "SAM Site"
+side = "Soviets"
+kind = "defense"
+role = "anti-aircraft missile site, range 7.5; cannot shoot at ground units"
+strong_vs = "aircraft"
+weak_vs = "every ground unit"
+
+# -- infantry ----------------------------------------------------------------
+
+[e1]
+name = "Rifle Infantry"
+side = "both"
+kind = "infantry"
+role = "cheap rifleman; the best value against infantry"
+strong_vs = "infantry"
+weak_vs = "tanks, flame towers, pillboxes and Tesla coils"
+
+[e2]
+name = "Grenadier"
+side = "Soviets"
+kind = "infantry"
+role = "throws grenades over a short range, range 4"
+strong_vs = "buildings, clumped infantry, and tanks when massed"
+weak_vs = "riflemen and vehicles that shoot infantry"
+
+[e3]
+name = "Rocket Soldier"
+side = "both"
+kind = "infantry"
+role = "anti-tank rocket soldier that also shoots at aircraft"
+strong_vs = "tanks, other vehicles and aircraft"
+weak_vs = "riflemen and anything that shoots infantry"
+
+[e4]
+name = "Flamethrower"
+side = "Soviets"
+kind = "infantry"
+role = "short-range flamethrower that burns buildings and infantry"
+strong_vs = "buildings and infantry"
+weak_vs = "riflemen and vehicles"
+
+[e6]
+name = "Engineer"
+side = "both"
+kind = "infantry"
+role = "captures or repairs buildings; has no weapon"
+strong_vs = "nothing: it has no weapon"
+weak_vs = "everything that shoots infantry"
+
+[dog]
+name = "Attack Dog"
+side = "Soviets"
+kind = "infantry"
+role = "fast dog that kills one soldier with each bite; cannot attack vehicles"
+strong_vs = "infantry, one at a time"
+weak_vs = "massed riflemen and every vehicle"
+
+[medi]
+name = "Medic"
+side = "Allies"
+kind = "infantry"
+role = "heals nearby infantry; has no weapon"
+strong_vs = "nothing: it has no weapon"
+weak_vs = "everything that shoots infantry"
+
+[mech]
+name = "Mechanic"
+side = "Allies"
+kind = "infantry"
+role = "repairs nearby vehicles; has no weapon"
+strong_vs = "nothing: it has no weapon"
+weak_vs = "everything that shoots infantry"
+
+[spy]
+name = "Spy"
+side = "Allies"
+kind = "infantry"
+role = "sneaks into buildings; its pistol hits infantry only"
+strong_vs = "lone infantry"
+weak_vs = "dogs and everything that shoots infantry"
+
+[thf]
+name = "Thief"
+side = "Soviets"
+kind = "infantry"
+role = "steals money by entering a refinery; has no weapon"
+strong_vs = "nothing: it has no weapon"
+weak_vs = "everything that shoots infantry"
+
+# -- vehicles ----------------------------------------------------------------
+
+[harv]
+name = "Harvester"
+side = "both"
+kind = "vehicle"
+role = "gathers ore and brings it to a refinery for money; slow, tough and unarmed"
+strong_vs = "nothing: it has no weapon"
+weak_vs = "tanks, rocket soldiers and raids"
+
+[mcv]
+name = "Mobile Construction Vehicle"
+side = "both"
+kind = "vehicle"
+role = "drives to a spot and unfolds into a new construction yard; unarmed"
+strong_vs = "nothing: it has no weapon"
+weak_vs = "tanks and rocket soldiers"
+
+[jeep]
+name = "Ranger"
+side = "Allies"
+kind = "vehicle"
+role = "fast scout jeep with a machine gun"
+strong_vs = "infantry"
+weak_vs = "tanks, rocket soldiers and defenses"
+
+[1tnk]
+name = "Light Tank"
+side = "Allies"
+kind = "vehicle"
+role = "fast, cheap Allied tank"
+strong_vs = "infantry and light vehicles"
+weak_vs = "heavier tanks, rocket soldiers and turrets"
+
+[2tnk]
+name = "Medium Tank"
+side = "Allies"
+kind = "vehicle"
+role = "the Allied main battle tank: tough and steady"
+strong_vs = "vehicles, pillboxes and flame towers"
+weak_vs = "rocket soldiers, Heavy Tanks, turrets and Tesla coils"
+
+[3tnk]
+name = "Heavy Tank"
+side = "Soviets"
+kind = "vehicle"
+role = "the Soviet main battle tank: slow, tough and hard-hitting"
+strong_vs = "vehicles and buildings"
+weak_vs = "rocket soldiers, grenadiers and turrets"
+
+[4tnk]
+name = "Mammoth Tank"
+side = "Soviets"
+kind = "vehicle"
+role = "huge, very slow twin-cannon tank that also fires missiles at infantry and aircraft"
+strong_vs = "vehicles, infantry, defenses and aircraft"
+weak_vs = "rocket soldiers, and Medium or Heavy Tanks at equal cost"
+
+[apc]
+name = "Armored Personnel Carrier"
+side = "Soviets"
+kind = "vehicle"
+role = "armored troop carrier with a machine gun; carries 5 soldiers"
+strong_vs = "infantry"
+weak_vs = "tanks and rocket soldiers"
+
+[ftrk]
+name = "Flak Truck"
+side = "Soviets"
+kind = "vehicle"
+role = "fast truck with a flak cannon for aircraft and infantry"
+strong_vs = "aircraft and infantry"
+weak_vs = "tanks and rocket soldiers"
+
+[arty]
+name = "Artillery"
+side = "Allies"
+kind = "vehicle"
+role = "long-range gun, range 12, that outranges every defense; cannot fire up close"
+strong_vs = "defenses, buildings and clumped infantry"
+weak_vs = "tanks and fast units that reach it"
+
+[v2rl]
+name = "V2 Rocket Launcher"
+side = "Soviets"
+kind = "vehicle"
+role = "long-range rocket launcher, range 10, that outranges every defense; cannot fire up close"
+strong_vs = "defenses, buildings and infantry"
+weak_vs = "tanks and fast units that reach it"
+
+[truk]
+name = "Supply Truck"
+side = "both"
+kind = "vehicle"
+role = "carries money to an own refinery; has no weapon"
+strong_vs = "nothing: it has no weapon"
+weak_vs = "everything that shoots vehicles"
+
+[mnly]
+name = "Minelayer"
+side = "both"
+kind = "vehicle"
+role = "lays mines; has no gun"
+strong_vs = "nothing: it has no gun"
+weak_vs = "tanks and rocket soldiers"
+
+# -- ships -------------------------------------------------------------------
+
+[ss]
+name = "Submarine"
+side = "Soviets"
+kind = "ship"
+role = "submarine with torpedoes; hits ships only"
+strong_vs = "ships"
+weak_vs = "destroyers and gunboats"
+
+[msub]
+name = "Missile Submarine"
+side = "Soviets"
+kind = "ship"
+role = "submarine with long-range missiles, range 20, against ships and the shore"
+strong_vs = "ships, and buildings near water"
+weak_vs = "destroyers and gunboats"
+
+[pt]
+name = "Gunboat"
+side = "Allies"
+kind = "ship"
+role = "fast patrol boat with a gun and depth charges"
+strong_vs = "submarines and small boats"
+weak_vs = "bigger warships and missile submarines"
+
+[dd]
+name = "Destroyer"
+side = "Allies"
+kind = "ship"
+role = "warship with rockets and depth charges that also shoots at aircraft"
+strong_vs = "submarines, ships and aircraft"
+weak_vs = "missile submarines and massed submarines"
+
+[ca]
+name = "Cruiser"
+side = "Allies"
+kind = "ship"
+role = "heavy warship with long-range guns, range 20, against the shore"
+strong_vs = "buildings and defenses near water"
+weak_vs = "submarines"
+
+[lst]
+name = "Transport"
+side = "both"
+kind = "ship"
+role = "landing craft that carries units over water; has no weapon"
+strong_vs = "nothing: it has no weapon"
+weak_vs = "submarines and every warship"
+
+# -- aircraft ----------------------------------------------------------------
+
+[heli]
+name = "Longbow"
+side = "Allies"
+kind = "aircraft"
+role = "attack helicopter with anti-tank missiles"
+strong_vs = "tanks and other vehicles"
+weak_vs = "SAM sites, flak trucks, Mammoth Tanks and rocket soldiers"
+
+[mh60]
+name = "Black Hawk"
+side = "Allies"
+kind = "aircraft"
+role = "attack helicopter with a chain gun"
+strong_vs = "infantry"
+weak_vs = "SAM sites, flak trucks, Mammoth Tanks and rocket soldiers"
+
+[tran]
+name = "Chinook"
+side = "Allies"
+kind = "aircraft"
+role = "transport helicopter that carries infantry; has no weapon"
+strong_vs = "nothing: it has no weapon"
+weak_vs = "SAM sites, flak trucks, Mammoth Tanks and rocket soldiers"
+
+[yak]
+name = "Yak"
+side = "Soviets"
+kind = "aircraft"
+role = "attack plane with machine guns"
+strong_vs = "infantry"
+weak_vs = "AA guns, destroyers and rocket soldiers"
+
+[mig]
+name = "MiG"
+side = "Soviets"
+kind = "aircraft"
+role = "attack plane with missiles"
+strong_vs = "tanks, other vehicles and buildings"
+weak_vs = "AA guns, destroyers and rocket soldiers"
+
+[badr]
+name = "Badger"
+side = "both"
+kind = "aircraft"
+role = "support-power plane that drops paratroopers; never built"
+strong_vs = "nothing: it has no weapon"
+weak_vs = "anti-aircraft fire"
+
+[u2]
+name = "Spy Plane"
+side = "both"
+kind = "aircraft"
+role = "support-power plane that reveals part of the map; never built"
+strong_vs = "nothing: it has no weapon"
+weak_vs = "anti-aircraft fire"

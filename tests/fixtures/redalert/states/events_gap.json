@@ -1,0 +1,82 @@
+{
+  "session_id": "fake-session",
+  "game_type": "red_alert",
+  "status": "in_progress",
+  "state_version": 615,
+  "phase": "playing",
+  "is_terminal": false,
+  "is_current_actor": true,
+  "your_seat": "Multi0",
+  "players": [
+    {"seat": "Multi0", "agent_id": "fake-agent", "name": "fake-agent", "faction": "england", "checked_in": true},
+    {"seat": "Multi1", "agent_id": "fake-opponent", "name": "fake-opponent", "faction": "russia", "checked_in": true}
+  ],
+  "pacing": {"mode": "realtime", "min_batch_interval_s": 0.2, "stale_seconds": 120, "next_batch_allowed_in_ms": 0},
+  "limits": {"max_orders_per_batch": 20, "max_units_per_order": 50, "max_train_count": 10, "min_batch_interval_s": 0.2, "stale_seconds": 120},
+  "time": {"max_minutes": 20, "game_seconds": 24.6, "remaining_seconds": 1175.4},
+  "map": {"id": "fake-arena", "width": 96, "height": 96, "bounds": [0, 0, 96, 96]},
+  "match_rules": {"starting_cash": 5000, "starting_units": "none", "explored_map": false, "kill_bounties": false, "crates": false},
+  "observation": {
+    "tick": 615,
+    "faction": "england",
+    "enemy_faction": "russia",
+    "economy": {"cash": 3980, "ore": 0, "power_provided": 100, "power_drained": 20, "resource_capacity": 0, "harvesters": 0},
+    "military": {"kills_cost": 0, "deaths_cost": 0, "assets_value": 3000, "army_value": 200, "units_killed": 0, "buildings_killed": 0, "units_lost": 0, "buildings_lost": 0},
+    "units": [
+      {"id": 104, "type": "e1", "x": 20, "y": 47, "hp": 100, "act": null, "idle": true, "stance": "attack_anything"},
+      {"id": 105, "type": "e1", "x": 22, "y": 49, "hp": 100, "act": null, "idle": true, "stance": "attack_anything"}
+    ],
+    "buildings": [
+      {"id": 101, "type": "fact", "x": 22, "y": 48, "hp": 100, "powered": true, "powered_down": false, "repairing": false, "producing": null, "rally": null},
+      {"id": 102, "type": "powr", "x": 22, "y": 46, "hp": 100, "powered": true, "powered_down": false, "repairing": false, "producing": null, "rally": null},
+      {"id": 103, "type": "tent", "x": 20, "y": 48, "hp": 100, "powered": true, "powered_down": false, "repairing": false, "producing": null, "rally": null}
+    ],
+    "production": [],
+    "available_production": ["powr", "tent", "proc", "syrd", "pbox", "hbox", "gun", "e1", "e3", "e6", "medi"],
+    "visible_enemies": [],
+    "visible_enemy_buildings": [],
+    "map": {"id": "fake-arena", "width": 96, "height": 96},
+    "base_center": [22, 48],
+    "explored_percent": 0.0,
+    "events": [
+      {"seq": 1, "tick": 0, "kind": "building_created", "id": 101, "type": "fact", "x": 22, "y": 48},
+      {"seq": 2, "tick": 185, "kind": "production_ready", "type": "powr"},
+      {"seq": 3, "tick": 185, "kind": "building_created", "id": 102, "type": "powr", "x": 22, "y": 46},
+      {"seq": 4, "tick": 490, "kind": "production_ready", "type": "tent"},
+      {"seq": 5, "tick": 490, "kind": "building_created", "id": 103, "type": "tent", "x": 20, "y": 48},
+      {"seq": 6, "tick": 555, "kind": "unit_created", "id": 104, "type": "e1", "x": 20, "y": 47},
+      {"seq": 9, "tick": 615, "kind": "unit_created", "id": 105, "type": "e1", "x": 22, "y": 49}
+    ]
+  },
+  "last_orders": {
+    "state_version": 495,
+    "batch": 6,
+    "carried": 0,
+    "pending": false,
+    "applied_at_tick": 500,
+    "results": [
+      {"index": 0, "cmd": "train", "status": "ok", "reason": "ok", "detail": null, "commands": 2, "failed": []}
+    ],
+    "accepted_orders": 1,
+    "rejected_orders": 0
+  },
+  "recent_order_problems": [],
+  "legal_actions": {
+    "build": ["powr", "tent", "proc", "syrd", "pbox", "hbox", "gun"],
+    "train": ["e1", "e3", "e6", "medi"],
+    "place": [],
+    "deploy": [],
+    "repair": [],
+    "attack": [],
+    "attack_now": {"cmd": "attack_move", "units": [104, 105], "to": [74, 48]},
+    "enemy_base": [74, 48],
+    "combat_units": [104, 105],
+    "idle_units": [104, 105],
+    "harvesters": [],
+    "production_buildings": [
+      {"id": 101, "type": "fact"},
+      {"id": 103, "type": "tent"}
+    ],
+    "how_to_send": "play_action(session_id, state_version=<this state's state_version>, action={\"type\": \"orders\", \"orders\": [<order>, ...]})"
+  }
+}

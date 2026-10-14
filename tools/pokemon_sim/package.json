@@ -1,0 +1,13 @@
+{
+  "name": "ucla-agent-pokemon-sim",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local Pokémon Showdown battles for the practice harness; practice tooling only, never needed by the agent's runtime.",
+  "main": "sim.js",
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "dependencies": {
+    "pokemon-showdown": "0.11.11"
+  }
+}

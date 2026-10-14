@@ -1,0 +1,80 @@
+# The local models the included model server runs, and every option each one
+# is started with. This file is tracked and only ever read: a run records its
+# hash, and docs/MODELS.md describes each entry.
+
+[server]
+# The one endpoint game code talks to. It must be a loopback address.
+host = "127.0.0.1"
+port = 11500
+llama_server_path = "C:/Tools/llama.cpp/llama-server.exe"
+# Role number i, counted from 0 in the order below, is served by a
+# llama-server on port backend_port_base + i.
+backend_port_base = 41500
+
+[courtesy]
+# On a workstation that runs the ModelBouncer service (127.0.0.1:11435), tell
+# it how much memory the models are about to take. Nothing depends on its
+# answer, and where no such service runs nothing is sent.
+modelbouncer_lease = true
+
+# Every role loads its model with --no-mmap. A memory-mapped model file stays
+# resident in system RAM beside its copy in VRAM: measured with the strong
+# role, 26.5 GB of the 27B model stayed in RAM beside 30.2 GB in VRAM. Read
+# into VRAM without the mapping, its llama-server holds about 1.8 GB of RAM.
+[roles.fast]
+model_path = "E:/Models/gguf/gemma-4-26B-A4B-it-qat-heretic-UD-Q4_K_XL.gguf"
+required = false
+ctx_size = 8192
+n_gpu_layers = 999
+parallel = 1
+temperature = 0
+top_k = 64
+top_p = 0.95
+seed = 0
+reasoning = "off"
+extra_args = ["--no-mmap"]
+
+[roles.strong]
+model_path = "E:/Models/gguf/Qwen3.8-27B-Q8_0.gguf"
+required = false
+ctx_size = 16384
+n_gpu_layers = 999
+parallel = 1
+temperature = 0
+top_k = 20
+top_p = 0.95
+seed = 0
+reasoning = "off"
+extra_args = ["--no-mmap"]
+
+[roles.small]
+model_path = "C:/Models/gguf/Qwen3.5-4B-Q8_0.gguf"
+required = false
+ctx_size = 8192
+n_gpu_layers = 999
+parallel = 1
+temperature = 0
+top_k = 20
+top_p = 0.8
+seed = 0
+reasoning = "off"
+extra_args = ["--no-mmap"]
+
+# A native systemone server: JevK5-9B served alone over the systemone API by
+# scripts/serve_jev9b.py, in the native Python environment that has its
+# runtime (torch, jev-style and jevk5; see docs/MODELS.md). It is numbered
+# after the roles above, so it listens on backend_port_base + 3. A chain asks
+# it as "systemone:jev9b" directly on that port, never through the endpoint.
+[systemone_roles.jev9b]
+python_path = "C:/Projects/JevTest/jev-bench/.native-win/Scripts/python.exe"
+script = "scripts/serve_jev9b.py"
+model_dir = "E:/Models/JevK5-9B"
+required = false
+# Reading the 9B, checking its SHA256SUMS and recording its CUDA graphs.
+startup_seconds = 600
+
+[systemone_roles.jev9b.env]
+PYTORCH_CUDA_ALLOC_CONF = "expandable_segments:False"
+HF_HOME = "E:/Models/.hf-native"
+TRITON_CACHE_DIR = "E:/Models/.triton-ucla-agent"
+JEVK5_GRAPHS = "1"

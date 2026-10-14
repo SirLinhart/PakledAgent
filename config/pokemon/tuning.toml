@@ -1,0 +1,82 @@
+# How the Pokémon agent scores its choices. Read strictly: a key that is
+# missing or misspelled, a weight that is not a number of at least 0, a switch
+# that is not true or false or a count that is not a whole number of at least
+# 1 stops the agent at start.
+# Damage is counted in percent of the defender's maximum HP (0 to 100), so a
+# bonus of 20 is worth as much as a fifth of a Pokémon's HP.
+
+[draft]
+# Weight of the mean, over the other cards left in the pool and the
+# opponent's roster, of the best damage the card does (power) and of 100
+# minus the best damage it takes (bulk).
+power_weight = 1.0
+bulk_weight = 1.0
+# Points for a Speed stat twice the pool's median (half the median gives
+# minus half of it).
+speed_weight = 20.0
+# Support bonuses, each counted once per card that has it.
+fake_out_bonus = 8.0
+tailwind_bonus = 8.0
+trick_room_bonus = 6.0
+redirection_bonus = 6.0
+intimidate_bonus = 8.0
+protect_bonus = 3.0
+spread_move_bonus = 5.0
+# Synergy with our roster: per type two or more of our Pokémon are weak to
+# that the card resists; per damage type the card adds; minus, per type the
+# card is weak to that three or more of our Pokémon are weak to as well.
+resist_bonus = 6.0
+new_type_bonus = 2.0
+shared_weakness_malus = 6.0
+# The card's score for the opponent's roster, times this, is added: taking a
+# card the opponent wants keeps it from them.
+denial_weight = 0.3
+
+[preview]
+# Weight of the leads' own matchup against the opponent's six, added to the
+# matchup of the four brought.
+lead_weight = 0.5
+# Bonus per lead with Tailwind, Trick Room or Fake Out.
+speed_control_bonus = 15.0
+
+[turn]
+# Added to a move's expected damage, times its chance to knock the target out.
+ko_bonus = 80.0
+# Fake Out on the user's first turn out (it fails on any later turn).
+fake_out_bonus = 30.0
+# Protect under a likely knockout from a foe that moves first; taken off
+# instead, times N, after N Protects in a row (each makes the next three
+# times as likely to fail), and taken off for a Choice item holder's Protect
+# while it could still attack (the item would lock it into Protect).
+protect_bonus = 60.0
+# Tailwind or Trick Room when it turns more speed pairs our way than against.
+speed_control_bonus = 40.0
+# A switch out of a likely knockout into a reserve that resists the move;
+# any other switch costs switch_penalty.
+switch_bonus = 40.0
+switch_penalty = 15.0
+# Taken off when both slots aim at one foe that either one alone is expected
+# to knock out.
+overkill_malus = 80.0
+
+[maximin]
+# Whether each phase ranks our options by their worst case against the
+# opponent's best replies: a turn's joint actions through a one-turn model,
+# team preview's lineups against each of the opponent's lineups, and a draft
+# pick looking one pick ahead. Off, the script's own ranking above is played.
+# Shipped on by the local benchmark's rule (docs/POKEMON-BENCHMARKS.md).
+enabled = true
+# How many of our best joint actions a turn weighs, by the [turn] score, and
+# how many of the opponent's best, scored the same way from their side.
+our_top = 8
+their_top = 8
+# Whether a draft pick counts what the opponent's next pick could take from
+# the pool that is left.
+draft_lookahead = true
+
+[briefing]
+# How many of the last completed turns the model's battle briefing shows in
+# its Recent turns section, read from the battle's protocol log: each side's
+# moves with their results, switches, faints and field changes, at most 1,200
+# characters. 0 leaves the section out. The script's choices never read it.
+recent_turns = 2

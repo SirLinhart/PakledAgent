@@ -1,0 +1,7 @@
+Choose the plan of our Red Alert army. The briefing above says, in plain words: the situation, with our recent plan picks and what came of each since; our forces; the enemy as we know it, with how long ago each part was seen; how the two armies compare; a glossary of every unit and building type it names; and the options, each open plan with what it would do now and each closed plan with what keeps it closed. Only an open plan can be chosen.
+Our opponent is another AI agent in a tournament; a 20-minute match not won outright goes to the tiebreak (value traded). Doctrine: economy and map control early; never attack into defenses we cannot beat; retreat and regroup when outnumbered; tanks crush infantry and kill tanks; artillery fires from behind a screen; punish exposed expansions and harvesters; keep a lead late. Learn from recent picks: repeat what worked, change what lost value.
+The plans:
+HOLD: stay home, grow the economy and the army, defend.
+RAID: a small fast group hits the enemy's harvesters and economy where no defense covers them; the main army stays home.
+PRESS: the main army attacks the enemy base once it is strong, and the raids go on.
+Prefer RAID while the enemy economy is open, PRESS when our army clearly outweighs the enemy's, HOLD when our base is threatened or we are weaker. Never risk a lead late in the match.

@@ -1,0 +1,85 @@
+/* The page's tokens and layout. Blue is ours and red is the enemy's or a loss, as in the game. */
+:root {
+  --ground: #e9ece4;
+  --sheet: #f6f7f2;
+  --ink: #1d2630;
+  --muted: #5b6670;
+  --rule: #b9c0b4;
+  --ours: #2b5ba8;
+  --theirs: #b8322a;
+  --figure-face: "Bahnschrift", "DIN Alternate", "Arial Narrow", sans-serif;
+  --text-face: "Segoe UI", system-ui, -apple-system, sans-serif;
+  --raw-face: "Cascadia Mono", Consolas, "Courier New", monospace;
+  --gap: 12px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font: 14px/1.45 var(--text-face);
+  font-variant-numeric: tabular-nums;
+}
+
+h2 {
+  margin: 0 0 8px;
+  font: 600 15px/1.2 var(--figure-face);
+  font-stretch: condensed;
+  letter-spacing: 0.01em;
+}
+
+.strip,
+.band {
+  padding: 10px var(--gap);
+  border-bottom: 1px solid var(--rule);
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: var(--gap);
+  padding: var(--gap);
+  align-items: start;
+}
+
+.stack {
+  display: grid;
+  gap: var(--gap);
+}
+
+.panel {
+  background: var(--sheet);
+  border: 1px solid var(--rule);
+  padding: 10px;
+  min-width: 0;
+}
+
+.empty {
+  color: var(--muted);
+  margin: 4px 0;
+}
+
+#status {
+  padding: 6px var(--gap) 12px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+#status.unreachable {
+  color: var(--theirs);
+}
+
+:focus-visible {
+  outline: 2px solid var(--ours);
+  outline-offset: 2px;
+}
+
+@media (max-width: 900px) {
+  .columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

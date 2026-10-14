@@ -1,0 +1,109 @@
+{
+  "session_id": "fake-session",
+  "game_type": "red_alert",
+  "status": "in_progress",
+  "state_version": 2170,
+  "phase": "playing",
+  "is_terminal": false,
+  "is_current_actor": true,
+  "your_seat": "Multi0",
+  "players": [
+    {"seat": "Multi0", "agent_id": "fake-agent", "name": "fake-agent", "faction": "england", "checked_in": true},
+    {"seat": "Multi1", "agent_id": "fake-opponent", "name": "fake-opponent", "faction": "russia", "checked_in": true}
+  ],
+  "pacing": {"mode": "realtime", "min_batch_interval_s": 0.2, "stale_seconds": 120, "next_batch_allowed_in_ms": 0},
+  "limits": {"max_orders_per_batch": 20, "max_units_per_order": 50, "max_train_count": 10, "min_batch_interval_s": 0.2, "stale_seconds": 120},
+  "time": {"max_minutes": 20, "game_seconds": 86.8, "remaining_seconds": 1113.2},
+  "map": {"id": "fake-arena", "width": 96, "height": 96, "bounds": [0, 0, 96, 96]},
+  "match_rules": {"starting_cash": 5000, "starting_units": "none", "explored_map": false, "kill_bounties": false, "crates": false},
+  "observation": {
+    "tick": 2170,
+    "faction": "england",
+    "enemy_faction": "russia",
+    "economy": {"cash": 420, "ore": 0, "power_provided": 100, "power_drained": 70, "resource_capacity": 2000, "harvesters": 1},
+    "military": {"kills_cost": 0, "deaths_cost": 100, "assets_value": 6300, "army_value": 400, "units_killed": 0, "buildings_killed": 0, "units_lost": 1, "buildings_lost": 0},
+    "units": [
+      {"id": 105, "type": "harv", "x": 24, "y": 47, "hp": 60, "act": "harvest", "idle": false, "stance": "attack_anything"},
+      {"id": 108, "type": "e1", "x": 21, "y": 49, "hp": 100, "act": null, "idle": true, "stance": "attack_anything"},
+      {"id": 109, "type": "e1", "x": 22, "y": 46, "hp": 100, "act": null, "idle": true, "stance": "attack_anything"},
+      {"id": 110, "type": "e1", "x": 19, "y": 48, "hp": 100, "act": null, "idle": true, "stance": "attack_anything"},
+      {"id": 111, "type": "e1", "x": 18, "y": 50, "hp": 100, "act": null, "idle": true, "stance": "attack_anything"}
+    ],
+    "buildings": [
+      {"id": 101, "type": "fact", "x": 22, "y": 48, "hp": 82, "powered": true, "powered_down": false, "repairing": false, "producing": null, "rally": null},
+      {"id": 102, "type": "powr", "x": 22, "y": 46, "hp": 45, "powered": true, "powered_down": false, "repairing": true, "producing": null, "rally": null},
+      {"id": 103, "type": "tent", "x": 20, "y": 48, "hp": 100, "powered": true, "powered_down": false, "repairing": false, "producing": null, "rally": null},
+      {"id": 104, "type": "proc", "x": 24, "y": 48, "hp": 100, "powered": true, "powered_down": false, "repairing": false, "producing": null, "rally": null},
+      {"id": 106, "type": "pbox", "x": 27, "y": 48, "hp": 100, "powered": true, "powered_down": false, "repairing": false, "producing": null, "rally": null}
+    ],
+    "production": [],
+    "available_production": ["powr", "tent", "proc", "weap", "dome", "syrd", "silo", "pbox", "hbox", "gun", "e1", "e3", "e6", "medi"],
+    "visible_enemies": [
+      {"id": 112, "type": "e1", "x": 30, "y": 46, "hp": 100},
+      {"id": 113, "type": "e1", "x": 30, "y": 47, "hp": 100},
+      {"id": 114, "type": "e1", "x": 31, "y": 48, "hp": 100},
+      {"id": 115, "type": "e1", "x": 30, "y": 49, "hp": 100},
+      {"id": 116, "type": "e1", "x": 31, "y": 50, "hp": 100},
+      {"id": 117, "type": "e1", "x": 32, "y": 47, "hp": 100},
+      {"id": 118, "type": "3tnk", "x": 33, "y": 48, "hp": 90},
+      {"id": 119, "type": "3tnk", "x": 33, "y": 50, "hp": 100}
+    ],
+    "visible_enemy_buildings": [],
+    "map": {"id": "fake-arena", "width": 96, "height": 96},
+    "base_center": [22, 48],
+    "explored_percent": 0.0,
+    "events": [
+      {"seq": 7, "tick": 1335, "kind": "building_created", "id": 104, "type": "proc", "x": 24, "y": 48},
+      {"seq": 8, "tick": 1335, "kind": "unit_created", "id": 105, "type": "harv", "x": 24, "y": 47},
+      {"seq": 9, "tick": 1700, "kind": "production_ready", "type": "pbox"},
+      {"seq": 10, "tick": 1700, "kind": "building_created", "id": 106, "type": "pbox", "x": 27, "y": 48},
+      {"seq": 11, "tick": 1765, "kind": "unit_created", "id": 107, "type": "e1", "x": 22, "y": 49},
+      {"seq": 12, "tick": 1825, "kind": "unit_created", "id": 108, "type": "e1", "x": 21, "y": 49},
+      {"seq": 13, "tick": 1885, "kind": "unit_created", "id": 109, "type": "e1", "x": 22, "y": 46},
+      {"seq": 14, "tick": 1945, "kind": "unit_created", "id": 110, "type": "e1", "x": 19, "y": 48},
+      {"seq": 15, "tick": 2005, "kind": "unit_created", "id": 111, "type": "e1", "x": 18, "y": 50},
+      {"seq": 16, "tick": 2160, "kind": "enemy_spotted", "id": 112, "type": "e1", "x": 30, "y": 46},
+      {"seq": 17, "tick": 2160, "kind": "enemy_spotted", "id": 113, "type": "e1", "x": 30, "y": 47},
+      {"seq": 18, "tick": 2160, "kind": "enemy_spotted", "id": 114, "type": "e1", "x": 31, "y": 48},
+      {"seq": 19, "tick": 2160, "kind": "enemy_spotted", "id": 115, "type": "e1", "x": 30, "y": 49},
+      {"seq": 20, "tick": 2160, "kind": "enemy_spotted", "id": 116, "type": "e1", "x": 31, "y": 50},
+      {"seq": 21, "tick": 2160, "kind": "enemy_spotted", "id": 117, "type": "e1", "x": 32, "y": 47},
+      {"seq": 22, "tick": 2160, "kind": "enemy_spotted", "id": 118, "type": "3tnk", "x": 33, "y": 48},
+      {"seq": 23, "tick": 2160, "kind": "enemy_spotted", "id": 119, "type": "3tnk", "x": 33, "y": 50},
+      {"seq": 24, "tick": 2160, "kind": "under_attack", "id": 101, "type": "fact", "x": 22, "y": 48, "hp": 82},
+      {"seq": 25, "tick": 2165, "kind": "under_attack", "id": 105, "type": "harv", "x": 24, "y": 47, "hp": 60},
+      {"seq": 26, "tick": 2165, "kind": "unit_lost", "id": 107, "type": "e1", "x": 22, "y": 49}
+    ]
+  },
+  "last_orders": {
+    "state_version": 2165,
+    "batch": 11,
+    "carried": 0,
+    "pending": false,
+    "applied_at_tick": 2170,
+    "results": [
+      {"index": 0, "cmd": "repair", "status": "ok", "reason": "ok", "detail": null, "commands": 1, "failed": []}
+    ],
+    "accepted_orders": 1,
+    "rejected_orders": 0
+  },
+  "recent_order_problems": [],
+  "legal_actions": {
+    "build": ["powr", "tent", "proc", "weap", "dome", "syrd", "silo", "pbox", "hbox", "gun"],
+    "train": ["e1", "e3", "e6", "medi"],
+    "place": [],
+    "deploy": [],
+    "repair": [101],
+    "attack": [112, 113, 114, 115, 116, 117, 118, 119],
+    "attack_now": {"cmd": "attack_move", "units": [108, 109, 110, 111], "to": [30, 49]},
+    "enemy_base": [74, 48],
+    "combat_units": [108, 109, 110, 111],
+    "idle_units": [108, 109, 110, 111],
+    "harvesters": [105],
+    "production_buildings": [
+      {"id": 101, "type": "fact"},
+      {"id": 103, "type": "tent"}
+    ],
+    "how_to_send": "play_action(session_id, state_version=<this state's state_version>, action={\"type\": \"orders\", \"orders\": [<order>, ...]})"
+  }
+}

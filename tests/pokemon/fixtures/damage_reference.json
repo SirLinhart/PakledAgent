@@ -1,0 +1,3485 @@
+{
+  "calculator": "@smogon/calc",
+  "calc_version": "0.12.0",
+  "generation": 9,
+  "level": 50,
+  "game_type": "Doubles",
+  "cases": [
+    {
+      "name": "STAB special hit, neutral",
+      "attacker": {
+        "species": "Flutter Mane",
+        "nature": "Timid",
+        "evs": {
+          "spa": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": null,
+        "ability": "Protosynthesis",
+        "status": null,
+        "boosts": {}
+      },
+      "move": "Moonblast",
+      "defender": {
+        "species": "Rillaboom",
+        "nature": "Adamant",
+        "evs": {
+          "hp": 252,
+          "spd": 4
+        },
+        "item": null,
+        "ability": "Grassy Surge",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": null,
+        "terrain": null,
+        "reflect": false,
+        "light_screen": false,
+        "spread": false
+      },
+      "expected": {
+        "min": 109,
+        "max": 130,
+        "defender_max_hp": 207,
+        "rolls": [
+          [
+            109,
+            111,
+            112,
+            114,
+            115,
+            117,
+            118,
+            120,
+            120,
+            121,
+            123,
+            124,
+            126,
+            127,
+            129,
+            130
+          ]
+        ]
+      }
+    },
+    {
+      "name": "resisted hit",
+      "attacker": {
+        "species": "Garchomp",
+        "nature": "Jolly",
+        "evs": {
+          "atk": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": null,
+        "ability": "Rough Skin",
+        "status": null,
+        "boosts": {}
+      },
+      "move": "Dragon Claw",
+      "defender": {
+        "species": "Gholdengo",
+        "nature": "Modest",
+        "evs": {
+          "hp": 252,
+          "def": 4
+        },
+        "item": null,
+        "ability": "Good as Gold",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": null,
+        "terrain": null,
+        "reflect": false,
+        "light_screen": false,
+        "spread": false
+      },
+      "expected": {
+        "min": 36,
+        "max": 42,
+        "defender_max_hp": 194,
+        "rolls": [
+          [
+            36,
+            36,
+            36,
+            37,
+            37,
+            38,
+            38,
+            39,
+            39,
+            39,
+            40,
+            40,
+            41,
+            41,
+            42,
+            42
+          ]
+        ]
+      }
+    },
+    {
+      "name": "immune hit (Ground into Flying)",
+      "attacker": {
+        "species": "Garchomp",
+        "nature": "Jolly",
+        "evs": {
+          "atk": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": null,
+        "ability": "Rough Skin",
+        "status": null,
+        "boosts": {}
+      },
+      "move": "Stomping Tantrum",
+      "defender": {
+        "species": "Corviknight",
+        "nature": "Impish",
+        "evs": {
+          "hp": 252,
+          "def": 252
+        },
+        "item": null,
+        "ability": "Pressure",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": null,
+        "terrain": null,
+        "reflect": false,
+        "light_screen": false,
+        "spread": false
+      },
+      "expected": {
+        "min": 0,
+        "max": 0,
+        "defender_max_hp": 205,
+        "rolls": [
+          [
+            0
+          ]
+        ]
+      }
+    },
+    {
+      "name": "spread move, super effective",
+      "attacker": {
+        "species": "Garchomp",
+        "nature": "Adamant",
+        "evs": {
+          "atk": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": null,
+        "ability": "Rough Skin",
+        "status": null,
+        "boosts": {}
+      },
+      "move": "Earthquake",
+      "defender": {
+        "species": "Kingambit",
+        "nature": "Adamant",
+        "evs": {
+          "hp": 252,
+          "def": 4
+        },
+        "item": null,
+        "ability": "Supreme Overlord",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": null,
+        "terrain": null,
+        "reflect": false,
+        "light_screen": false,
+        "spread": true
+      },
+      "expected": {
+        "min": 120,
+        "max": 144,
+        "defender_max_hp": 207,
+        "rolls": [
+          [
+            120,
+            122,
+            122,
+            126,
+            126,
+            128,
+            128,
+            132,
+            132,
+            134,
+            134,
+            138,
+            138,
+            140,
+            140,
+            144
+          ]
+        ]
+      }
+    },
+    {
+      "name": "sun-boosted Fire move",
+      "attacker": {
+        "species": "Charizard",
+        "nature": "Timid",
+        "evs": {
+          "spa": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": null,
+        "ability": "Blaze",
+        "status": null,
+        "boosts": {}
+      },
+      "move": "Flamethrower",
+      "defender": {
+        "species": "Amoonguss",
+        "nature": "Bold",
+        "evs": {
+          "hp": 252,
+          "def": 156,
+          "spd": 100
+        },
+        "item": null,
+        "ability": "Regenerator",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": "Sun",
+        "terrain": null,
+        "reflect": false,
+        "light_screen": false,
+        "spread": false
+      },
+      "expected": {
+        "min": 218,
+        "max": 260,
+        "defender_max_hp": 221,
+        "rolls": [
+          [
+            218,
+            222,
+            224,
+            228,
+            230,
+            234,
+            236,
+            240,
+            240,
+            242,
+            246,
+            248,
+            252,
+            254,
+            258,
+            260
+          ]
+        ]
+      }
+    },
+    {
+      "name": "Electric Terrain into Light Screen",
+      "attacker": {
+        "species": "Raichu",
+        "nature": "Modest",
+        "evs": {
+          "spa": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": null,
+        "ability": "Static",
+        "status": null,
+        "boosts": {}
+      },
+      "move": "Thunderbolt",
+      "defender": {
+        "species": "Pelipper",
+        "nature": "Bold",
+        "evs": {
+          "hp": 252,
+          "def": 252,
+          "spd": 4
+        },
+        "item": null,
+        "ability": "Drizzle",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": null,
+        "terrain": "Electric",
+        "reflect": false,
+        "light_screen": true,
+        "spread": false
+      },
+      "expected": {
+        "min": 304,
+        "max": 360,
+        "defender_max_hp": 167,
+        "rolls": [
+          [
+            304,
+            307,
+            312,
+            315,
+            320,
+            323,
+            323,
+            328,
+            331,
+            336,
+            339,
+            344,
+            347,
+            352,
+            355,
+            360
+          ]
+        ]
+      }
+    },
+    {
+      "name": "burned physical attacker",
+      "attacker": {
+        "species": "Kingambit",
+        "nature": "Adamant",
+        "evs": {
+          "hp": 252,
+          "atk": 252,
+          "spd": 4
+        },
+        "item": null,
+        "ability": "Supreme Overlord",
+        "status": "brn",
+        "boosts": {}
+      },
+      "move": "Kowtow Cleave",
+      "defender": {
+        "species": "Gholdengo",
+        "nature": "Modest",
+        "evs": {
+          "hp": 252,
+          "def": 4
+        },
+        "item": null,
+        "ability": "Good as Gold",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": null,
+        "terrain": null,
+        "reflect": false,
+        "light_screen": false,
+        "spread": false
+      },
+      "expected": {
+        "min": 85,
+        "max": 102,
+        "defender_max_hp": 194,
+        "rolls": [
+          [
+            85,
+            87,
+            88,
+            88,
+            90,
+            91,
+            91,
+            93,
+            94,
+            94,
+            96,
+            97,
+            97,
+            99,
+            100,
+            102
+          ]
+        ]
+      }
+    },
+    {
+      "name": "Choice Specs",
+      "attacker": {
+        "species": "Flutter Mane",
+        "nature": "Modest",
+        "evs": {
+          "spa": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": "Choice Specs",
+        "ability": "Protosynthesis",
+        "status": null,
+        "boosts": {}
+      },
+      "move": "Shadow Ball",
+      "defender": {
+        "species": "Gholdengo",
+        "nature": "Timid",
+        "evs": {
+          "hp": 4,
+          "spa": 252,
+          "spe": 252
+        },
+        "item": null,
+        "ability": "Good as Gold",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": null,
+        "terrain": null,
+        "reflect": false,
+        "light_screen": false,
+        "spread": false
+      },
+      "expected": {
+        "min": 252,
+        "max": 296,
+        "defender_max_hp": 163,
+        "rolls": [
+          [
+            252,
+            254,
+            258,
+            260,
+            264,
+            266,
+            270,
+            272,
+            276,
+            278,
+            282,
+            284,
+            288,
+            290,
+            294,
+            296
+          ]
+        ]
+      }
+    },
+    {
+      "name": "Life Orb",
+      "attacker": {
+        "species": "Talonflame",
+        "nature": "Adamant",
+        "evs": {
+          "atk": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": "Life Orb",
+        "ability": "Gale Wings",
+        "status": null,
+        "boosts": {}
+      },
+      "move": "Brave Bird",
+      "defender": {
+        "species": "Rillaboom",
+        "nature": "Adamant",
+        "evs": {
+          "hp": 252,
+          "atk": 252,
+          "def": 4
+        },
+        "item": null,
+        "ability": "Grassy Surge",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": null,
+        "terrain": null,
+        "reflect": false,
+        "light_screen": false,
+        "spread": false
+      },
+      "expected": {
+        "min": 234,
+        "max": 276,
+        "defender_max_hp": 207,
+        "rolls": [
+          [
+            234,
+            237,
+            237,
+            242,
+            244,
+            244,
+            250,
+            252,
+            257,
+            257,
+            260,
+            265,
+            265,
+            268,
+            273,
+            276
+          ]
+        ]
+      }
+    },
+    {
+      "name": "Assault Vest defender",
+      "attacker": {
+        "species": "Flutter Mane",
+        "nature": "Timid",
+        "evs": {
+          "spa": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": null,
+        "ability": "Protosynthesis",
+        "status": null,
+        "boosts": {}
+      },
+      "move": "Moonblast",
+      "defender": {
+        "species": "Iron Hands",
+        "nature": "Adamant",
+        "evs": {
+          "hp": 252,
+          "atk": 252,
+          "spd": 4
+        },
+        "item": "Assault Vest",
+        "ability": "Quark Drive",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": null,
+        "terrain": null,
+        "reflect": false,
+        "light_screen": false,
+        "spread": false
+      },
+      "expected": {
+        "min": 152,
+        "max": 180,
+        "defender_max_hp": 261,
+        "rolls": [
+          [
+            152,
+            152,
+            156,
+            156,
+            158,
+            162,
+            162,
+            164,
+            164,
+            168,
+            170,
+            170,
+            174,
+            174,
+            176,
+            180
+          ]
+        ]
+      }
+    },
+    {
+      "name": "attack lowered one stage by Intimidate",
+      "attacker": {
+        "species": "Urshifu-Rapid-Strike",
+        "nature": "Adamant",
+        "evs": {
+          "atk": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": null,
+        "ability": "Unseen Fist",
+        "status": null,
+        "boosts": {
+          "atk": -1
+        }
+      },
+      "move": "Close Combat",
+      "defender": {
+        "species": "Kingambit",
+        "nature": "Adamant",
+        "evs": {
+          "hp": 252,
+          "def": 4
+        },
+        "item": null,
+        "ability": "Supreme Overlord",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": null,
+        "terrain": null,
+        "reflect": false,
+        "light_screen": false,
+        "spread": false
+      },
+      "expected": {
+        "min": 256,
+        "max": 304,
+        "defender_max_hp": 207,
+        "rolls": [
+          [
+            256,
+            256,
+            264,
+            264,
+            268,
+            268,
+            276,
+            276,
+            280,
+            280,
+            288,
+            288,
+            292,
+            292,
+            300,
+            304
+          ]
+        ]
+      }
+    },
+    {
+      "name": "Multiscale at full HP",
+      "attacker": {
+        "species": "Iron Bundle",
+        "nature": "Timid",
+        "evs": {
+          "spa": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": null,
+        "ability": "Quark Drive",
+        "status": null,
+        "boosts": {}
+      },
+      "move": "Ice Beam",
+      "defender": {
+        "species": "Dragonite",
+        "nature": "Adamant",
+        "evs": {
+          "hp": 252,
+          "atk": 252,
+          "spd": 4
+        },
+        "item": null,
+        "ability": "Multiscale",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": null,
+        "terrain": null,
+        "reflect": false,
+        "light_screen": false,
+        "spread": false
+      },
+      "expected": {
+        "min": 150,
+        "max": 176,
+        "defender_max_hp": 198,
+        "rolls": [
+          [
+            150,
+            150,
+            152,
+            152,
+            156,
+            158,
+            158,
+            162,
+            162,
+            164,
+            168,
+            168,
+            170,
+            170,
+            174,
+            176
+          ]
+        ]
+      }
+    },
+    {
+      "name": "Surging Strikes: three always-crit hits through a +1 Defense, Mystic Water",
+      "attacker": {
+        "species": "Urshifu-Rapid-Strike",
+        "nature": "Adamant",
+        "evs": {
+          "atk": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": "Mystic Water",
+        "ability": "Unseen Fist",
+        "status": null,
+        "boosts": {}
+      },
+      "move": "Surging Strikes",
+      "defender": {
+        "species": "Incineroar",
+        "nature": "Careful",
+        "evs": {
+          "hp": 252,
+          "def": 4,
+          "spd": 252
+        },
+        "item": null,
+        "ability": "Blaze",
+        "status": null,
+        "boosts": {
+          "def": 1
+        }
+      },
+      "field": {
+        "weather": null,
+        "terrain": null,
+        "reflect": false,
+        "light_screen": false,
+        "spread": false
+      },
+      "expected": {
+        "min": 276,
+        "max": 330,
+        "defender_max_hp": 202,
+        "rolls": [
+          [
+            92,
+            92,
+            96,
+            96,
+            96,
+            98,
+            98,
+            102,
+            102,
+            102,
+            104,
+            104,
+            104,
+            108,
+            108,
+            110
+          ],
+          [
+            92,
+            92,
+            96,
+            96,
+            96,
+            98,
+            98,
+            102,
+            102,
+            102,
+            104,
+            104,
+            104,
+            108,
+            108,
+            110
+          ],
+          [
+            92,
+            92,
+            96,
+            96,
+            96,
+            98,
+            98,
+            102,
+            102,
+            102,
+            104,
+            104,
+            104,
+            108,
+            108,
+            110
+          ]
+        ]
+      }
+    },
+    {
+      "name": "Technician",
+      "attacker": {
+        "species": "Scizor",
+        "nature": "Adamant",
+        "evs": {
+          "hp": 252,
+          "atk": 252,
+          "spd": 4
+        },
+        "item": null,
+        "ability": "Technician",
+        "status": null,
+        "boosts": {}
+      },
+      "move": "Bullet Punch",
+      "defender": {
+        "species": "Flutter Mane",
+        "nature": "Timid",
+        "evs": {
+          "hp": 4,
+          "spa": 252,
+          "spe": 252
+        },
+        "item": null,
+        "ability": "Protosynthesis",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": null,
+        "terrain": null,
+        "reflect": false,
+        "light_screen": false,
+        "spread": false
+      },
+      "expected": {
+        "min": 182,
+        "max": 216,
+        "defender_max_hp": 131,
+        "rolls": [
+          [
+            182,
+            182,
+            186,
+            188,
+            192,
+            192,
+            194,
+            198,
+            198,
+            200,
+            204,
+            206,
+            206,
+            210,
+            212,
+            216
+          ]
+        ]
+      }
+    },
+    {
+      "name": "Huge Power into Reflect",
+      "attacker": {
+        "species": "Azumarill",
+        "nature": "Adamant",
+        "evs": {
+          "hp": 252,
+          "atk": 252,
+          "spd": 4
+        },
+        "item": null,
+        "ability": "Huge Power",
+        "status": null,
+        "boosts": {}
+      },
+      "move": "Play Rough",
+      "defender": {
+        "species": "Garchomp",
+        "nature": "Jolly",
+        "evs": {
+          "atk": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": null,
+        "ability": "Rough Skin",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": null,
+        "terrain": null,
+        "reflect": true,
+        "light_screen": false,
+        "spread": false
+      },
+      "expected": {
+        "min": 133,
+        "max": 157,
+        "defender_max_hp": 184,
+        "rolls": [
+          [
+            133,
+            133,
+            136,
+            137,
+            140,
+            141,
+            141,
+            144,
+            145,
+            148,
+            149,
+            149,
+            152,
+            153,
+            156,
+            157
+          ]
+        ]
+      }
+    }
+  ],
+  "modifier_cases": [
+    {
+      "name": "Adaptability, STAB",
+      "attacker": {
+        "species": "Porygon-Z",
+        "nature": "Modest",
+        "evs": {
+          "spa": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": null,
+        "ability": "Adaptability",
+        "status": null,
+        "boosts": {}
+      },
+      "move": "Hyper Beam",
+      "defender": {
+        "species": "Incineroar",
+        "nature": "Careful",
+        "evs": {
+          "hp": 252,
+          "def": 252,
+          "spd": 4
+        },
+        "item": null,
+        "ability": "Blaze",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": null,
+        "terrain": null,
+        "reflect": false,
+        "light_screen": false,
+        "spread": false
+      },
+      "expected": {
+        "min": 190,
+        "max": 224,
+        "defender_max_hp": 202,
+        "rolls": [
+          [
+            190,
+            192,
+            194,
+            196,
+            198,
+            200,
+            202,
+            206,
+            208,
+            210,
+            212,
+            214,
+            216,
+            218,
+            220,
+            224
+          ]
+        ]
+      }
+    },
+    {
+      "name": "Adaptability, no STAB",
+      "attacker": {
+        "species": "Porygon-Z",
+        "nature": "Modest",
+        "evs": {
+          "spa": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": null,
+        "ability": "Adaptability",
+        "status": null,
+        "boosts": {}
+      },
+      "move": "Tri Attack",
+      "defender": {
+        "species": "Incineroar",
+        "nature": "Careful",
+        "evs": {
+          "hp": 252,
+          "def": 252,
+          "spd": 4
+        },
+        "item": null,
+        "ability": "Blaze",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": null,
+        "terrain": null,
+        "reflect": false,
+        "light_screen": false,
+        "spread": false
+      },
+      "expected": {
+        "min": 102,
+        "max": 122,
+        "defender_max_hp": 202,
+        "rolls": [
+          [
+            102,
+            104,
+            106,
+            106,
+            108,
+            108,
+            110,
+            112,
+            112,
+            114,
+            114,
+            116,
+            118,
+            118,
+            120,
+            122
+          ]
+        ]
+      }
+    },
+    {
+      "name": "Guts while burned",
+      "attacker": {
+        "species": "Ursaluna",
+        "nature": "Adamant",
+        "evs": {
+          "atk": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": null,
+        "ability": "Guts",
+        "status": "brn",
+        "boosts": {}
+      },
+      "move": "Headlong Rush",
+      "defender": {
+        "species": "Incineroar",
+        "nature": "Careful",
+        "evs": {
+          "hp": 252,
+          "def": 252,
+          "spd": 4
+        },
+        "item": null,
+        "ability": "Blaze",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": null,
+        "terrain": null,
+        "reflect": false,
+        "light_screen": false,
+        "spread": false
+      },
+      "expected": {
+        "min": 302,
+        "max": 356,
+        "defender_max_hp": 202,
+        "rolls": [
+          [
+            302,
+            306,
+            308,
+            312,
+            314,
+            320,
+            324,
+            326,
+            330,
+            332,
+            338,
+            342,
+            344,
+            348,
+            350,
+            356
+          ]
+        ]
+      }
+    },
+    {
+      "name": "Thick Fat",
+      "attacker": {
+        "species": "Charizard",
+        "nature": "Timid",
+        "evs": {
+          "spa": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": null,
+        "ability": "Blaze",
+        "status": null,
+        "boosts": {}
+      },
+      "move": "Flamethrower",
+      "defender": {
+        "species": "Mamoswine",
+        "nature": "Adamant",
+        "evs": {
+          "hp": 252,
+          "def": 252,
+          "spd": 4
+        },
+        "item": null,
+        "ability": "Thick Fat",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": null,
+        "terrain": null,
+        "reflect": false,
+        "light_screen": false,
+        "spread": false
+      },
+      "expected": {
+        "min": 102,
+        "max": 122,
+        "defender_max_hp": 217,
+        "rolls": [
+          [
+            102,
+            104,
+            104,
+            108,
+            108,
+            108,
+            110,
+            110,
+            114,
+            114,
+            114,
+            116,
+            116,
+            120,
+            120,
+            122
+          ]
+        ]
+      }
+    },
+    {
+      "name": "Filter, super effective",
+      "attacker": {
+        "species": "Garchomp",
+        "nature": "Jolly",
+        "evs": {
+          "atk": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": null,
+        "ability": "Rough Skin",
+        "status": null,
+        "boosts": {}
+      },
+      "move": "Iron Head",
+      "defender": {
+        "species": "Mr. Mime",
+        "nature": "Bold",
+        "evs": {
+          "hp": 252,
+          "def": 252,
+          "spd": 4
+        },
+        "item": null,
+        "ability": "Filter",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": null,
+        "terrain": null,
+        "reflect": false,
+        "light_screen": false,
+        "spread": false
+      },
+      "expected": {
+        "min": 66,
+        "max": 78,
+        "defender_max_hp": 147,
+        "rolls": [
+          [
+            66,
+            66,
+            67,
+            67,
+            69,
+            69,
+            70,
+            70,
+            72,
+            72,
+            73,
+            73,
+            75,
+            75,
+            76,
+            78
+          ]
+        ]
+      }
+    },
+    {
+      "name": "Filter, neutral spread",
+      "attacker": {
+        "species": "Garchomp",
+        "nature": "Jolly",
+        "evs": {
+          "atk": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": null,
+        "ability": "Rough Skin",
+        "status": null,
+        "boosts": {}
+      },
+      "move": "Rock Slide",
+      "defender": {
+        "species": "Mr. Mime",
+        "nature": "Bold",
+        "evs": {
+          "hp": 252,
+          "def": 252,
+          "spd": 4
+        },
+        "item": null,
+        "ability": "Filter",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": null,
+        "terrain": null,
+        "reflect": false,
+        "light_screen": false,
+        "spread": true
+      },
+      "expected": {
+        "min": 30,
+        "max": 36,
+        "defender_max_hp": 147,
+        "rolls": [
+          [
+            30,
+            30,
+            31,
+            31,
+            32,
+            32,
+            32,
+            33,
+            33,
+            33,
+            34,
+            34,
+            34,
+            35,
+            35,
+            36
+          ]
+        ]
+      }
+    },
+    {
+      "name": "Prism Armor, super effective",
+      "attacker": {
+        "species": "Flutter Mane",
+        "nature": "Timid",
+        "evs": {
+          "spa": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": null,
+        "ability": "Protosynthesis",
+        "status": null,
+        "boosts": {}
+      },
+      "move": "Shadow Ball",
+      "defender": {
+        "species": "Necrozma",
+        "nature": "Bold",
+        "evs": {
+          "hp": 252,
+          "def": 252,
+          "spd": 4
+        },
+        "item": null,
+        "ability": "Prism Armor",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": null,
+        "terrain": null,
+        "reflect": false,
+        "light_screen": false,
+        "spread": false
+      },
+      "expected": {
+        "min": 114,
+        "max": 136,
+        "defender_max_hp": 204,
+        "rolls": [
+          [
+            114,
+            117,
+            118,
+            118,
+            121,
+            121,
+            123,
+            126,
+            126,
+            127,
+            127,
+            130,
+            132,
+            132,
+            135,
+            136
+          ]
+        ]
+      }
+    },
+    {
+      "name": "Fluffy, contact",
+      "attacker": {
+        "species": "Urshifu",
+        "nature": "Adamant",
+        "evs": {
+          "atk": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": null,
+        "ability": "Unseen Fist",
+        "status": null,
+        "boosts": {}
+      },
+      "move": "Close Combat",
+      "defender": {
+        "species": "Dachsbun",
+        "nature": "Impish",
+        "evs": {
+          "hp": 252,
+          "def": 252,
+          "spd": 4
+        },
+        "item": null,
+        "ability": "Fluffy",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": null,
+        "terrain": null,
+        "reflect": false,
+        "light_screen": false,
+        "spread": false
+      },
+      "expected": {
+        "min": 18,
+        "max": 22,
+        "defender_max_hp": 164,
+        "rolls": [
+          [
+            18,
+            18,
+            19,
+            19,
+            19,
+            19,
+            19,
+            20,
+            20,
+            20,
+            21,
+            21,
+            21,
+            21,
+            21,
+            22
+          ]
+        ]
+      }
+    },
+    {
+      "name": "Fluffy, Fire",
+      "attacker": {
+        "species": "Charizard",
+        "nature": "Timid",
+        "evs": {
+          "spa": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": null,
+        "ability": "Blaze",
+        "status": null,
+        "boosts": {}
+      },
+      "move": "Flamethrower",
+      "defender": {
+        "species": "Dachsbun",
+        "nature": "Impish",
+        "evs": {
+          "hp": 252,
+          "def": 252,
+          "spd": 4
+        },
+        "item": null,
+        "ability": "Fluffy",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": null,
+        "terrain": null,
+        "reflect": false,
+        "light_screen": false,
+        "spread": false
+      },
+      "expected": {
+        "min": 164,
+        "max": 194,
+        "defender_max_hp": 164,
+        "rolls": [
+          [
+            164,
+            164,
+            168,
+            170,
+            170,
+            174,
+            176,
+            176,
+            180,
+            182,
+            182,
+            186,
+            188,
+            188,
+            192,
+            194
+          ]
+        ]
+      }
+    },
+    {
+      "name": "Ice Scales",
+      "attacker": {
+        "species": "Flutter Mane",
+        "nature": "Timid",
+        "evs": {
+          "spa": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": null,
+        "ability": "Protosynthesis",
+        "status": null,
+        "boosts": {}
+      },
+      "move": "Moonblast",
+      "defender": {
+        "species": "Frosmoth",
+        "nature": "Bold",
+        "evs": {
+          "hp": 252,
+          "def": 252,
+          "spd": 4
+        },
+        "item": null,
+        "ability": "Ice Scales",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": null,
+        "terrain": null,
+        "reflect": false,
+        "light_screen": false,
+        "spread": false
+      },
+      "expected": {
+        "min": 45,
+        "max": 54,
+        "defender_max_hp": 177,
+        "rolls": [
+          [
+            45,
+            45,
+            46,
+            47,
+            48,
+            48,
+            48,
+            49,
+            49,
+            50,
+            51,
+            51,
+            51,
+            52,
+            53,
+            54
+          ]
+        ]
+      }
+    },
+    {
+      "name": "Expert Belt, spread",
+      "attacker": {
+        "species": "Garchomp",
+        "nature": "Jolly",
+        "evs": {
+          "atk": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": "Expert Belt",
+        "ability": "Rough Skin",
+        "status": null,
+        "boosts": {}
+      },
+      "move": "Earthquake",
+      "defender": {
+        "species": "Kingambit",
+        "nature": "Adamant",
+        "evs": {
+          "hp": 252,
+          "def": 252,
+          "spd": 4
+        },
+        "item": null,
+        "ability": "Supreme Overlord",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": null,
+        "terrain": null,
+        "reflect": false,
+        "light_screen": false,
+        "spread": true
+      },
+      "expected": {
+        "min": 108,
+        "max": 130,
+        "defender_max_hp": 207,
+        "rolls": [
+          [
+            108,
+            108,
+            110,
+            110,
+            115,
+            115,
+            115,
+            118,
+            118,
+            118,
+            122,
+            122,
+            122,
+            125,
+            125,
+            130
+          ]
+        ]
+      }
+    },
+    {
+      "name": "Eviolite",
+      "attacker": {
+        "species": "Garchomp",
+        "nature": "Jolly",
+        "evs": {
+          "atk": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": null,
+        "ability": "Rough Skin",
+        "status": null,
+        "boosts": {}
+      },
+      "move": "Dragon Claw",
+      "defender": {
+        "species": "Dusclops",
+        "nature": "Relaxed",
+        "evs": {
+          "hp": 252,
+          "def": 252,
+          "spd": 4
+        },
+        "item": "Eviolite",
+        "ability": "Frisk",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": null,
+        "terrain": null,
+        "reflect": false,
+        "light_screen": false,
+        "spread": false
+      },
+      "expected": {
+        "min": 28,
+        "max": 34,
+        "defender_max_hp": 147,
+        "rolls": [
+          [
+            28,
+            28,
+            30,
+            30,
+            30,
+            30,
+            30,
+            31,
+            31,
+            31,
+            31,
+            33,
+            33,
+            33,
+            33,
+            34
+          ]
+        ]
+      }
+    },
+    {
+      "name": "Tough Claws",
+      "attacker": {
+        "species": "Meowscarada",
+        "nature": "Jolly",
+        "evs": {
+          "atk": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": null,
+        "ability": "Tough Claws",
+        "status": null,
+        "boosts": {}
+      },
+      "move": "Flower Trick",
+      "defender": {
+        "species": "Urshifu-Rapid-Strike",
+        "nature": "Adamant",
+        "evs": {
+          "hp": 252,
+          "def": 252,
+          "spd": 4
+        },
+        "item": null,
+        "ability": "Unseen Fist",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": null,
+        "terrain": null,
+        "reflect": false,
+        "light_screen": false,
+        "spread": false
+      },
+      "expected": {
+        "min": 128,
+        "max": 152,
+        "defender_max_hp": 207,
+        "rolls": [
+          [
+            128,
+            128,
+            132,
+            132,
+            134,
+            134,
+            138,
+            138,
+            140,
+            140,
+            144,
+            144,
+            146,
+            146,
+            150,
+            152
+          ]
+        ]
+      }
+    },
+    {
+      "name": "Sheer Force, secondary effect",
+      "attacker": {
+        "species": "Landorus",
+        "nature": "Timid",
+        "evs": {
+          "spa": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": null,
+        "ability": "Sheer Force",
+        "status": null,
+        "boosts": {}
+      },
+      "move": "Earth Power",
+      "defender": {
+        "species": "Kingambit",
+        "nature": "Adamant",
+        "evs": {
+          "hp": 252,
+          "def": 252,
+          "spd": 4
+        },
+        "item": null,
+        "ability": "Supreme Overlord",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": null,
+        "terrain": null,
+        "reflect": false,
+        "light_screen": false,
+        "spread": false
+      },
+      "expected": {
+        "min": 210,
+        "max": 248,
+        "defender_max_hp": 207,
+        "rolls": [
+          [
+            210,
+            212,
+            216,
+            218,
+            218,
+            222,
+            224,
+            228,
+            230,
+            234,
+            234,
+            236,
+            240,
+            242,
+            246,
+            248
+          ]
+        ]
+      }
+    },
+    {
+      "name": "Sheer Force, no secondary effect",
+      "attacker": {
+        "species": "Landorus",
+        "nature": "Timid",
+        "evs": {
+          "spa": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": null,
+        "ability": "Sheer Force",
+        "status": null,
+        "boosts": {}
+      },
+      "move": "Earthquake",
+      "defender": {
+        "species": "Incineroar",
+        "nature": "Careful",
+        "evs": {
+          "hp": 252,
+          "def": 252,
+          "spd": 4
+        },
+        "item": null,
+        "ability": "Blaze",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": null,
+        "terrain": null,
+        "reflect": false,
+        "light_screen": false,
+        "spread": true
+      },
+      "expected": {
+        "min": 78,
+        "max": 92,
+        "defender_max_hp": 202,
+        "rolls": [
+          [
+            78,
+            78,
+            78,
+            80,
+            80,
+            80,
+            84,
+            84,
+            84,
+            86,
+            86,
+            86,
+            90,
+            90,
+            90,
+            92
+          ]
+        ]
+      }
+    },
+    {
+      "name": "Hustle",
+      "attacker": {
+        "species": "Dragonite",
+        "nature": "Adamant",
+        "evs": {
+          "atk": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": null,
+        "ability": "Hustle",
+        "status": null,
+        "boosts": {}
+      },
+      "move": "Extreme Speed",
+      "defender": {
+        "species": "Kingambit",
+        "nature": "Adamant",
+        "evs": {
+          "hp": 252,
+          "def": 252,
+          "spd": 4
+        },
+        "item": null,
+        "ability": "Supreme Overlord",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": null,
+        "terrain": null,
+        "reflect": false,
+        "light_screen": false,
+        "spread": false
+      },
+      "expected": {
+        "min": 27,
+        "max": 32,
+        "defender_max_hp": 207,
+        "rolls": [
+          [
+            27,
+            27,
+            27,
+            28,
+            28,
+            28,
+            29,
+            29,
+            29,
+            30,
+            30,
+            30,
+            31,
+            31,
+            31,
+            32
+          ]
+        ]
+      }
+    },
+    {
+      "name": "Pure Power with Choice Band",
+      "attacker": {
+        "species": "Medicham",
+        "nature": "Adamant",
+        "evs": {
+          "atk": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": "Choice Band",
+        "ability": "Pure Power",
+        "status": null,
+        "boosts": {}
+      },
+      "move": "Zen Headbutt",
+      "defender": {
+        "species": "Amoonguss",
+        "nature": "Bold",
+        "evs": {
+          "hp": 252,
+          "def": 252,
+          "spd": 4
+        },
+        "item": null,
+        "ability": "Regenerator",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": null,
+        "terrain": null,
+        "reflect": false,
+        "light_screen": false,
+        "spread": false
+      },
+      "expected": {
+        "min": 248,
+        "max": 294,
+        "defender_max_hp": 221,
+        "rolls": [
+          [
+            248,
+            252,
+            254,
+            258,
+            260,
+            264,
+            266,
+            270,
+            272,
+            276,
+            278,
+            282,
+            284,
+            288,
+            290,
+            294
+          ]
+        ]
+      }
+    },
+    {
+      "name": "Rain, Water move",
+      "attacker": {
+        "species": "Pelipper",
+        "nature": "Modest",
+        "evs": {
+          "spa": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": null,
+        "ability": "Drizzle",
+        "status": null,
+        "boosts": {}
+      },
+      "move": "Hydro Pump",
+      "defender": {
+        "species": "Incineroar",
+        "nature": "Careful",
+        "evs": {
+          "hp": 252,
+          "def": 252,
+          "spd": 4
+        },
+        "item": null,
+        "ability": "Blaze",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": "Rain",
+        "terrain": null,
+        "reflect": false,
+        "light_screen": false,
+        "spread": false
+      },
+      "expected": {
+        "min": 246,
+        "max": 290,
+        "defender_max_hp": 202,
+        "rolls": [
+          [
+            246,
+            248,
+            252,
+            254,
+            258,
+            260,
+            264,
+            266,
+            270,
+            272,
+            276,
+            278,
+            282,
+            284,
+            288,
+            290
+          ]
+        ]
+      }
+    },
+    {
+      "name": "Rain, Fire spread move",
+      "attacker": {
+        "species": "Charizard",
+        "nature": "Timid",
+        "evs": {
+          "spa": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": null,
+        "ability": "Blaze",
+        "status": null,
+        "boosts": {}
+      },
+      "move": "Heat Wave",
+      "defender": {
+        "species": "Amoonguss",
+        "nature": "Bold",
+        "evs": {
+          "hp": 252,
+          "def": 252,
+          "spd": 4
+        },
+        "item": null,
+        "ability": "Regenerator",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": "Rain",
+        "terrain": null,
+        "reflect": false,
+        "light_screen": false,
+        "spread": true
+      },
+      "expected": {
+        "min": 62,
+        "max": 74,
+        "defender_max_hp": 221,
+        "rolls": [
+          [
+            62,
+            62,
+            62,
+            66,
+            66,
+            66,
+            66,
+            68,
+            68,
+            68,
+            68,
+            72,
+            72,
+            72,
+            72,
+            74
+          ]
+        ]
+      }
+    },
+    {
+      "name": "Sun, Water move",
+      "attacker": {
+        "species": "Pelipper",
+        "nature": "Modest",
+        "evs": {
+          "spa": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": null,
+        "ability": "Drizzle",
+        "status": null,
+        "boosts": {}
+      },
+      "move": "Hydro Pump",
+      "defender": {
+        "species": "Incineroar",
+        "nature": "Careful",
+        "evs": {
+          "hp": 252,
+          "def": 252,
+          "spd": 4
+        },
+        "item": null,
+        "ability": "Blaze",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": "Sun",
+        "terrain": null,
+        "reflect": false,
+        "light_screen": false,
+        "spread": false
+      },
+      "expected": {
+        "min": 80,
+        "max": 96,
+        "defender_max_hp": 202,
+        "rolls": [
+          [
+            80,
+            80,
+            80,
+            84,
+            84,
+            84,
+            86,
+            86,
+            86,
+            90,
+            90,
+            90,
+            92,
+            92,
+            92,
+            96
+          ]
+        ]
+      }
+    },
+    {
+      "name": "Grassy Terrain",
+      "attacker": {
+        "species": "Rillaboom",
+        "nature": "Adamant",
+        "evs": {
+          "atk": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": null,
+        "ability": "Grassy Surge",
+        "status": null,
+        "boosts": {}
+      },
+      "move": "Wood Hammer",
+      "defender": {
+        "species": "Urshifu-Rapid-Strike",
+        "nature": "Adamant",
+        "evs": {
+          "hp": 252,
+          "def": 252,
+          "spd": 4
+        },
+        "item": null,
+        "ability": "Unseen Fist",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": null,
+        "terrain": "Grassy",
+        "reflect": false,
+        "light_screen": false,
+        "spread": false
+      },
+      "expected": {
+        "min": 224,
+        "max": 266,
+        "defender_max_hp": 207,
+        "rolls": [
+          [
+            224,
+            228,
+            230,
+            234,
+            236,
+            240,
+            240,
+            242,
+            246,
+            248,
+            252,
+            254,
+            258,
+            260,
+            264,
+            266
+          ]
+        ]
+      }
+    },
+    {
+      "name": "Psychic Terrain",
+      "attacker": {
+        "species": "Indeedee-F",
+        "nature": "Modest",
+        "evs": {
+          "spa": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": null,
+        "ability": "Psychic Surge",
+        "status": null,
+        "boosts": {}
+      },
+      "move": "Psychic",
+      "defender": {
+        "species": "Amoonguss",
+        "nature": "Bold",
+        "evs": {
+          "hp": 252,
+          "def": 252,
+          "spd": 4
+        },
+        "item": null,
+        "ability": "Regenerator",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": null,
+        "terrain": "Psychic",
+        "reflect": false,
+        "light_screen": false,
+        "spread": false
+      },
+      "expected": {
+        "min": 212,
+        "max": 252,
+        "defender_max_hp": 221,
+        "rolls": [
+          [
+            212,
+            216,
+            218,
+            218,
+            222,
+            224,
+            228,
+            230,
+            234,
+            234,
+            236,
+            240,
+            242,
+            246,
+            248,
+            252
+          ]
+        ]
+      }
+    },
+    {
+      "name": "Electric Terrain, Flying user",
+      "attacker": {
+        "species": "Zapdos",
+        "nature": "Timid",
+        "evs": {
+          "spa": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": null,
+        "ability": "Static",
+        "status": null,
+        "boosts": {}
+      },
+      "move": "Thunderbolt",
+      "defender": {
+        "species": "Pelipper",
+        "nature": "Bold",
+        "evs": {
+          "hp": 252,
+          "def": 252,
+          "spd": 4
+        },
+        "item": null,
+        "ability": "Drizzle",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": null,
+        "terrain": "Electric",
+        "reflect": false,
+        "light_screen": false,
+        "spread": false
+      },
+      "expected": {
+        "min": 400,
+        "max": 472,
+        "defender_max_hp": 167,
+        "rolls": [
+          [
+            400,
+            400,
+            408,
+            412,
+            420,
+            424,
+            424,
+            432,
+            436,
+            444,
+            448,
+            448,
+            456,
+            460,
+            468,
+            472
+          ]
+        ]
+      }
+    },
+    {
+      "name": "Electric Terrain, Levitate user",
+      "attacker": {
+        "species": "Rotom-Wash",
+        "nature": "Modest",
+        "evs": {
+          "spa": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": null,
+        "ability": "Levitate",
+        "status": null,
+        "boosts": {}
+      },
+      "move": "Thunderbolt",
+      "defender": {
+        "species": "Pelipper",
+        "nature": "Bold",
+        "evs": {
+          "hp": 252,
+          "def": 252,
+          "spd": 4
+        },
+        "item": null,
+        "ability": "Drizzle",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": null,
+        "terrain": "Electric",
+        "reflect": false,
+        "light_screen": false,
+        "spread": false
+      },
+      "expected": {
+        "min": 384,
+        "max": 456,
+        "defender_max_hp": 167,
+        "rolls": [
+          [
+            384,
+            388,
+            396,
+            396,
+            400,
+            408,
+            412,
+            412,
+            420,
+            424,
+            432,
+            432,
+            436,
+            444,
+            448,
+            456
+          ]
+        ]
+      }
+    },
+    {
+      "name": "Technician 2-5 hits as 3",
+      "attacker": {
+        "species": "Breloom",
+        "nature": "Adamant",
+        "evs": {
+          "atk": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": null,
+        "ability": "Technician",
+        "status": null,
+        "boosts": {}
+      },
+      "move": "Bullet Seed",
+      "defender": {
+        "species": "Urshifu-Rapid-Strike",
+        "nature": "Adamant",
+        "evs": {
+          "hp": 252,
+          "def": 252,
+          "spd": 4
+        },
+        "item": null,
+        "ability": "Unseen Fist",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": null,
+        "terrain": null,
+        "reflect": false,
+        "light_screen": false,
+        "spread": false
+      },
+      "expected": {
+        "min": 168,
+        "max": 204,
+        "defender_max_hp": 207,
+        "rolls": [
+          [
+            56,
+            56,
+            60,
+            60,
+            60,
+            60,
+            60,
+            62,
+            62,
+            62,
+            62,
+            66,
+            66,
+            66,
+            66,
+            68
+          ],
+          [
+            56,
+            56,
+            60,
+            60,
+            60,
+            60,
+            60,
+            62,
+            62,
+            62,
+            62,
+            66,
+            66,
+            66,
+            66,
+            68
+          ],
+          [
+            56,
+            56,
+            60,
+            60,
+            60,
+            60,
+            60,
+            62,
+            62,
+            62,
+            62,
+            66,
+            66,
+            66,
+            66,
+            68
+          ]
+        ]
+      }
+    },
+    {
+      "name": "Levitate immunity",
+      "attacker": {
+        "species": "Garchomp",
+        "nature": "Jolly",
+        "evs": {
+          "atk": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": null,
+        "ability": "Rough Skin",
+        "status": null,
+        "boosts": {}
+      },
+      "move": "Stomping Tantrum",
+      "defender": {
+        "species": "Rotom-Wash",
+        "nature": "Bold",
+        "evs": {
+          "hp": 252,
+          "def": 252,
+          "spd": 4
+        },
+        "item": null,
+        "ability": "Levitate",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": null,
+        "terrain": null,
+        "reflect": false,
+        "light_screen": false,
+        "spread": false
+      },
+      "expected": {
+        "min": 0,
+        "max": 0,
+        "defender_max_hp": 157,
+        "rolls": [
+          [
+            0
+          ]
+        ]
+      }
+    },
+    {
+      "name": "Water Absorb immunity",
+      "attacker": {
+        "species": "Pelipper",
+        "nature": "Modest",
+        "evs": {
+          "spa": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": null,
+        "ability": "Drizzle",
+        "status": null,
+        "boosts": {}
+      },
+      "move": "Hydro Pump",
+      "defender": {
+        "species": "Vaporeon",
+        "nature": "Bold",
+        "evs": {
+          "hp": 252,
+          "def": 252,
+          "spd": 4
+        },
+        "item": null,
+        "ability": "Water Absorb",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": null,
+        "terrain": null,
+        "reflect": false,
+        "light_screen": false,
+        "spread": false
+      },
+      "expected": {
+        "min": 0,
+        "max": 0,
+        "defender_max_hp": 237,
+        "rolls": [
+          [
+            0
+          ]
+        ]
+      }
+    },
+    {
+      "name": "Multiscale below full HP",
+      "attacker": {
+        "species": "Iron Bundle",
+        "nature": "Timid",
+        "evs": {
+          "spa": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": null,
+        "ability": "Quark Drive",
+        "status": null,
+        "boosts": {}
+      },
+      "move": "Ice Beam",
+      "defender": {
+        "species": "Dragonite",
+        "nature": "Adamant",
+        "evs": {
+          "hp": 252,
+          "def": 252,
+          "spd": 4
+        },
+        "item": null,
+        "ability": "Multiscale",
+        "status": null,
+        "boosts": {},
+        "current_hp": 150
+      },
+      "field": {
+        "weather": null,
+        "terrain": null,
+        "reflect": false,
+        "light_screen": false,
+        "spread": false
+      },
+      "expected": {
+        "min": 300,
+        "max": 352,
+        "defender_max_hp": 198,
+        "rolls": [
+          [
+            300,
+            300,
+            304,
+            304,
+            312,
+            316,
+            316,
+            324,
+            324,
+            328,
+            336,
+            336,
+            340,
+            340,
+            348,
+            352
+          ]
+        ]
+      }
+    },
+    {
+      "name": "Shadow Shield",
+      "attacker": {
+        "species": "Flutter Mane",
+        "nature": "Timid",
+        "evs": {
+          "spa": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": null,
+        "ability": "Protosynthesis",
+        "status": null,
+        "boosts": {}
+      },
+      "move": "Shadow Ball",
+      "defender": {
+        "species": "Lunala",
+        "nature": "Bold",
+        "evs": {
+          "hp": 252,
+          "def": 252,
+          "spd": 4
+        },
+        "item": null,
+        "ability": "Shadow Shield",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": null,
+        "terrain": null,
+        "reflect": false,
+        "light_screen": false,
+        "spread": false
+      },
+      "expected": {
+        "min": 134,
+        "max": 158,
+        "defender_max_hp": 244,
+        "rolls": [
+          [
+            134,
+            134,
+            138,
+            138,
+            140,
+            140,
+            144,
+            144,
+            146,
+            146,
+            150,
+            150,
+            152,
+            152,
+            156,
+            158
+          ]
+        ]
+      }
+    },
+    {
+      "name": "Multiscale on the first of two hits",
+      "attacker": {
+        "species": "Dragapult",
+        "nature": "Jolly",
+        "evs": {
+          "atk": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": null,
+        "ability": "Clear Body",
+        "status": null,
+        "boosts": {}
+      },
+      "move": "Dragon Darts",
+      "defender": {
+        "species": "Dragonite",
+        "nature": "Adamant",
+        "evs": {
+          "hp": 252,
+          "def": 252,
+          "spd": 4
+        },
+        "item": null,
+        "ability": "Multiscale",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": null,
+        "terrain": null,
+        "reflect": false,
+        "light_screen": false,
+        "spread": false
+      },
+      "expected": {
+        "min": 99,
+        "max": 120,
+        "defender_max_hp": 198,
+        "rolls": [
+          [
+            33,
+            34,
+            34,
+            34,
+            36,
+            36,
+            36,
+            36,
+            37,
+            37,
+            37,
+            37,
+            39,
+            39,
+            39,
+            40
+          ],
+          [
+            66,
+            68,
+            68,
+            68,
+            72,
+            72,
+            72,
+            72,
+            74,
+            74,
+            74,
+            74,
+            78,
+            78,
+            78,
+            80
+          ]
+        ]
+      }
+    },
+    {
+      "name": "Ten hits",
+      "attacker": {
+        "species": "Maushold",
+        "nature": "Jolly",
+        "evs": {
+          "atk": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": null,
+        "ability": "Technician",
+        "status": null,
+        "boosts": {}
+      },
+      "move": "Population Bomb",
+      "defender": {
+        "species": "Amoonguss",
+        "nature": "Bold",
+        "evs": {
+          "hp": 252,
+          "def": 252,
+          "spd": 4
+        },
+        "item": null,
+        "ability": "Regenerator",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": null,
+        "terrain": null,
+        "reflect": false,
+        "light_screen": false,
+        "spread": false
+      },
+      "expected": {
+        "min": 160,
+        "max": 210,
+        "defender_max_hp": 221,
+        "rolls": [
+          [
+            16,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            19,
+            19,
+            19,
+            19,
+            19,
+            19,
+            19,
+            21
+          ],
+          [
+            16,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            19,
+            19,
+            19,
+            19,
+            19,
+            19,
+            19,
+            21
+          ],
+          [
+            16,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            19,
+            19,
+            19,
+            19,
+            19,
+            19,
+            19,
+            21
+          ],
+          [
+            16,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            19,
+            19,
+            19,
+            19,
+            19,
+            19,
+            19,
+            21
+          ],
+          [
+            16,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            19,
+            19,
+            19,
+            19,
+            19,
+            19,
+            19,
+            21
+          ],
+          [
+            16,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            19,
+            19,
+            19,
+            19,
+            19,
+            19,
+            19,
+            21
+          ],
+          [
+            16,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            19,
+            19,
+            19,
+            19,
+            19,
+            19,
+            19,
+            21
+          ],
+          [
+            16,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            19,
+            19,
+            19,
+            19,
+            19,
+            19,
+            19,
+            21
+          ],
+          [
+            16,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            19,
+            19,
+            19,
+            19,
+            19,
+            19,
+            19,
+            21
+          ],
+          [
+            16,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            19,
+            19,
+            19,
+            19,
+            19,
+            19,
+            19,
+            21
+          ]
+        ]
+      }
+    },
+    {
+      "name": "Always-crit ignores Reflect",
+      "attacker": {
+        "species": "Urshifu-Rapid-Strike",
+        "nature": "Adamant",
+        "evs": {
+          "atk": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": null,
+        "ability": "Unseen Fist",
+        "status": null,
+        "boosts": {}
+      },
+      "move": "Surging Strikes",
+      "defender": {
+        "species": "Incineroar",
+        "nature": "Careful",
+        "evs": {
+          "hp": 252,
+          "def": 252,
+          "spd": 4
+        },
+        "item": null,
+        "ability": "Blaze",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": null,
+        "terrain": null,
+        "reflect": true,
+        "light_screen": false,
+        "spread": false
+      },
+      "expected": {
+        "min": 186,
+        "max": 222,
+        "defender_max_hp": 202,
+        "rolls": [
+          [
+            62,
+            62,
+            62,
+            66,
+            66,
+            66,
+            66,
+            68,
+            68,
+            68,
+            68,
+            72,
+            72,
+            72,
+            72,
+            74
+          ],
+          [
+            62,
+            62,
+            62,
+            66,
+            66,
+            66,
+            66,
+            68,
+            68,
+            68,
+            68,
+            72,
+            72,
+            72,
+            72,
+            74
+          ],
+          [
+            62,
+            62,
+            62,
+            66,
+            66,
+            66,
+            66,
+            68,
+            68,
+            68,
+            68,
+            72,
+            72,
+            72,
+            72,
+            74
+          ]
+        ]
+      }
+    },
+    {
+      "name": "Always-crit ignores -2 Attack",
+      "attacker": {
+        "species": "Urshifu",
+        "nature": "Adamant",
+        "evs": {
+          "atk": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": null,
+        "ability": "Unseen Fist",
+        "status": null,
+        "boosts": {
+          "atk": -2
+        }
+      },
+      "move": "Wicked Blow",
+      "defender": {
+        "species": "Gholdengo",
+        "nature": "Modest",
+        "evs": {
+          "hp": 252,
+          "def": 252,
+          "spd": 4
+        },
+        "item": null,
+        "ability": "Good as Gold",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": null,
+        "terrain": null,
+        "reflect": false,
+        "light_screen": false,
+        "spread": false
+      },
+      "expected": {
+        "min": 174,
+        "max": 206,
+        "defender_max_hp": 194,
+        "rolls": [
+          [
+            174,
+            176,
+            180,
+            180,
+            182,
+            186,
+            186,
+            188,
+            192,
+            192,
+            194,
+            198,
+            198,
+            200,
+            204,
+            206
+          ]
+        ]
+      }
+    },
+    {
+      "name": "+2 Attack into -1 Defense",
+      "attacker": {
+        "species": "Urshifu",
+        "nature": "Adamant",
+        "evs": {
+          "atk": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": null,
+        "ability": "Unseen Fist",
+        "status": null,
+        "boosts": {
+          "atk": 2
+        }
+      },
+      "move": "Close Combat",
+      "defender": {
+        "species": "Incineroar",
+        "nature": "Careful",
+        "evs": {
+          "hp": 252,
+          "def": 252,
+          "spd": 4
+        },
+        "item": null,
+        "ability": "Blaze",
+        "status": null,
+        "boosts": {
+          "def": -1
+        }
+      },
+      "field": {
+        "weather": null,
+        "terrain": null,
+        "reflect": false,
+        "light_screen": false,
+        "spread": false
+      },
+      "expected": {
+        "min": 576,
+        "max": 678,
+        "defender_max_hp": 202,
+        "rolls": [
+          [
+            576,
+            582,
+            588,
+            594,
+            602,
+            608,
+            614,
+            620,
+            630,
+            636,
+            642,
+            648,
+            656,
+            662,
+            668,
+            678
+          ]
+        ]
+      }
+    },
+    {
+      "name": "Shedinja has 1 HP",
+      "attacker": {
+        "species": "Garchomp",
+        "nature": "Jolly",
+        "evs": {
+          "atk": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": null,
+        "ability": "Rough Skin",
+        "status": null,
+        "boosts": {}
+      },
+      "move": "Rock Slide",
+      "defender": {
+        "species": "Shedinja",
+        "nature": "Adamant",
+        "evs": {
+          "hp": 252,
+          "def": 252,
+          "spd": 4
+        },
+        "item": null,
+        "ability": "Wonder Guard",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": null,
+        "terrain": null,
+        "reflect": false,
+        "light_screen": false,
+        "spread": true
+      },
+      "expected": {
+        "min": 78,
+        "max": 94,
+        "defender_max_hp": 1,
+        "rolls": [
+          [
+            78,
+            80,
+            80,
+            82,
+            82,
+            84,
+            84,
+            86,
+            86,
+            88,
+            88,
+            90,
+            90,
+            92,
+            92,
+            94
+          ]
+        ]
+      }
+    },
+    {
+      "name": "Type-boosting item, special",
+      "attacker": {
+        "species": "Charizard",
+        "nature": "Timid",
+        "evs": {
+          "spa": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": "Charcoal",
+        "ability": "Blaze",
+        "status": null,
+        "boosts": {}
+      },
+      "move": "Flamethrower",
+      "defender": {
+        "species": "Amoonguss",
+        "nature": "Bold",
+        "evs": {
+          "hp": 252,
+          "def": 252,
+          "spd": 4
+        },
+        "item": null,
+        "ability": "Regenerator",
+        "status": null,
+        "boosts": {}
+      },
+      "field": {
+        "weather": null,
+        "terrain": null,
+        "reflect": false,
+        "light_screen": false,
+        "spread": false
+      },
+      "expected": {
+        "min": 194,
+        "max": 230,
+        "defender_max_hp": 221,
+        "rolls": [
+          [
+            194,
+            198,
+            198,
+            200,
+            204,
+            206,
+            210,
+            210,
+            212,
+            216,
+            218,
+            218,
+            222,
+            224,
+            228,
+            230
+          ]
+        ]
+      }
+    },
+    {
+      "name": "Level 100",
+      "attacker": {
+        "species": "Garchomp",
+        "nature": "Jolly",
+        "evs": {
+          "atk": 252,
+          "spe": 252,
+          "hp": 4
+        },
+        "item": null,
+        "ability": "Rough Skin",
+        "status": null,
+        "boosts": {},
+        "level": 100
+      },
+      "move": "Dragon Claw",
+      "defender": {
+        "species": "Dragonite",
+        "nature": "Adamant",
+        "evs": {
+          "hp": 252,
+          "def": 252,
+          "spd": 4
+        },
+        "item": null,
+        "ability": "Inner Focus",
+        "status": null,
+        "boosts": {},
+        "level": 100
+      },
+      "field": {
+        "weather": null,
+        "terrain": null,
+        "reflect": false,
+        "light_screen": false,
+        "spread": false
+      },
+      "expected": {
+        "min": 216,
+        "max": 254,
+        "defender_max_hp": 386,
+        "rolls": [
+          [
+            216,
+            218,
+            218,
+            222,
+            224,
+            228,
+            230,
+            234,
+            236,
+            236,
+            240,
+            242,
+            246,
+            248,
+            252,
+            254
+          ]
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,4429 @@
+{
+  "format": "gen9vgc2025regi",
+  "source": {
+    "statistics": "Smogon usage statistics gen9vgc2025regi-1630",
+    "battles": 931894,
+    "rule": "each species' most used item, ability, spread and four moves, at level 50"
+  },
+  "cards": [
+    {
+      "card_id": "vgc-incineroar",
+      "species": "Incineroar",
+      "item": "Assault Vest",
+      "ability": "Intimidate",
+      "nature": "Impish",
+      "level": 50,
+      "evs": {
+        "hp": 252,
+        "def": 252,
+        "spd": 4
+      },
+      "ivs": {},
+      "moves": [
+        "Fake Out",
+        "Knock Off",
+        "Flare Blitz",
+        "Parting Shot"
+      ]
+    },
+    {
+      "card_id": "vgc-miraidon",
+      "species": "Miraidon",
+      "item": "Choice Specs",
+      "ability": "Hadron Engine",
+      "nature": "Timid",
+      "level": 50,
+      "evs": {
+        "hp": 4,
+        "spa": 252,
+        "spe": 252
+      },
+      "ivs": {},
+      "moves": [
+        "Electro Drift",
+        "Volt Switch",
+        "Draco Meteor",
+        "Dazzling Gleam"
+      ]
+    },
+    {
+      "card_id": "vgc-calyrex-shadow",
+      "species": "Calyrex-Shadow",
+      "item": "Life Orb",
+      "ability": "As One (Spectrier)",
+      "nature": "Timid",
+      "level": 50,
+      "evs": {
+        "hp": 4,
+        "spa": 252,
+        "spe": 252
+      },
+      "ivs": {},
+      "moves": [
+        "Astral Barrage",
+        "Protect",
+        "Psychic",
+        "Nasty Plot"
+      ]
+    },
+    {
+      "card_id": "vgc-urshifu-rapid-strike",
+      "species": "Urshifu-Rapid-Strike",
+      "item": "Choice Scarf",
+      "ability": "Unseen Fist",
+      "nature": "Adamant",
+      "level": 50,
+      "evs": {
+        "hp": 4,
+        "atk": 252,
+        "spe": 252
+      },
+      "ivs": {},
+      "moves": [
+        "Surging Strikes",
+        "Close Combat",
+        "Aqua Jet",
+        "U-turn"
+      ]
+    },
+    {
+      "card_id": "vgc-zamazenta-crowned",
+      "species": "Zamazenta-Crowned",
+      "item": "Rusted Shield",
+      "ability": "Dauntless Shield",
+      "nature": "Impish",
+      "level": 50,
+      "evs": {
+        "hp": 204,
+        "atk": 4,
+        "def": 180,
+        "spd": 28,
+        "spe": 92
+      },
+      "ivs": {},
+      "moves": [
+        "Body Press",
+        "Wide Guard",
+        "Protect",
+        "Heavy Slam"
+      ]
+    },
+    {
+      "card_id": "vgc-rillaboom",
+      "species": "Rillaboom",
+      "item": "Assault Vest",
+      "ability": "Grassy Surge",
+      "nature": "Adamant",
+      "level": 50,
+      "evs": {
+        "hp": 252,
+        "atk": 36,
+        "def": 76,
+        "spd": 124,
+        "spe": 20
+      },
+      "ivs": {},
+      "moves": [
+        "Fake Out",
+        "Grassy Glide",
+        "U-turn",
+        "Wood Hammer"
+      ]
+    },
+    {
+      "card_id": "vgc-whimsicott",
+      "species": "Whimsicott",
+      "item": "Covert Cloak",
+      "ability": "Prankster",
+      "nature": "Timid",
+      "level": 50,
+      "evs": {
+        "hp": 4,
+        "spa": 252,
+        "spe": 252
+      },
+      "ivs": {},
+      "moves": [
+        "Tailwind",
+        "Moonblast",
+        "Encore",
+        "Light Screen"
+      ]
+    },
+    {
+      "card_id": "vgc-kyogre",
+      "species": "Kyogre",
+      "item": "Mystic Water",
+      "ability": "Drizzle",
+      "nature": "Timid",
+      "level": 50,
+      "evs": {
+        "hp": 4,
+        "spa": 252,
+        "spe": 252
+      },
+      "ivs": {},
+      "moves": [
+        "Water Spout",
+        "Origin Pulse",
+        "Protect",
+        "Hydro Pump"
+      ]
+    },
+    {
+      "card_id": "vgc-smeargle",
+      "species": "Smeargle",
+      "item": "Focus Sash",
+      "ability": "Moody",
+      "nature": "Jolly",
+      "level": 50,
+      "evs": {
+        "hp": 12,
+        "def": 244,
+        "spe": 252
+      },
+      "ivs": {},
+      "moves": [
+        "Follow Me",
+        "Fake Out",
+        "Spore",
+        "Decorate"
+      ]
+    },
+    {
+      "card_id": "vgc-amoonguss",
+      "species": "Amoonguss",
+      "item": "Rocky Helmet",
+      "ability": "Regenerator",
+      "nature": "Bold",
+      "level": 50,
+      "evs": {
+        "hp": 236,
+        "def": 236,
+        "spd": 36
+      },
+      "ivs": {},
+      "moves": [
+        "Spore",
+        "Rage Powder",
+        "Protect",
+        "Pollen Puff"
+      ]
+    },
+    {
+      "card_id": "vgc-chien-pao",
+      "species": "Chien-Pao",
+      "item": "Focus Sash",
+      "ability": "Sword of Ruin",
+      "nature": "Jolly",
+      "level": 50,
+      "evs": {
+        "atk": 252,
+        "def": 4,
+        "spe": 252
+      },
+      "ivs": {},
+      "moves": [
+        "Protect",
+        "Sucker Punch",
+        "Ice Spinner",
+        "Icicle Crash"
+      ]
+    },
+    {
+      "card_id": "vgc-raging-bolt",
+      "species": "Raging Bolt",
+      "item": "Booster Energy",
+      "ability": "Protosynthesis",
+      "nature": "Modest",
+      "level": 50,
+      "evs": {
+        "hp": 196,
+        "def": 4,
+        "spa": 252,
+        "spd": 36,
+        "spe": 20
+      },
+      "ivs": {},
+      "moves": [
+        "Thunderclap",
+        "Thunderbolt",
+        "Protect",
+        "Draco Meteor"
+      ]
+    },
+    {
+      "card_id": "vgc-grimmsnarl",
+      "species": "Grimmsnarl",
+      "item": "Light Clay",
+      "ability": "Prankster",
+      "nature": "Careful",
+      "level": 50,
+      "evs": {
+        "hp": 252,
+        "atk": 4,
+        "def": 124,
+        "spd": 116,
+        "spe": 12
+      },
+      "ivs": {},
+      "moves": [
+        "Light Screen",
+        "Spirit Break",
+        "Reflect",
+        "Thunder Wave"
+      ]
+    },
+    {
+      "card_id": "vgc-tornadus",
+      "species": "Tornadus",
+      "item": "Covert Cloak",
+      "ability": "Prankster",
+      "nature": "Modest",
+      "level": 50,
+      "evs": {
+        "hp": 244,
+        "def": 116,
+        "spa": 44,
+        "spd": 92,
+        "spe": 12
+      },
+      "ivs": {},
+      "moves": [
+        "Tailwind",
+        "Bleakwind Storm",
+        "Taunt",
+        "Protect"
+      ]
+    },
+    {
+      "card_id": "vgc-lunala",
+      "species": "Lunala",
+      "item": "Power Herb",
+      "ability": "Shadow Shield",
+      "nature": "Modest",
+      "level": 50,
+      "evs": {
+        "hp": 132,
+        "def": 172,
+        "spa": 180,
+        "spd": 12,
+        "spe": 12
+      },
+      "ivs": {},
+      "moves": [
+        "Moongeist Beam",
+        "Trick Room",
+        "Wide Guard",
+        "Moonblast"
+      ]
+    },
+    {
+      "card_id": "vgc-volcarona",
+      "species": "Volcarona",
+      "item": "Electric Seed",
+      "ability": "Flame Body",
+      "nature": "Timid",
+      "level": 50,
+      "evs": {
+        "hp": 252,
+        "def": 100,
+        "spa": 20,
+        "spd": 4,
+        "spe": 132
+      },
+      "ivs": {},
+      "moves": [
+        "Protect",
+        "Quiver Dance",
+        "Fiery Dance",
+        "Struggle Bug"
+      ]
+    },
+    {
+      "card_id": "vgc-landorus",
+      "species": "Landorus",
+      "item": "Life Orb",
+      "ability": "Sheer Force",
+      "nature": "Modest",
+      "level": 50,
+      "evs": {
+        "hp": 252,
+        "def": 4,
+        "spa": 116,
+        "spd": 132,
+        "spe": 4
+      },
+      "ivs": {},
+      "moves": [
+        "Sludge Bomb",
+        "Earth Power",
+        "Protect",
+        "Sandsear Storm"
+      ]
+    },
+    {
+      "card_id": "vgc-farigiraf",
+      "species": "Farigiraf",
+      "item": "Electric Seed",
+      "ability": "Armor Tail",
+      "nature": "Bold",
+      "level": 50,
+      "evs": {
+        "hp": 204,
+        "def": 164,
+        "spa": 4,
+        "spd": 108,
+        "spe": 28
+      },
+      "ivs": {},
+      "moves": [
+        "Trick Room",
+        "Helping Hand",
+        "Foul Play",
+        "Psychic"
+      ]
+    },
+    {
+      "card_id": "vgc-indeedee-f",
+      "species": "Indeedee-F",
+      "item": "Safety Goggles",
+      "ability": "Psychic Surge",
+      "nature": "Bold",
+      "level": 50,
+      "evs": {
+        "hp": 252,
+        "def": 252,
+        "spd": 4
+      },
+      "ivs": {},
+      "moves": [
+        "Follow Me",
+        "Trick Room",
+        "Helping Hand",
+        "Psychic"
+      ]
+    },
+    {
+      "card_id": "vgc-flutter-mane",
+      "species": "Flutter Mane",
+      "item": "Focus Sash",
+      "ability": "Protosynthesis",
+      "nature": "Timid",
+      "level": 50,
+      "evs": {
+        "hp": 4,
+        "spa": 252,
+        "spe": 252
+      },
+      "ivs": {},
+      "moves": [
+        "Moonblast",
+        "Icy Wind",
+        "Shadow Ball",
+        "Protect"
+      ]
+    },
+    {
+      "card_id": "vgc-iron-hands",
+      "species": "Iron Hands",
+      "item": "Assault Vest",
+      "ability": "Quark Drive",
+      "nature": "Brave",
+      "level": 50,
+      "evs": {
+        "hp": 76,
+        "atk": 180,
+        "def": 12,
+        "spd": 236
+      },
+      "ivs": {},
+      "moves": [
+        "Fake Out",
+        "Wild Charge",
+        "Low Kick",
+        "Drain Punch"
+      ]
+    },
+    {
+      "card_id": "vgc-koraidon",
+      "species": "Koraidon",
+      "item": "Life Orb",
+      "ability": "Orichalcum Pulse",
+      "nature": "Jolly",
+      "level": 50,
+      "evs": {
+        "hp": 4,
+        "atk": 252,
+        "spe": 252
+      },
+      "ivs": {},
+      "moves": [
+        "Flare Blitz",
+        "Protect",
+        "Flame Charge",
+        "Collision Course"
+      ]
+    },
+    {
+      "card_id": "vgc-chi-yu",
+      "species": "Chi-Yu",
+      "item": "Choice Scarf",
+      "ability": "Beads of Ruin",
+      "nature": "Modest",
+      "level": 50,
+      "evs": {
+        "hp": 4,
+        "spa": 252,
+        "spe": 252
+      },
+      "ivs": {},
+      "moves": [
+        "Heat Wave",
+        "Dark Pulse",
+        "Snarl",
+        "Overheat"
+      ]
+    },
+    {
+      "card_id": "vgc-ursaluna",
+      "species": "Ursaluna",
+      "item": "Flame Orb",
+      "ability": "Guts",
+      "nature": "Brave",
+      "level": 50,
+      "evs": {
+        "hp": 140,
+        "atk": 252,
+        "def": 44,
+        "spa": 4,
+        "spd": 68
+      },
+      "ivs": {},
+      "moves": [
+        "Facade",
+        "Protect",
+        "Headlong Rush",
+        "Earthquake"
+      ]
+    },
+    {
+      "card_id": "vgc-terapagos",
+      "species": "Terapagos",
+      "item": "Choice Specs",
+      "ability": "Tera Shift",
+      "nature": "Modest",
+      "level": 50,
+      "evs": {
+        "hp": 12,
+        "def": 4,
+        "spa": 236,
+        "spd": 4,
+        "spe": 252
+      },
+      "ivs": {},
+      "moves": [
+        "Tera Starstorm",
+        "Earth Power",
+        "Protect",
+        "Calm Mind"
+      ]
+    },
+    {
+      "card_id": "vgc-groudon",
+      "species": "Groudon",
+      "item": "Assault Vest",
+      "ability": "Drought",
+      "nature": "Adamant",
+      "level": 50,
+      "evs": {
+        "hp": 252,
+        "spd": 236,
+        "spe": 20
+      },
+      "ivs": {},
+      "moves": [
+        "Precipice Blades",
+        "Heat Crash",
+        "Protect",
+        "High Horsepower"
+      ]
+    },
+    {
+      "card_id": "vgc-zacian-crowned",
+      "species": "Zacian-Crowned",
+      "item": "Rusted Sword",
+      "ability": "Intrepid Sword",
+      "nature": "Adamant",
+      "level": 50,
+      "evs": {
+        "hp": 244,
+        "atk": 92,
+        "def": 4,
+        "spd": 4,
+        "spe": 164
+      },
+      "ivs": {},
+      "moves": [
+        "Protect",
+        "Iron Head",
+        "Play Rough",
+        "Sacred Sword"
+      ]
+    },
+    {
+      "card_id": "vgc-ogerpon-cornerstone",
+      "species": "Ogerpon-Cornerstone",
+      "item": "Cornerstone Mask",
+      "ability": "Sturdy",
+      "nature": "Jolly",
+      "level": 50,
+      "evs": {
+        "hp": 4,
+        "atk": 252,
+        "spe": 252
+      },
+      "ivs": {},
+      "moves": [
+        "Ivy Cudgel",
+        "Follow Me",
+        "Spiky Shield",
+        "Power Whip"
+      ]
+    },
+    {
+      "card_id": "vgc-clefairy",
+      "species": "Clefairy",
+      "item": "Eviolite",
+      "ability": "Friend Guard",
+      "nature": "Relaxed",
+      "level": 50,
+      "evs": {
+        "hp": 252,
+        "def": 252,
+        "spd": 4
+      },
+      "ivs": {},
+      "moves": [
+        "Follow Me",
+        "Protect",
+        "Helping Hand",
+        "After You"
+      ]
+    },
+    {
+      "card_id": "vgc-roaring-moon",
+      "species": "Roaring Moon",
+      "item": "Booster Energy",
+      "ability": "Protosynthesis",
+      "nature": "Jolly",
+      "level": 50,
+      "evs": {
+        "hp": 28,
+        "atk": 220,
+        "def": 4,
+        "spd": 4,
+        "spe": 252
+      },
+      "ivs": {},
+      "moves": [
+        "Tailwind",
+        "Knock Off",
+        "Acrobatics",
+        "Protect"
+      ]
+    },
+    {
+      "card_id": "vgc-weezing-galar",
+      "species": "Weezing-Galar",
+      "item": "Sitrus Berry",
+      "ability": "Neutralizing Gas",
+      "nature": "Impish",
+      "level": 50,
+      "evs": {
+        "hp": 252,
+        "atk": 4,
+        "def": 4,
+        "spd": 204,
+        "spe": 44
+      },
+      "ivs": {},
+      "moves": [
+        "Protect",
+        "Taunt",
+        "Will-O-Wisp",
+        "Strange Steam"
+      ]
+    },
+    {
+      "card_id": "vgc-dondozo",
+      "species": "Dondozo",
+      "item": "Leftovers",
+      "ability": "Unaware",
+      "nature": "Impish",
+      "level": 50,
+      "evs": {
+        "hp": 4,
+        "atk": 4,
+        "def": 196,
+        "spd": 148,
+        "spe": 156
+      },
+      "ivs": {},
+      "moves": [
+        "Protect",
+        "Order Up",
+        "Earthquake",
+        "Wave Crash"
+      ]
+    },
+    {
+      "card_id": "vgc-tatsugiri",
+      "species": "Tatsugiri",
+      "item": "Focus Sash",
+      "ability": "Commander",
+      "nature": "Timid",
+      "level": 50,
+      "evs": {
+        "hp": 4,
+        "spa": 252,
+        "spe": 252
+      },
+      "ivs": {},
+      "moves": [
+        "Draco Meteor",
+        "Muddy Water",
+        "Protect",
+        "Icy Wind"
+      ]
+    },
+    {
+      "card_id": "vgc-annihilape",
+      "species": "Annihilape",
+      "item": "Choice Scarf",
+      "ability": "Defiant",
+      "nature": "Jolly",
+      "level": 50,
+      "evs": {
+        "hp": 252,
+        "atk": 4,
+        "spe": 252
+      },
+      "ivs": {},
+      "moves": [
+        "Close Combat",
+        "Final Gambit",
+        "Coaching",
+        "Rage Fist"
+      ]
+    },
+    {
+      "card_id": "vgc-brute-bonnet",
+      "species": "Brute Bonnet",
+      "item": "Covert Cloak",
+      "ability": "Protosynthesis",
+      "nature": "Bold",
+      "level": 50,
+      "evs": {
+        "hp": 156,
+        "def": 252,
+        "spe": 100
+      },
+      "ivs": {},
+      "moves": [
+        "Spore",
+        "Rage Powder",
+        "Sucker Punch",
+        "Seed Bomb"
+      ]
+    },
+    {
+      "card_id": "vgc-walking-wake",
+      "species": "Walking Wake",
+      "item": "Assault Vest",
+      "ability": "Protosynthesis",
+      "nature": "Timid",
+      "level": 50,
+      "evs": {
+        "hp": 12,
+        "spa": 244,
+        "spe": 252
+      },
+      "ivs": {},
+      "moves": [
+        "Hydro Steam",
+        "Draco Meteor",
+        "Snarl",
+        "Protect"
+      ]
+    },
+    {
+      "card_id": "vgc-iron-jugulis",
+      "species": "Iron Jugulis",
+      "item": "Booster Energy",
+      "ability": "Quark Drive",
+      "nature": "Timid",
+      "level": 50,
+      "evs": {
+        "hp": 252,
+        "spd": 132,
+        "spe": 124
+      },
+      "ivs": {},
+      "moves": [
+        "Tailwind",
+        "Snarl",
+        "Hurricane",
+        "Protect"
+      ]
+    },
+    {
+      "card_id": "vgc-sneasler",
+      "species": "Sneasler",
+      "item": "Electric Seed",
+      "ability": "Unburden",
+      "nature": "Jolly",
+      "level": 50,
+      "evs": {
+        "hp": 4,
+        "atk": 252,
+        "spe": 252
+      },
+      "ivs": {},
+      "moves": [
+        "Fake Out",
+        "Dire Claw",
+        "Close Combat",
+        "Toxic Spikes"
+      ]
+    },
+    {
+      "card_id": "vgc-torkoal",
+      "species": "Torkoal",
+      "item": "Choice Specs",
+      "ability": "Drought",
+      "nature": "Quiet",
+      "level": 50,
+      "evs": {
+        "hp": 252,
+        "spa": 252,
+        "spd": 4
+      },
+      "ivs": {},
+      "moves": [
+        "Eruption",
+        "Weather Ball",
+        "Earth Power",
+        "Heat Wave"
+      ]
+    },
+    {
+      "card_id": "vgc-iron-treads",
+      "species": "Iron Treads",
+      "item": "Life Orb",
+      "ability": "Quark Drive",
+      "nature": "Jolly",
+      "level": 50,
+      "evs": {
+        "hp": 4,
+        "atk": 252,
+        "spe": 252
+      },
+      "ivs": {},
+      "moves": [
+        "High Horsepower",
+        "Iron Head",
+        "Steel Roller",
+        "Protect"
+      ]
+    },
+    {
+      "card_id": "vgc-ting-lu",
+      "species": "Ting-Lu",
+      "item": "Assault Vest",
+      "ability": "Vessel of Ruin",
+      "nature": "Impish",
+      "level": 50,
+      "evs": {
+        "hp": 134,
+        "atk": 180,
+        "def": 116,
+        "spd": 76,
+        "spe": 4
+      },
+      "ivs": {},
+      "moves": [
+        "Ruination",
+        "Stomping Tantrum",
+        "Sand Tomb",
+        "Snarl"
+      ]
+    },
+    {
+      "card_id": "vgc-sinistcha",
+      "species": "Sinistcha",
+      "item": "Focus Sash",
+      "ability": "Hospitality",
+      "nature": "Relaxed",
+      "level": 50,
+      "evs": {
+        "hp": 252,
+        "def": 108,
+        "spd": 148
+      },
+      "ivs": {},
+      "moves": [
+        "Rage Powder",
+        "Protect",
+        "Shadow Ball",
+        "Matcha Gotcha"
+      ]
+    },
+    {
+      "card_id": "vgc-ho-oh",
+      "species": "Ho-Oh",
+      "item": "Clear Amulet",
+      "ability": "Regenerator",
+      "nature": "Adamant",
+      "level": 50,
+      "evs": {
+        "hp": 204,
+        "atk": 76,
+        "def": 156,
+        "spd": 4,
+        "spe": 68
+      },
+      "ivs": {},
+      "moves": [
+        "Sacred Fire",
+        "Protect",
+        "Brave Bird",
+        "Tailwind"
+      ]
+    },
+    {
+      "card_id": "vgc-dragonite",
+      "species": "Dragonite",
+      "item": "Choice Band",
+      "ability": "Inner Focus",
+      "nature": "Jolly",
+      "level": 50,
+      "evs": {
+        "hp": 4,
+        "atk": 252,
+        "spe": 252
+      },
+      "ivs": {},
+      "moves": [
+        "Extreme Speed",
+        "Aerial Ace",
+        "Outrage",
+        "Scale Shot"
+      ]
+    },
+    {
+      "card_id": "vgc-maushold",
+      "species": "Maushold",
+      "item": "Rocky Helmet",
+      "ability": "Friend Guard",
+      "nature": "Impish",
+      "level": 50,
+      "evs": {
+        "hp": 252,
+        "atk": 4,
+        "def": 180,
+        "spd": 4,
+        "spe": 68
+      },
+      "ivs": {},
+      "moves": [
+        "Follow Me",
+        "Feint",
+        "Helping Hand",
+        "Taunt"
+      ]
+    },
+    {
+      "card_id": "vgc-basculegion",
+      "species": "Basculegion",
+      "item": "Life Orb",
+      "ability": "Swift Swim",
+      "nature": "Adamant",
+      "level": 50,
+      "evs": {
+        "hp": 100,
+        "atk": 252,
+        "def": 28,
+        "spd": 20,
+        "spe": 108
+      },
+      "ivs": {},
+      "moves": [
+        "Last Respects",
+        "Wave Crash",
+        "Aqua Jet",
+        "Protect"
+      ]
+    },
+    {
+      "card_id": "vgc-iron-valiant",
+      "species": "Iron Valiant",
+      "item": "Booster Energy",
+      "ability": "Quark Drive",
+      "nature": "Jolly",
+      "level": 50,
+      "evs": {
+        "hp": 204,
+        "atk": 4,
+        "def": 100,
+        "spd": 28,
+        "spe": 172
+      },
+      "ivs": {},
+      "moves": [
+        "Wide Guard",
+        "Spirit Break",
+        "Coaching",
+        "Encore"
+      ]
+    },
+    {
+      "card_id": "vgc-iron-bundle",
+      "species": "Iron Bundle",
+      "item": "Focus Sash",
+      "ability": "Quark Drive",
+      "nature": "Timid",
+      "level": 50,
+      "evs": {
+        "hp": 4,
+        "spa": 252,
+        "spe": 252
+      },
+      "ivs": {},
+      "moves": [
+        "Icy Wind",
+        "Protect",
+        "Freeze-Dry",
+        "Encore"
+      ]
+    },
+    {
+      "card_id": "vgc-pelipper",
+      "species": "Pelipper",
+      "item": "Focus Sash",
+      "ability": "Drizzle",
+      "nature": "Modest",
+      "level": 50,
+      "evs": {
+        "hp": 244,
+        "def": 4,
+        "spa": 124,
+        "spd": 100,
+        "spe": 36
+      },
+      "ivs": {},
+      "moves": [
+        "Hurricane",
+        "Weather Ball",
+        "Wide Guard",
+        "Protect"
+      ]
+    },
+    {
+      "card_id": "vgc-kingambit",
+      "species": "Kingambit",
+      "item": "Assault Vest",
+      "ability": "Defiant",
+      "nature": "Adamant",
+      "level": 50,
+      "evs": {
+        "hp": 244,
+        "atk": 252,
+        "spe": 12
+      },
+      "ivs": {},
+      "moves": [
+        "Sucker Punch",
+        "Iron Head",
+        "Kowtow Cleave",
+        "Low Kick"
+      ]
+    },
+    {
+      "card_id": "vgc-sableye",
+      "species": "Sableye",
+      "item": "Eject Button",
+      "ability": "Prankster",
+      "nature": "Careful",
+      "level": 50,
+      "evs": {
+        "hp": 252,
+        "def": 4,
+        "spd": 252
+      },
+      "ivs": {},
+      "moves": [
+        "Encore",
+        "Foul Play",
+        "Disable",
+        "Light Screen"
+      ]
+    },
+    {
+      "card_id": "vgc-entei",
+      "species": "Entei",
+      "item": "Choice Band",
+      "ability": "Inner Focus",
+      "nature": "Modest",
+      "level": 50,
+      "evs": {
+        "hp": 4,
+        "spa": 252,
+        "spe": 252
+      },
+      "ivs": {},
+      "moves": [
+        "Extreme Speed",
+        "Sacred Fire",
+        "Stone Edge",
+        "Protect"
+      ]
+    },
+    {
+      "card_id": "vgc-eternatus",
+      "species": "Eternatus",
+      "item": "Leftovers",
+      "ability": "Pressure",
+      "nature": "Impish",
+      "level": 50,
+      "evs": {
+        "hp": 252,
+        "def": 252,
+        "spd": 4
+      },
+      "ivs": {},
+      "moves": [
+        "Sludge Bomb",
+        "Recover",
+        "Protect",
+        "Cosmic Power"
+      ]
+    },
+    {
+      "card_id": "vgc-regieleki",
+      "species": "Regieleki",
+      "item": "Choice Band",
+      "ability": "Transistor",
+      "nature": "Adamant",
+      "level": 50,
+      "evs": {
+        "hp": 4,
+        "atk": 252,
+        "spe": 252
+      },
+      "ivs": {},
+      "moves": [
+        "Electroweb",
+        "Explosion",
+        "Extreme Speed",
+        "Supercell Slam"
+      ]
+    },
+    {
+      "card_id": "vgc-raichu",
+      "species": "Raichu",
+      "item": "Assault Vest",
+      "ability": "Lightning Rod",
+      "nature": "Timid",
+      "level": 50,
+      "evs": {
+        "hp": 204,
+        "def": 92,
+        "spa": 52,
+        "spd": 148,
+        "spe": 12
+      },
+      "ivs": {},
+      "moves": [
+        "Fake Out",
+        "Nuzzle",
+        "Feint",
+        "Volt Switch"
+      ]
+    },
+    {
+      "card_id": "vgc-rhyperior",
+      "species": "Rhyperior",
+      "item": "Assault Vest",
+      "ability": "Lightning Rod",
+      "nature": "Brave",
+      "level": 50,
+      "evs": {
+        "hp": 100,
+        "atk": 156,
+        "spd": 252
+      },
+      "ivs": {},
+      "moves": [
+        "Rock Slide",
+        "High Horsepower",
+        "Crunch",
+        "Counter"
+      ]
+    },
+    {
+      "card_id": "vgc-scream-tail",
+      "species": "Scream Tail",
+      "item": "Booster Energy",
+      "ability": "Protosynthesis",
+      "nature": "Timid",
+      "level": 50,
+      "evs": {
+        "hp": 252,
+        "def": 4,
+        "spe": 252
+      },
+      "ivs": {},
+      "moves": [
+        "Encore",
+        "Disable",
+        "Protect",
+        "Perish Song"
+      ]
+    },
+    {
+      "card_id": "vgc-rayquaza",
+      "species": "Rayquaza",
+      "item": "Clear Amulet",
+      "ability": "Air Lock",
+      "nature": "Adamant",
+      "level": 50,
+      "evs": {
+        "hp": 180,
+        "atk": 236,
+        "def": 4,
+        "spd": 4,
+        "spe": 84
+      },
+      "ivs": {},
+      "moves": [
+        "Dragon Ascent",
+        "Extreme Speed",
+        "Protect",
+        "Swords Dance"
+      ]
+    },
+    {
+      "card_id": "vgc-cresselia",
+      "species": "Cresselia",
+      "item": "Electric Seed",
+      "ability": "Levitate",
+      "nature": "Calm",
+      "level": 50,
+      "evs": {
+        "hp": 228,
+        "def": 76,
+        "spa": 116,
+        "spd": 76,
+        "spe": 12
+      },
+      "ivs": {},
+      "moves": [
+        "Lunar Blessing",
+        "Trick Room",
+        "Helping Hand",
+        "Psychic"
+      ]
+    },
+    {
+      "card_id": "vgc-archaludon",
+      "species": "Archaludon",
+      "item": "Assault Vest",
+      "ability": "Stamina",
+      "nature": "Modest",
+      "level": 50,
+      "evs": {
+        "hp": 252,
+        "spa": 196,
+        "spd": 60
+      },
+      "ivs": {},
+      "moves": [
+        "Electro Shot",
+        "Flash Cannon",
+        "Body Press",
+        "Draco Meteor"
+      ]
+    },
+    {
+      "card_id": "vgc-jumpluff",
+      "species": "Jumpluff",
+      "item": "Covert Cloak",
+      "ability": "Chlorophyll",
+      "nature": "Timid",
+      "level": 50,
+      "evs": {
+        "hp": 252,
+        "spd": 4,
+        "spe": 252
+      },
+      "ivs": {},
+      "moves": [
+        "Tailwind",
+        "Sleep Powder",
+        "Rage Powder",
+        "Encore"
+      ]
+    },
+    {
+      "card_id": "vgc-tsareena",
+      "species": "Tsareena",
+      "item": "Wide Lens",
+      "ability": "Queenly Majesty",
+      "nature": "Adamant",
+      "level": 50,
+      "evs": {
+        "hp": 76,
+        "atk": 236,
+        "def": 12,
+        "spd": 12,
+        "spe": 172
+      },
+      "ivs": {},
+      "moves": [
+        "Power Whip",
+        "Triple Axel",
+        "Taunt",
+        "Protect"
+      ]
+    },
+    {
+      "card_id": "vgc-flamigo",
+      "species": "Flamigo",
+      "item": "White Herb",
+      "ability": "Costar",
+      "nature": "Adamant",
+      "level": 50,
+      "evs": {
+        "hp": 4,
+        "atk": 252,
+        "spe": 252
+      },
+      "ivs": {},
+      "moves": [
+        "Close Combat",
+        "Wide Guard",
+        "Acrobatics",
+        "Detect"
+      ]
+    },
+    {
+      "card_id": "vgc-muk-alola",
+      "species": "Muk-Alola",
+      "item": "Leftovers",
+      "ability": "Power of Alchemy",
+      "nature": "Impish",
+      "level": 50,
+      "evs": {
+        "hp": 252,
+        "def": 252,
+        "spd": 4
+      },
+      "ivs": {},
+      "moves": [
+        "Minimize",
+        "Protect",
+        "Knock Off",
+        "Toxic"
+      ]
+    },
+    {
+      "card_id": "vgc-lilligant-hisui",
+      "species": "Lilligant-Hisui",
+      "item": "Focus Sash",
+      "ability": "Chlorophyll",
+      "nature": "Jolly",
+      "level": 50,
+      "evs": {
+        "atk": 252,
+        "spd": 4,
+        "spe": 252
+      },
+      "ivs": {},
+      "moves": [
+        "Close Combat",
+        "Sleep Powder",
+        "After You",
+        "Coaching"
+      ]
+    },
+    {
+      "card_id": "vgc-kyurem-white",
+      "species": "Kyurem-White",
+      "item": "Choice Scarf",
+      "ability": "Turboblaze",
+      "nature": "Timid",
+      "level": 50,
+      "evs": {
+        "hp": 36,
+        "spa": 252,
+        "spe": 220
+      },
+      "ivs": {},
+      "moves": [
+        "Freeze-Dry",
+        "Fusion Flare",
+        "Earth Power",
+        "Icy Wind"
+      ]
+    },
+    {
+      "card_id": "vgc-scraggy",
+      "species": "Scraggy",
+      "item": "Eviolite",
+      "ability": "Intimidate",
+      "nature": "Sassy",
+      "level": 50,
+      "evs": {
+        "hp": 4,
+        "def": 252,
+        "spd": 252
+      },
+      "ivs": {},
+      "moves": [
+        "Fake Out",
+        "Coaching",
+        "Foul Play",
+        "Endeavor"
+      ]
+    },
+    {
+      "card_id": "vgc-gothitelle",
+      "species": "Gothitelle",
+      "item": "Leftovers",
+      "ability": "Shadow Tag",
+      "nature": "Relaxed",
+      "level": 50,
+      "evs": {
+        "hp": 252,
+        "def": 196,
+        "spd": 60
+      },
+      "ivs": {},
+      "moves": [
+        "Fake Out",
+        "Protect",
+        "Psychic",
+        "Taunt"
+      ]
+    },
+    {
+      "card_id": "vgc-chesnaught",
+      "species": "Chesnaught",
+      "item": "Electric Seed",
+      "ability": "Bulletproof",
+      "nature": "Bold",
+      "level": 50,
+      "evs": {
+        "hp": 188,
+        "def": 220,
+        "spd": 44,
+        "spe": 52
+      },
+      "ivs": {},
+      "moves": [
+        "Body Press",
+        "Wide Guard",
+        "Leech Seed",
+        "Spiky Shield"
+      ]
+    },
+    {
+      "card_id": "vgc-murkrow",
+      "species": "Murkrow",
+      "item": "Ability Shield",
+      "ability": "Prankster",
+      "nature": "Impish",
+      "level": 50,
+      "evs": {
+        "hp": 252,
+        "def": 236,
+        "spd": 20
+      },
+      "ivs": {},
+      "moves": [
+        "Tailwind",
+        "Taunt",
+        "Foul Play",
+        "Protect"
+      ]
+    },
+    {
+      "card_id": "vgc-tyranitar",
+      "species": "Tyranitar",
+      "item": "Assault Vest",
+      "ability": "Sand Stream",
+      "nature": "Careful",
+      "level": 50,
+      "evs": {
+        "hp": 252,
+        "atk": 4,
+        "def": 44,
+        "spd": 208
+      },
+      "ivs": {},
+      "moves": [
+        "Rock Slide",
+        "Knock Off",
+        "Protect",
+        "Low Kick"
+      ]
+    },
+    {
+      "card_id": "vgc-iron-moth",
+      "species": "Iron Moth",
+      "item": "Booster Energy",
+      "ability": "Quark Drive",
+      "nature": "Timid",
+      "level": 50,
+      "evs": {
+        "hp": 124,
+        "spa": 132,
+        "spe": 252
+      },
+      "ivs": {},
+      "moves": [
+        "Protect",
+        "Struggle Bug",
+        "Acid Spray",
+        "Fiery Dance"
+      ]
+    }
+  ],
+  "species": {
+    "amoonguss": {
+      "name": "Amoonguss",
+      "types": [
+        "GRASS",
+        "POISON"
+      ],
+      "base_stats": {
+        "hp": 114,
+        "atk": 85,
+        "def": 70,
+        "spa": 85,
+        "spd": 80,
+        "spe": 30
+      }
+    },
+    "annihilape": {
+      "name": "Annihilape",
+      "types": [
+        "FIGHTING",
+        "GHOST"
+      ],
+      "base_stats": {
+        "hp": 110,
+        "atk": 115,
+        "def": 80,
+        "spa": 50,
+        "spd": 90,
+        "spe": 90
+      }
+    },
+    "archaludon": {
+      "name": "Archaludon",
+      "types": [
+        "STEEL",
+        "DRAGON"
+      ],
+      "base_stats": {
+        "hp": 90,
+        "atk": 105,
+        "def": 130,
+        "spa": 125,
+        "spd": 65,
+        "spe": 85
+      }
+    },
+    "basculegion": {
+      "name": "Basculegion",
+      "types": [
+        "WATER",
+        "GHOST"
+      ],
+      "base_stats": {
+        "hp": 120,
+        "atk": 112,
+        "def": 65,
+        "spa": 80,
+        "spd": 75,
+        "spe": 78
+      }
+    },
+    "basculegionf": {
+      "name": "Basculegion-F",
+      "types": [
+        "WATER",
+        "GHOST"
+      ],
+      "base_stats": {
+        "hp": 120,
+        "atk": 92,
+        "def": 65,
+        "spa": 100,
+        "spd": 75,
+        "spe": 78
+      }
+    },
+    "brutebonnet": {
+      "name": "Brute Bonnet",
+      "types": [
+        "GRASS",
+        "DARK"
+      ],
+      "base_stats": {
+        "hp": 111,
+        "atk": 127,
+        "def": 99,
+        "spa": 79,
+        "spd": 99,
+        "spe": 55
+      }
+    },
+    "calyrex": {
+      "name": "Calyrex",
+      "types": [
+        "PSYCHIC",
+        "GRASS"
+      ],
+      "base_stats": {
+        "hp": 100,
+        "atk": 80,
+        "def": 80,
+        "spa": 80,
+        "spd": 80,
+        "spe": 80
+      }
+    },
+    "calyrexice": {
+      "name": "Calyrex-Ice",
+      "types": [
+        "PSYCHIC",
+        "ICE"
+      ],
+      "base_stats": {
+        "hp": 100,
+        "atk": 165,
+        "def": 150,
+        "spa": 85,
+        "spd": 130,
+        "spe": 50
+      }
+    },
+    "calyrexshadow": {
+      "name": "Calyrex-Shadow",
+      "types": [
+        "PSYCHIC",
+        "GHOST"
+      ],
+      "base_stats": {
+        "hp": 100,
+        "atk": 85,
+        "def": 80,
+        "spa": 165,
+        "spd": 100,
+        "spe": 150
+      }
+    },
+    "chesnaught": {
+      "name": "Chesnaught",
+      "types": [
+        "GRASS",
+        "FIGHTING"
+      ],
+      "base_stats": {
+        "hp": 88,
+        "atk": 107,
+        "def": 122,
+        "spa": 74,
+        "spd": 75,
+        "spe": 64
+      }
+    },
+    "chesnaughtmega": {
+      "name": "Chesnaught-Mega",
+      "types": [
+        "GRASS",
+        "FIGHTING"
+      ],
+      "base_stats": {
+        "hp": 88,
+        "atk": 137,
+        "def": 172,
+        "spa": 74,
+        "spd": 115,
+        "spe": 44
+      }
+    },
+    "chienpao": {
+      "name": "Chien-Pao",
+      "types": [
+        "DARK",
+        "ICE"
+      ],
+      "base_stats": {
+        "hp": 80,
+        "atk": 120,
+        "def": 80,
+        "spa": 90,
+        "spd": 65,
+        "spe": 135
+      }
+    },
+    "chiyu": {
+      "name": "Chi-Yu",
+      "types": [
+        "DARK",
+        "FIRE"
+      ],
+      "base_stats": {
+        "hp": 55,
+        "atk": 80,
+        "def": 80,
+        "spa": 135,
+        "spd": 120,
+        "spe": 100
+      }
+    },
+    "clefairy": {
+      "name": "Clefairy",
+      "types": [
+        "FAIRY"
+      ],
+      "base_stats": {
+        "hp": 70,
+        "atk": 45,
+        "def": 48,
+        "spa": 60,
+        "spd": 65,
+        "spe": 35
+      }
+    },
+    "cresselia": {
+      "name": "Cresselia",
+      "types": [
+        "PSYCHIC"
+      ],
+      "base_stats": {
+        "hp": 120,
+        "atk": 70,
+        "def": 110,
+        "spa": 75,
+        "spd": 120,
+        "spe": 85
+      }
+    },
+    "dondozo": {
+      "name": "Dondozo",
+      "types": [
+        "WATER"
+      ],
+      "base_stats": {
+        "hp": 150,
+        "atk": 100,
+        "def": 115,
+        "spa": 65,
+        "spd": 65,
+        "spe": 35
+      }
+    },
+    "dragonite": {
+      "name": "Dragonite",
+      "types": [
+        "DRAGON",
+        "FLYING"
+      ],
+      "base_stats": {
+        "hp": 91,
+        "atk": 134,
+        "def": 95,
+        "spa": 100,
+        "spd": 100,
+        "spe": 80
+      }
+    },
+    "dragonitemega": {
+      "name": "Dragonite-Mega",
+      "types": [
+        "DRAGON",
+        "FLYING"
+      ],
+      "base_stats": {
+        "hp": 91,
+        "atk": 124,
+        "def": 115,
+        "spa": 145,
+        "spd": 125,
+        "spe": 100
+      }
+    },
+    "entei": {
+      "name": "Entei",
+      "types": [
+        "FIRE"
+      ],
+      "base_stats": {
+        "hp": 115,
+        "atk": 115,
+        "def": 85,
+        "spa": 90,
+        "spd": 75,
+        "spe": 100
+      }
+    },
+    "eternatus": {
+      "name": "Eternatus",
+      "types": [
+        "POISON",
+        "DRAGON"
+      ],
+      "base_stats": {
+        "hp": 140,
+        "atk": 85,
+        "def": 95,
+        "spa": 145,
+        "spd": 95,
+        "spe": 130
+      }
+    },
+    "eternatuseternamax": {
+      "name": "Eternatus-Eternamax",
+      "types": [
+        "POISON",
+        "DRAGON"
+      ],
+      "base_stats": {
+        "hp": 255,
+        "atk": 115,
+        "def": 250,
+        "spa": 125,
+        "spd": 250,
+        "spe": 130
+      }
+    },
+    "farigiraf": {
+      "name": "Farigiraf",
+      "types": [
+        "NORMAL",
+        "PSYCHIC"
+      ],
+      "base_stats": {
+        "hp": 120,
+        "atk": 90,
+        "def": 70,
+        "spa": 110,
+        "spd": 70,
+        "spe": 60
+      }
+    },
+    "flamigo": {
+      "name": "Flamigo",
+      "types": [
+        "FLYING",
+        "FIGHTING"
+      ],
+      "base_stats": {
+        "hp": 82,
+        "atk": 115,
+        "def": 74,
+        "spa": 75,
+        "spd": 64,
+        "spe": 90
+      }
+    },
+    "fluttermane": {
+      "name": "Flutter Mane",
+      "types": [
+        "GHOST",
+        "FAIRY"
+      ],
+      "base_stats": {
+        "hp": 55,
+        "atk": 55,
+        "def": 55,
+        "spa": 135,
+        "spd": 135,
+        "spe": 135
+      }
+    },
+    "gothitelle": {
+      "name": "Gothitelle",
+      "types": [
+        "PSYCHIC"
+      ],
+      "base_stats": {
+        "hp": 70,
+        "atk": 55,
+        "def": 95,
+        "spa": 95,
+        "spd": 110,
+        "spe": 65
+      }
+    },
+    "grimmsnarl": {
+      "name": "Grimmsnarl",
+      "types": [
+        "DARK",
+        "FAIRY"
+      ],
+      "base_stats": {
+        "hp": 95,
+        "atk": 120,
+        "def": 65,
+        "spa": 95,
+        "spd": 75,
+        "spe": 60
+      }
+    },
+    "groudon": {
+      "name": "Groudon",
+      "types": [
+        "GROUND"
+      ],
+      "base_stats": {
+        "hp": 100,
+        "atk": 150,
+        "def": 140,
+        "spa": 100,
+        "spd": 90,
+        "spe": 90
+      }
+    },
+    "groudonprimal": {
+      "name": "Groudon-Primal",
+      "types": [
+        "GROUND",
+        "FIRE"
+      ],
+      "base_stats": {
+        "hp": 100,
+        "atk": 180,
+        "def": 160,
+        "spa": 150,
+        "spd": 90,
+        "spe": 90
+      }
+    },
+    "hooh": {
+      "name": "Ho-Oh",
+      "types": [
+        "FIRE",
+        "FLYING"
+      ],
+      "base_stats": {
+        "hp": 106,
+        "atk": 130,
+        "def": 90,
+        "spa": 110,
+        "spd": 154,
+        "spe": 90
+      }
+    },
+    "incineroar": {
+      "name": "Incineroar",
+      "types": [
+        "FIRE",
+        "DARK"
+      ],
+      "base_stats": {
+        "hp": 95,
+        "atk": 115,
+        "def": 90,
+        "spa": 80,
+        "spd": 90,
+        "spe": 60
+      }
+    },
+    "indeedee": {
+      "name": "Indeedee",
+      "types": [
+        "PSYCHIC",
+        "NORMAL"
+      ],
+      "base_stats": {
+        "hp": 60,
+        "atk": 65,
+        "def": 55,
+        "spa": 105,
+        "spd": 95,
+        "spe": 95
+      }
+    },
+    "indeedeef": {
+      "name": "Indeedee-F",
+      "types": [
+        "PSYCHIC",
+        "NORMAL"
+      ],
+      "base_stats": {
+        "hp": 70,
+        "atk": 55,
+        "def": 65,
+        "spa": 95,
+        "spd": 105,
+        "spe": 85
+      }
+    },
+    "ironbundle": {
+      "name": "Iron Bundle",
+      "types": [
+        "ICE",
+        "WATER"
+      ],
+      "base_stats": {
+        "hp": 56,
+        "atk": 80,
+        "def": 114,
+        "spa": 124,
+        "spd": 60,
+        "spe": 136
+      }
+    },
+    "ironhands": {
+      "name": "Iron Hands",
+      "types": [
+        "FIGHTING",
+        "ELECTRIC"
+      ],
+      "base_stats": {
+        "hp": 154,
+        "atk": 140,
+        "def": 108,
+        "spa": 50,
+        "spd": 68,
+        "spe": 50
+      }
+    },
+    "ironjugulis": {
+      "name": "Iron Jugulis",
+      "types": [
+        "DARK",
+        "FLYING"
+      ],
+      "base_stats": {
+        "hp": 94,
+        "atk": 80,
+        "def": 86,
+        "spa": 122,
+        "spd": 80,
+        "spe": 108
+      }
+    },
+    "ironmoth": {
+      "name": "Iron Moth",
+      "types": [
+        "FIRE",
+        "POISON"
+      ],
+      "base_stats": {
+        "hp": 80,
+        "atk": 70,
+        "def": 60,
+        "spa": 140,
+        "spd": 110,
+        "spe": 110
+      }
+    },
+    "irontreads": {
+      "name": "Iron Treads",
+      "types": [
+        "GROUND",
+        "STEEL"
+      ],
+      "base_stats": {
+        "hp": 90,
+        "atk": 112,
+        "def": 120,
+        "spa": 72,
+        "spd": 70,
+        "spe": 106
+      }
+    },
+    "ironvaliant": {
+      "name": "Iron Valiant",
+      "types": [
+        "FAIRY",
+        "FIGHTING"
+      ],
+      "base_stats": {
+        "hp": 74,
+        "atk": 130,
+        "def": 90,
+        "spa": 120,
+        "spd": 60,
+        "spe": 116
+      }
+    },
+    "jumpluff": {
+      "name": "Jumpluff",
+      "types": [
+        "GRASS",
+        "FLYING"
+      ],
+      "base_stats": {
+        "hp": 75,
+        "atk": 55,
+        "def": 70,
+        "spa": 55,
+        "spd": 95,
+        "spe": 110
+      }
+    },
+    "kingambit": {
+      "name": "Kingambit",
+      "types": [
+        "DARK",
+        "STEEL"
+      ],
+      "base_stats": {
+        "hp": 100,
+        "atk": 135,
+        "def": 120,
+        "spa": 60,
+        "spd": 85,
+        "spe": 50
+      }
+    },
+    "koraidon": {
+      "name": "Koraidon",
+      "types": [
+        "FIGHTING",
+        "DRAGON"
+      ],
+      "base_stats": {
+        "hp": 100,
+        "atk": 135,
+        "def": 115,
+        "spa": 85,
+        "spd": 100,
+        "spe": 135
+      }
+    },
+    "kyogre": {
+      "name": "Kyogre",
+      "types": [
+        "WATER"
+      ],
+      "base_stats": {
+        "hp": 100,
+        "atk": 100,
+        "def": 90,
+        "spa": 150,
+        "spd": 140,
+        "spe": 90
+      }
+    },
+    "kyogreprimal": {
+      "name": "Kyogre-Primal",
+      "types": [
+        "WATER"
+      ],
+      "base_stats": {
+        "hp": 100,
+        "atk": 150,
+        "def": 90,
+        "spa": 180,
+        "spd": 160,
+        "spe": 90
+      }
+    },
+    "kyurem": {
+      "name": "Kyurem",
+      "types": [
+        "DRAGON",
+        "ICE"
+      ],
+      "base_stats": {
+        "hp": 125,
+        "atk": 130,
+        "def": 90,
+        "spa": 130,
+        "spd": 90,
+        "spe": 95
+      }
+    },
+    "kyuremblack": {
+      "name": "Kyurem-Black",
+      "types": [
+        "DRAGON",
+        "ICE"
+      ],
+      "base_stats": {
+        "hp": 125,
+        "atk": 170,
+        "def": 100,
+        "spa": 120,
+        "spd": 90,
+        "spe": 95
+      }
+    },
+    "kyuremwhite": {
+      "name": "Kyurem-White",
+      "types": [
+        "DRAGON",
+        "ICE"
+      ],
+      "base_stats": {
+        "hp": 125,
+        "atk": 120,
+        "def": 90,
+        "spa": 170,
+        "spd": 100,
+        "spe": 95
+      }
+    },
+    "landorus": {
+      "name": "Landorus",
+      "types": [
+        "GROUND",
+        "FLYING"
+      ],
+      "base_stats": {
+        "hp": 89,
+        "atk": 125,
+        "def": 90,
+        "spa": 115,
+        "spd": 80,
+        "spe": 101
+      }
+    },
+    "landorustherian": {
+      "name": "Landorus-Therian",
+      "types": [
+        "GROUND",
+        "FLYING"
+      ],
+      "base_stats": {
+        "hp": 89,
+        "atk": 145,
+        "def": 90,
+        "spa": 105,
+        "spd": 80,
+        "spe": 91
+      }
+    },
+    "lilligant": {
+      "name": "Lilligant",
+      "types": [
+        "GRASS"
+      ],
+      "base_stats": {
+        "hp": 70,
+        "atk": 60,
+        "def": 75,
+        "spa": 110,
+        "spd": 75,
+        "spe": 90
+      }
+    },
+    "lilliganthisui": {
+      "name": "Lilligant-Hisui",
+      "types": [
+        "GRASS",
+        "FIGHTING"
+      ],
+      "base_stats": {
+        "hp": 70,
+        "atk": 105,
+        "def": 75,
+        "spa": 50,
+        "spd": 75,
+        "spe": 105
+      }
+    },
+    "lunala": {
+      "name": "Lunala",
+      "types": [
+        "PSYCHIC",
+        "GHOST"
+      ],
+      "base_stats": {
+        "hp": 137,
+        "atk": 113,
+        "def": 89,
+        "spa": 137,
+        "spd": 107,
+        "spe": 97
+      }
+    },
+    "maushold": {
+      "name": "Maushold",
+      "types": [
+        "NORMAL"
+      ],
+      "base_stats": {
+        "hp": 74,
+        "atk": 75,
+        "def": 70,
+        "spa": 65,
+        "spd": 75,
+        "spe": 111
+      }
+    },
+    "mausholdfour": {
+      "name": "Maushold-Four",
+      "types": [
+        "NORMAL"
+      ],
+      "base_stats": {
+        "hp": 74,
+        "atk": 75,
+        "def": 70,
+        "spa": 65,
+        "spd": 75,
+        "spe": 111
+      }
+    },
+    "miraidon": {
+      "name": "Miraidon",
+      "types": [
+        "ELECTRIC",
+        "DRAGON"
+      ],
+      "base_stats": {
+        "hp": 100,
+        "atk": 85,
+        "def": 100,
+        "spa": 135,
+        "spd": 115,
+        "spe": 135
+      }
+    },
+    "muk": {
+      "name": "Muk",
+      "types": [
+        "POISON"
+      ],
+      "base_stats": {
+        "hp": 105,
+        "atk": 105,
+        "def": 75,
+        "spa": 65,
+        "spd": 100,
+        "spe": 50
+      }
+    },
+    "mukalola": {
+      "name": "Muk-Alola",
+      "types": [
+        "POISON",
+        "DARK"
+      ],
+      "base_stats": {
+        "hp": 105,
+        "atk": 105,
+        "def": 75,
+        "spa": 65,
+        "spd": 100,
+        "spe": 50
+      }
+    },
+    "murkrow": {
+      "name": "Murkrow",
+      "types": [
+        "DARK",
+        "FLYING"
+      ],
+      "base_stats": {
+        "hp": 60,
+        "atk": 85,
+        "def": 42,
+        "spa": 85,
+        "spd": 42,
+        "spe": 91
+      }
+    },
+    "ogerpon": {
+      "name": "Ogerpon",
+      "types": [
+        "GRASS"
+      ],
+      "base_stats": {
+        "hp": 80,
+        "atk": 120,
+        "def": 84,
+        "spa": 60,
+        "spd": 96,
+        "spe": 110
+      }
+    },
+    "ogerponcornerstone": {
+      "name": "Ogerpon-Cornerstone",
+      "types": [
+        "GRASS",
+        "ROCK"
+      ],
+      "base_stats": {
+        "hp": 80,
+        "atk": 120,
+        "def": 84,
+        "spa": 60,
+        "spd": 96,
+        "spe": 110
+      }
+    },
+    "ogerponcornerstonetera": {
+      "name": "Ogerpon-Cornerstone-Tera",
+      "types": [
+        "GRASS",
+        "ROCK"
+      ],
+      "base_stats": {
+        "hp": 80,
+        "atk": 120,
+        "def": 84,
+        "spa": 60,
+        "spd": 96,
+        "spe": 110
+      }
+    },
+    "ogerponhearthflame": {
+      "name": "Ogerpon-Hearthflame",
+      "types": [
+        "GRASS",
+        "FIRE"
+      ],
+      "base_stats": {
+        "hp": 80,
+        "atk": 120,
+        "def": 84,
+        "spa": 60,
+        "spd": 96,
+        "spe": 110
+      }
+    },
+    "ogerponhearthflametera": {
+      "name": "Ogerpon-Hearthflame-Tera",
+      "types": [
+        "GRASS",
+        "FIRE"
+      ],
+      "base_stats": {
+        "hp": 80,
+        "atk": 120,
+        "def": 84,
+        "spa": 60,
+        "spd": 96,
+        "spe": 110
+      }
+    },
+    "ogerpontealtera": {
+      "name": "Ogerpon-Teal-Tera",
+      "types": [
+        "GRASS"
+      ],
+      "base_stats": {
+        "hp": 80,
+        "atk": 120,
+        "def": 84,
+        "spa": 60,
+        "spd": 96,
+        "spe": 110
+      }
+    },
+    "ogerponwellspring": {
+      "name": "Ogerpon-Wellspring",
+      "types": [
+        "GRASS",
+        "WATER"
+      ],
+      "base_stats": {
+        "hp": 80,
+        "atk": 120,
+        "def": 84,
+        "spa": 60,
+        "spd": 96,
+        "spe": 110
+      }
+    },
+    "ogerponwellspringtera": {
+      "name": "Ogerpon-Wellspring-Tera",
+      "types": [
+        "GRASS",
+        "WATER"
+      ],
+      "base_stats": {
+        "hp": 80,
+        "atk": 120,
+        "def": 84,
+        "spa": 60,
+        "spd": 96,
+        "spe": 110
+      }
+    },
+    "pelipper": {
+      "name": "Pelipper",
+      "types": [
+        "WATER",
+        "FLYING"
+      ],
+      "base_stats": {
+        "hp": 60,
+        "atk": 50,
+        "def": 100,
+        "spa": 95,
+        "spd": 70,
+        "spe": 65
+      }
+    },
+    "ragingbolt": {
+      "name": "Raging Bolt",
+      "types": [
+        "ELECTRIC",
+        "DRAGON"
+      ],
+      "base_stats": {
+        "hp": 125,
+        "atk": 73,
+        "def": 91,
+        "spa": 137,
+        "spd": 89,
+        "spe": 75
+      }
+    },
+    "raichu": {
+      "name": "Raichu",
+      "types": [
+        "ELECTRIC"
+      ],
+      "base_stats": {
+        "hp": 60,
+        "atk": 90,
+        "def": 55,
+        "spa": 90,
+        "spd": 80,
+        "spe": 110
+      }
+    },
+    "raichualola": {
+      "name": "Raichu-Alola",
+      "types": [
+        "ELECTRIC",
+        "PSYCHIC"
+      ],
+      "base_stats": {
+        "hp": 60,
+        "atk": 85,
+        "def": 50,
+        "spa": 95,
+        "spd": 85,
+        "spe": 110
+      }
+    },
+    "raichumegax": {
+      "name": "Raichu-Mega-X",
+      "types": [
+        "ELECTRIC"
+      ],
+      "base_stats": {
+        "hp": 60,
+        "atk": 135,
+        "def": 95,
+        "spa": 90,
+        "spd": 95,
+        "spe": 110
+      }
+    },
+    "raichumegay": {
+      "name": "Raichu-Mega-Y",
+      "types": [
+        "ELECTRIC"
+      ],
+      "base_stats": {
+        "hp": 60,
+        "atk": 100,
+        "def": 55,
+        "spa": 160,
+        "spd": 80,
+        "spe": 130
+      }
+    },
+    "rayquaza": {
+      "name": "Rayquaza",
+      "types": [
+        "DRAGON",
+        "FLYING"
+      ],
+      "base_stats": {
+        "hp": 105,
+        "atk": 150,
+        "def": 90,
+        "spa": 150,
+        "spd": 90,
+        "spe": 95
+      }
+    },
+    "rayquazamega": {
+      "name": "Rayquaza-Mega",
+      "types": [
+        "DRAGON",
+        "FLYING"
+      ],
+      "base_stats": {
+        "hp": 105,
+        "atk": 180,
+        "def": 100,
+        "spa": 180,
+        "spd": 100,
+        "spe": 115
+      }
+    },
+    "regieleki": {
+      "name": "Regieleki",
+      "types": [
+        "ELECTRIC"
+      ],
+      "base_stats": {
+        "hp": 80,
+        "atk": 100,
+        "def": 50,
+        "spa": 100,
+        "spd": 50,
+        "spe": 200
+      }
+    },
+    "rhyperior": {
+      "name": "Rhyperior",
+      "types": [
+        "GROUND",
+        "ROCK"
+      ],
+      "base_stats": {
+        "hp": 115,
+        "atk": 140,
+        "def": 130,
+        "spa": 55,
+        "spd": 55,
+        "spe": 40
+      }
+    },
+    "rillaboom": {
+      "name": "Rillaboom",
+      "types": [
+        "GRASS"
+      ],
+      "base_stats": {
+        "hp": 100,
+        "atk": 125,
+        "def": 90,
+        "spa": 60,
+        "spd": 70,
+        "spe": 85
+      }
+    },
+    "roaringmoon": {
+      "name": "Roaring Moon",
+      "types": [
+        "DRAGON",
+        "DARK"
+      ],
+      "base_stats": {
+        "hp": 105,
+        "atk": 139,
+        "def": 71,
+        "spa": 55,
+        "spd": 101,
+        "spe": 119
+      }
+    },
+    "sableye": {
+      "name": "Sableye",
+      "types": [
+        "DARK",
+        "GHOST"
+      ],
+      "base_stats": {
+        "hp": 50,
+        "atk": 75,
+        "def": 75,
+        "spa": 65,
+        "spd": 65,
+        "spe": 50
+      }
+    },
+    "sableyemega": {
+      "name": "Sableye-Mega",
+      "types": [
+        "DARK",
+        "GHOST"
+      ],
+      "base_stats": {
+        "hp": 50,
+        "atk": 85,
+        "def": 125,
+        "spa": 85,
+        "spd": 115,
+        "spe": 20
+      }
+    },
+    "scraggy": {
+      "name": "Scraggy",
+      "types": [
+        "DARK",
+        "FIGHTING"
+      ],
+      "base_stats": {
+        "hp": 50,
+        "atk": 75,
+        "def": 70,
+        "spa": 35,
+        "spd": 70,
+        "spe": 48
+      }
+    },
+    "screamtail": {
+      "name": "Scream Tail",
+      "types": [
+        "FAIRY",
+        "PSYCHIC"
+      ],
+      "base_stats": {
+        "hp": 115,
+        "atk": 65,
+        "def": 99,
+        "spa": 65,
+        "spd": 115,
+        "spe": 111
+      }
+    },
+    "sinistcha": {
+      "name": "Sinistcha",
+      "types": [
+        "GRASS",
+        "GHOST"
+      ],
+      "base_stats": {
+        "hp": 71,
+        "atk": 60,
+        "def": 106,
+        "spa": 121,
+        "spd": 80,
+        "spe": 70
+      }
+    },
+    "sinistchamasterpiece": {
+      "name": "Sinistcha-Masterpiece",
+      "types": [
+        "GRASS",
+        "GHOST"
+      ],
+      "base_stats": {
+        "hp": 71,
+        "atk": 60,
+        "def": 106,
+        "spa": 121,
+        "spd": 80,
+        "spe": 70
+      }
+    },
+    "smeargle": {
+      "name": "Smeargle",
+      "types": [
+        "NORMAL"
+      ],
+      "base_stats": {
+        "hp": 55,
+        "atk": 20,
+        "def": 35,
+        "spa": 20,
+        "spd": 45,
+        "spe": 75
+      }
+    },
+    "sneasler": {
+      "name": "Sneasler",
+      "types": [
+        "FIGHTING",
+        "POISON"
+      ],
+      "base_stats": {
+        "hp": 80,
+        "atk": 130,
+        "def": 60,
+        "spa": 40,
+        "spd": 80,
+        "spe": 120
+      }
+    },
+    "tatsugiri": {
+      "name": "Tatsugiri",
+      "types": [
+        "DRAGON",
+        "WATER"
+      ],
+      "base_stats": {
+        "hp": 68,
+        "atk": 50,
+        "def": 60,
+        "spa": 120,
+        "spd": 95,
+        "spe": 82
+      }
+    },
+    "tatsugiricurlymega": {
+      "name": "Tatsugiri-Curly-Mega",
+      "types": [
+        "DRAGON",
+        "WATER"
+      ],
+      "base_stats": {
+        "hp": 68,
+        "atk": 65,
+        "def": 90,
+        "spa": 135,
+        "spd": 125,
+        "spe": 92
+      }
+    },
+    "tatsugiridroopy": {
+      "name": "Tatsugiri-Droopy",
+      "types": [
+        "DRAGON",
+        "WATER"
+      ],
+      "base_stats": {
+        "hp": 68,
+        "atk": 50,
+        "def": 60,
+        "spa": 120,
+        "spd": 95,
+        "spe": 82
+      }
+    },
+    "tatsugiridroopymega": {
+      "name": "Tatsugiri-Droopy-Mega",
+      "types": [
+        "DRAGON",
+        "WATER"
+      ],
+      "base_stats": {
+        "hp": 68,
+        "atk": 65,
+        "def": 90,
+        "spa": 135,
+        "spd": 125,
+        "spe": 92
+      }
+    },
+    "tatsugiristretchy": {
+      "name": "Tatsugiri-Stretchy",
+      "types": [
+        "DRAGON",
+        "WATER"
+      ],
+      "base_stats": {
+        "hp": 68,
+        "atk": 50,
+        "def": 60,
+        "spa": 120,
+        "spd": 95,
+        "spe": 82
+      }
+    },
+    "tatsugiristretchymega": {
+      "name": "Tatsugiri-Stretchy-Mega",
+      "types": [
+        "DRAGON",
+        "WATER"
+      ],
+      "base_stats": {
+        "hp": 68,
+        "atk": 65,
+        "def": 90,
+        "spa": 135,
+        "spd": 125,
+        "spe": 92
+      }
+    },
+    "terapagos": {
+      "name": "Terapagos",
+      "types": [
+        "NORMAL"
+      ],
+      "base_stats": {
+        "hp": 90,
+        "atk": 65,
+        "def": 85,
+        "spa": 65,
+        "spd": 85,
+        "spe": 60
+      }
+    },
+    "terapagosstellar": {
+      "name": "Terapagos-Stellar",
+      "types": [
+        "NORMAL"
+      ],
+      "base_stats": {
+        "hp": 160,
+        "atk": 105,
+        "def": 110,
+        "spa": 130,
+        "spd": 110,
+        "spe": 85
+      }
+    },
+    "terapagosterastal": {
+      "name": "Terapagos-Terastal",
+      "types": [
+        "NORMAL"
+      ],
+      "base_stats": {
+        "hp": 95,
+        "atk": 95,
+        "def": 110,
+        "spa": 105,
+        "spd": 110,
+        "spe": 85
+      }
+    },
+    "tinglu": {
+      "name": "Ting-Lu",
+      "types": [
+        "DARK",
+        "GROUND"
+      ],
+      "base_stats": {
+        "hp": 155,
+        "atk": 110,
+        "def": 125,
+        "spa": 55,
+        "spd": 80,
+        "spe": 45
+      }
+    },
+    "torkoal": {
+      "name": "Torkoal",
+      "types": [
+        "FIRE"
+      ],
+      "base_stats": {
+        "hp": 70,
+        "atk": 85,
+        "def": 140,
+        "spa": 85,
+        "spd": 70,
+        "spe": 20
+      }
+    },
+    "tornadus": {
+      "name": "Tornadus",
+      "types": [
+        "FLYING"
+      ],
+      "base_stats": {
+        "hp": 79,
+        "atk": 115,
+        "def": 70,
+        "spa": 125,
+        "spd": 80,
+        "spe": 111
+      }
+    },
+    "tornadustherian": {
+      "name": "Tornadus-Therian",
+      "types": [
+        "FLYING"
+      ],
+      "base_stats": {
+        "hp": 79,
+        "atk": 100,
+        "def": 80,
+        "spa": 110,
+        "spd": 90,
+        "spe": 121
+      }
+    },
+    "tsareena": {
+      "name": "Tsareena",
+      "types": [
+        "GRASS"
+      ],
+      "base_stats": {
+        "hp": 72,
+        "atk": 120,
+        "def": 98,
+        "spa": 50,
+        "spd": 98,
+        "spe": 72
+      }
+    },
+    "tyranitar": {
+      "name": "Tyranitar",
+      "types": [
+        "ROCK",
+        "DARK"
+      ],
+      "base_stats": {
+        "hp": 100,
+        "atk": 134,
+        "def": 110,
+        "spa": 95,
+        "spd": 100,
+        "spe": 61
+      }
+    },
+    "tyranitarmega": {
+      "name": "Tyranitar-Mega",
+      "types": [
+        "ROCK",
+        "DARK"
+      ],
+      "base_stats": {
+        "hp": 100,
+        "atk": 164,
+        "def": 150,
+        "spa": 95,
+        "spd": 120,
+        "spe": 71
+      }
+    },
+    "ursaluna": {
+      "name": "Ursaluna",
+      "types": [
+        "GROUND",
+        "NORMAL"
+      ],
+      "base_stats": {
+        "hp": 130,
+        "atk": 140,
+        "def": 105,
+        "spa": 45,
+        "spd": 80,
+        "spe": 50
+      }
+    },
+    "ursalunabloodmoon": {
+      "name": "Ursaluna-Bloodmoon",
+      "types": [
+        "GROUND",
+        "NORMAL"
+      ],
+      "base_stats": {
+        "hp": 113,
+        "atk": 70,
+        "def": 120,
+        "spa": 135,
+        "spd": 65,
+        "spe": 52
+      }
+    },
+    "urshifu": {
+      "name": "Urshifu",
+      "types": [
+        "FIGHTING",
+        "DARK"
+      ],
+      "base_stats": {
+        "hp": 100,
+        "atk": 130,
+        "def": 100,
+        "spa": 63,
+        "spd": 60,
+        "spe": 97
+      }
+    },
+    "urshifurapidstrike": {
+      "name": "Urshifu-Rapid-Strike",
+      "types": [
+        "FIGHTING",
+        "WATER"
+      ],
+      "base_stats": {
+        "hp": 100,
+        "atk": 130,
+        "def": 100,
+        "spa": 63,
+        "spd": 60,
+        "spe": 97
+      }
+    },
+    "volcarona": {
+      "name": "Volcarona",
+      "types": [
+        "BUG",
+        "FIRE"
+      ],
+      "base_stats": {
+        "hp": 85,
+        "atk": 60,
+        "def": 65,
+        "spa": 135,
+        "spd": 105,
+        "spe": 100
+      }
+    },
+    "walkingwake": {
+      "name": "Walking Wake",
+      "types": [
+        "WATER",
+        "DRAGON"
+      ],
+      "base_stats": {
+        "hp": 99,
+        "atk": 83,
+        "def": 91,
+        "spa": 125,
+        "spd": 83,
+        "spe": 109
+      }
+    },
+    "weezing": {
+      "name": "Weezing",
+      "types": [
+        "POISON"
+      ],
+      "base_stats": {
+        "hp": 65,
+        "atk": 90,
+        "def": 120,
+        "spa": 85,
+        "spd": 70,
+        "spe": 60
+      }
+    },
+    "weezinggalar": {
+      "name": "Weezing-Galar",
+      "types": [
+        "POISON",
+        "FAIRY"
+      ],
+      "base_stats": {
+        "hp": 65,
+        "atk": 90,
+        "def": 120,
+        "spa": 85,
+        "spd": 70,
+        "spe": 60
+      }
+    },
+    "whimsicott": {
+      "name": "Whimsicott",
+      "types": [
+        "GRASS",
+        "FAIRY"
+      ],
+      "base_stats": {
+        "hp": 60,
+        "atk": 67,
+        "def": 85,
+        "spa": 77,
+        "spd": 75,
+        "spe": 116
+      }
+    },
+    "zacian": {
+      "name": "Zacian",
+      "types": [
+        "FAIRY"
+      ],
+      "base_stats": {
+        "hp": 92,
+        "atk": 120,
+        "def": 115,
+        "spa": 80,
+        "spd": 115,
+        "spe": 138
+      }
+    },
+    "zaciancrowned": {
+      "name": "Zacian-Crowned",
+      "types": [
+        "FAIRY",
+        "STEEL"
+      ],
+      "base_stats": {
+        "hp": 92,
+        "atk": 150,
+        "def": 115,
+        "spa": 80,
+        "spd": 115,
+        "spe": 148
+      }
+    },
+    "zamazenta": {
+      "name": "Zamazenta",
+      "types": [
+        "FIGHTING"
+      ],
+      "base_stats": {
+        "hp": 92,
+        "atk": 120,
+        "def": 115,
+        "spa": 80,
+        "spd": 115,
+        "spe": 138
+      }
+    },
+    "zamazentacrowned": {
+      "name": "Zamazenta-Crowned",
+      "types": [
+        "FIGHTING",
+        "STEEL"
+      ],
+      "base_stats": {
+        "hp": 92,
+        "atk": 120,
+        "def": 140,
+        "spa": 80,
+        "spd": 140,
+        "spe": 128
+      }
+    }
+  },
+  "moves": {
+    "acidspray": {
+      "name": "Acid Spray",
+      "type": "POISON",
+      "category": "SPECIAL",
+      "base_power": 40,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "acrobatics": {
+      "name": "Acrobatics",
+      "type": "FLYING",
+      "category": "PHYSICAL",
+      "base_power": 55,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "any"
+    },
+    "aerialace": {
+      "name": "Aerial Ace",
+      "type": "FLYING",
+      "category": "PHYSICAL",
+      "base_power": 60,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "any"
+    },
+    "afteryou": {
+      "name": "After You",
+      "type": "NORMAL",
+      "category": "STATUS",
+      "base_power": 0,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "aquajet": {
+      "name": "Aqua Jet",
+      "type": "WATER",
+      "category": "PHYSICAL",
+      "base_power": 40,
+      "accuracy": 1.0,
+      "priority": 1,
+      "target": "normal"
+    },
+    "astralbarrage": {
+      "name": "Astral Barrage",
+      "type": "GHOST",
+      "category": "SPECIAL",
+      "base_power": 120,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "allAdjacentFoes"
+    },
+    "bleakwindstorm": {
+      "name": "Bleakwind Storm",
+      "type": "FLYING",
+      "category": "SPECIAL",
+      "base_power": 100,
+      "accuracy": 0.8,
+      "priority": 0,
+      "target": "allAdjacentFoes"
+    },
+    "bodypress": {
+      "name": "Body Press",
+      "type": "FIGHTING",
+      "category": "PHYSICAL",
+      "base_power": 80,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "bravebird": {
+      "name": "Brave Bird",
+      "type": "FLYING",
+      "category": "PHYSICAL",
+      "base_power": 120,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "any"
+    },
+    "calmmind": {
+      "name": "Calm Mind",
+      "type": "PSYCHIC",
+      "category": "STATUS",
+      "base_power": 0,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "self"
+    },
+    "closecombat": {
+      "name": "Close Combat",
+      "type": "FIGHTING",
+      "category": "PHYSICAL",
+      "base_power": 120,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "coaching": {
+      "name": "Coaching",
+      "type": "FIGHTING",
+      "category": "STATUS",
+      "base_power": 0,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "adjacentAlly"
+    },
+    "collisioncourse": {
+      "name": "Collision Course",
+      "type": "FIGHTING",
+      "category": "PHYSICAL",
+      "base_power": 100,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "cosmicpower": {
+      "name": "Cosmic Power",
+      "type": "PSYCHIC",
+      "category": "STATUS",
+      "base_power": 0,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "self"
+    },
+    "counter": {
+      "name": "Counter",
+      "type": "FIGHTING",
+      "category": "PHYSICAL",
+      "base_power": 0,
+      "accuracy": 1.0,
+      "priority": -5,
+      "target": "scripted"
+    },
+    "crunch": {
+      "name": "Crunch",
+      "type": "DARK",
+      "category": "PHYSICAL",
+      "base_power": 80,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "darkpulse": {
+      "name": "Dark Pulse",
+      "type": "DARK",
+      "category": "SPECIAL",
+      "base_power": 80,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "any"
+    },
+    "dazzlinggleam": {
+      "name": "Dazzling Gleam",
+      "type": "FAIRY",
+      "category": "SPECIAL",
+      "base_power": 80,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "allAdjacentFoes"
+    },
+    "decorate": {
+      "name": "Decorate",
+      "type": "FAIRY",
+      "category": "STATUS",
+      "base_power": 0,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "detect": {
+      "name": "Detect",
+      "type": "FIGHTING",
+      "category": "STATUS",
+      "base_power": 0,
+      "accuracy": 1.0,
+      "priority": 4,
+      "target": "self"
+    },
+    "direclaw": {
+      "name": "Dire Claw",
+      "type": "POISON",
+      "category": "PHYSICAL",
+      "base_power": 80,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "disable": {
+      "name": "Disable",
+      "type": "NORMAL",
+      "category": "STATUS",
+      "base_power": 0,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "dracometeor": {
+      "name": "Draco Meteor",
+      "type": "DRAGON",
+      "category": "SPECIAL",
+      "base_power": 130,
+      "accuracy": 0.9,
+      "priority": 0,
+      "target": "normal"
+    },
+    "dragonascent": {
+      "name": "Dragon Ascent",
+      "type": "FLYING",
+      "category": "PHYSICAL",
+      "base_power": 120,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "any"
+    },
+    "drainpunch": {
+      "name": "Drain Punch",
+      "type": "FIGHTING",
+      "category": "PHYSICAL",
+      "base_power": 75,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "earthpower": {
+      "name": "Earth Power",
+      "type": "GROUND",
+      "category": "SPECIAL",
+      "base_power": 90,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "earthquake": {
+      "name": "Earthquake",
+      "type": "GROUND",
+      "category": "PHYSICAL",
+      "base_power": 100,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "allAdjacent"
+    },
+    "electrodrift": {
+      "name": "Electro Drift",
+      "type": "ELECTRIC",
+      "category": "SPECIAL",
+      "base_power": 100,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "electroshot": {
+      "name": "Electro Shot",
+      "type": "ELECTRIC",
+      "category": "SPECIAL",
+      "base_power": 130,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "electroweb": {
+      "name": "Electroweb",
+      "type": "ELECTRIC",
+      "category": "SPECIAL",
+      "base_power": 55,
+      "accuracy": 0.95,
+      "priority": 0,
+      "target": "allAdjacentFoes"
+    },
+    "encore": {
+      "name": "Encore",
+      "type": "NORMAL",
+      "category": "STATUS",
+      "base_power": 0,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "endeavor": {
+      "name": "Endeavor",
+      "type": "NORMAL",
+      "category": "PHYSICAL",
+      "base_power": 0,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "eruption": {
+      "name": "Eruption",
+      "type": "FIRE",
+      "category": "SPECIAL",
+      "base_power": 150,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "allAdjacentFoes"
+    },
+    "explosion": {
+      "name": "Explosion",
+      "type": "NORMAL",
+      "category": "PHYSICAL",
+      "base_power": 250,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "allAdjacent"
+    },
+    "extremespeed": {
+      "name": "Extreme Speed",
+      "type": "NORMAL",
+      "category": "PHYSICAL",
+      "base_power": 80,
+      "accuracy": 1.0,
+      "priority": 2,
+      "target": "normal"
+    },
+    "facade": {
+      "name": "Facade",
+      "type": "NORMAL",
+      "category": "PHYSICAL",
+      "base_power": 70,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "fakeout": {
+      "name": "Fake Out",
+      "type": "NORMAL",
+      "category": "PHYSICAL",
+      "base_power": 40,
+      "accuracy": 1.0,
+      "priority": 3,
+      "target": "normal"
+    },
+    "feint": {
+      "name": "Feint",
+      "type": "NORMAL",
+      "category": "PHYSICAL",
+      "base_power": 30,
+      "accuracy": 1.0,
+      "priority": 2,
+      "target": "normal"
+    },
+    "fierydance": {
+      "name": "Fiery Dance",
+      "type": "FIRE",
+      "category": "SPECIAL",
+      "base_power": 80,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "finalgambit": {
+      "name": "Final Gambit",
+      "type": "FIGHTING",
+      "category": "SPECIAL",
+      "base_power": 0,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "flamecharge": {
+      "name": "Flame Charge",
+      "type": "FIRE",
+      "category": "PHYSICAL",
+      "base_power": 50,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "flareblitz": {
+      "name": "Flare Blitz",
+      "type": "FIRE",
+      "category": "PHYSICAL",
+      "base_power": 120,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "flashcannon": {
+      "name": "Flash Cannon",
+      "type": "STEEL",
+      "category": "SPECIAL",
+      "base_power": 80,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "followme": {
+      "name": "Follow Me",
+      "type": "NORMAL",
+      "category": "STATUS",
+      "base_power": 0,
+      "accuracy": 1.0,
+      "priority": 2,
+      "target": "self"
+    },
+    "foulplay": {
+      "name": "Foul Play",
+      "type": "DARK",
+      "category": "PHYSICAL",
+      "base_power": 95,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "freezedry": {
+      "name": "Freeze-Dry",
+      "type": "ICE",
+      "category": "SPECIAL",
+      "base_power": 70,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "fusionflare": {
+      "name": "Fusion Flare",
+      "type": "FIRE",
+      "category": "SPECIAL",
+      "base_power": 100,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "grassyglide": {
+      "name": "Grassy Glide",
+      "type": "GRASS",
+      "category": "PHYSICAL",
+      "base_power": 55,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "headlongrush": {
+      "name": "Headlong Rush",
+      "type": "GROUND",
+      "category": "PHYSICAL",
+      "base_power": 120,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "heatcrash": {
+      "name": "Heat Crash",
+      "type": "FIRE",
+      "category": "PHYSICAL",
+      "base_power": 0,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "heatwave": {
+      "name": "Heat Wave",
+      "type": "FIRE",
+      "category": "SPECIAL",
+      "base_power": 95,
+      "accuracy": 0.9,
+      "priority": 0,
+      "target": "allAdjacentFoes"
+    },
+    "heavyslam": {
+      "name": "Heavy Slam",
+      "type": "STEEL",
+      "category": "PHYSICAL",
+      "base_power": 0,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "helpinghand": {
+      "name": "Helping Hand",
+      "type": "NORMAL",
+      "category": "STATUS",
+      "base_power": 0,
+      "accuracy": 1.0,
+      "priority": 5,
+      "target": "adjacentAlly"
+    },
+    "highhorsepower": {
+      "name": "High Horsepower",
+      "type": "GROUND",
+      "category": "PHYSICAL",
+      "base_power": 95,
+      "accuracy": 0.95,
+      "priority": 0,
+      "target": "normal"
+    },
+    "hurricane": {
+      "name": "Hurricane",
+      "type": "FLYING",
+      "category": "SPECIAL",
+      "base_power": 110,
+      "accuracy": 0.7,
+      "priority": 0,
+      "target": "any"
+    },
+    "hydropump": {
+      "name": "Hydro Pump",
+      "type": "WATER",
+      "category": "SPECIAL",
+      "base_power": 110,
+      "accuracy": 0.8,
+      "priority": 0,
+      "target": "normal"
+    },
+    "hydrosteam": {
+      "name": "Hydro Steam",
+      "type": "WATER",
+      "category": "SPECIAL",
+      "base_power": 80,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "icespinner": {
+      "name": "Ice Spinner",
+      "type": "ICE",
+      "category": "PHYSICAL",
+      "base_power": 80,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "iciclecrash": {
+      "name": "Icicle Crash",
+      "type": "ICE",
+      "category": "PHYSICAL",
+      "base_power": 85,
+      "accuracy": 0.9,
+      "priority": 0,
+      "target": "normal"
+    },
+    "icywind": {
+      "name": "Icy Wind",
+      "type": "ICE",
+      "category": "SPECIAL",
+      "base_power": 55,
+      "accuracy": 0.95,
+      "priority": 0,
+      "target": "allAdjacentFoes"
+    },
+    "ironhead": {
+      "name": "Iron Head",
+      "type": "STEEL",
+      "category": "PHYSICAL",
+      "base_power": 80,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "ivycudgel": {
+      "name": "Ivy Cudgel",
+      "type": "GRASS",
+      "category": "PHYSICAL",
+      "base_power": 100,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "knockoff": {
+      "name": "Knock Off",
+      "type": "DARK",
+      "category": "PHYSICAL",
+      "base_power": 65,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "kowtowcleave": {
+      "name": "Kowtow Cleave",
+      "type": "DARK",
+      "category": "PHYSICAL",
+      "base_power": 85,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "lastrespects": {
+      "name": "Last Respects",
+      "type": "GHOST",
+      "category": "PHYSICAL",
+      "base_power": 50,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "leechseed": {
+      "name": "Leech Seed",
+      "type": "GRASS",
+      "category": "STATUS",
+      "base_power": 0,
+      "accuracy": 0.9,
+      "priority": 0,
+      "target": "normal"
+    },
+    "lightscreen": {
+      "name": "Light Screen",
+      "type": "PSYCHIC",
+      "category": "STATUS",
+      "base_power": 0,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "allySide"
+    },
+    "lowkick": {
+      "name": "Low Kick",
+      "type": "FIGHTING",
+      "category": "PHYSICAL",
+      "base_power": 0,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "lunarblessing": {
+      "name": "Lunar Blessing",
+      "type": "PSYCHIC",
+      "category": "STATUS",
+      "base_power": 0,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "allies"
+    },
+    "matchagotcha": {
+      "name": "Matcha Gotcha",
+      "type": "GRASS",
+      "category": "SPECIAL",
+      "base_power": 80,
+      "accuracy": 0.9,
+      "priority": 0,
+      "target": "allAdjacentFoes"
+    },
+    "minimize": {
+      "name": "Minimize",
+      "type": "NORMAL",
+      "category": "STATUS",
+      "base_power": 0,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "self"
+    },
+    "moonblast": {
+      "name": "Moonblast",
+      "type": "FAIRY",
+      "category": "SPECIAL",
+      "base_power": 95,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "moongeistbeam": {
+      "name": "Moongeist Beam",
+      "type": "GHOST",
+      "category": "SPECIAL",
+      "base_power": 100,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "muddywater": {
+      "name": "Muddy Water",
+      "type": "WATER",
+      "category": "SPECIAL",
+      "base_power": 90,
+      "accuracy": 0.85,
+      "priority": 0,
+      "target": "allAdjacentFoes"
+    },
+    "nastyplot": {
+      "name": "Nasty Plot",
+      "type": "DARK",
+      "category": "STATUS",
+      "base_power": 0,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "self"
+    },
+    "nuzzle": {
+      "name": "Nuzzle",
+      "type": "ELECTRIC",
+      "category": "PHYSICAL",
+      "base_power": 20,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "orderup": {
+      "name": "Order Up",
+      "type": "DRAGON",
+      "category": "PHYSICAL",
+      "base_power": 80,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "originpulse": {
+      "name": "Origin Pulse",
+      "type": "WATER",
+      "category": "SPECIAL",
+      "base_power": 110,
+      "accuracy": 0.85,
+      "priority": 0,
+      "target": "allAdjacentFoes"
+    },
+    "outrage": {
+      "name": "Outrage",
+      "type": "DRAGON",
+      "category": "PHYSICAL",
+      "base_power": 120,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "randomNormal"
+    },
+    "overheat": {
+      "name": "Overheat",
+      "type": "FIRE",
+      "category": "SPECIAL",
+      "base_power": 130,
+      "accuracy": 0.9,
+      "priority": 0,
+      "target": "normal"
+    },
+    "partingshot": {
+      "name": "Parting Shot",
+      "type": "DARK",
+      "category": "STATUS",
+      "base_power": 0,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "perishsong": {
+      "name": "Perish Song",
+      "type": "NORMAL",
+      "category": "STATUS",
+      "base_power": 0,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "all"
+    },
+    "playrough": {
+      "name": "Play Rough",
+      "type": "FAIRY",
+      "category": "PHYSICAL",
+      "base_power": 90,
+      "accuracy": 0.9,
+      "priority": 0,
+      "target": "normal"
+    },
+    "pollenpuff": {
+      "name": "Pollen Puff",
+      "type": "BUG",
+      "category": "SPECIAL",
+      "base_power": 90,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "powerwhip": {
+      "name": "Power Whip",
+      "type": "GRASS",
+      "category": "PHYSICAL",
+      "base_power": 120,
+      "accuracy": 0.85,
+      "priority": 0,
+      "target": "normal"
+    },
+    "precipiceblades": {
+      "name": "Precipice Blades",
+      "type": "GROUND",
+      "category": "PHYSICAL",
+      "base_power": 120,
+      "accuracy": 0.85,
+      "priority": 0,
+      "target": "allAdjacentFoes"
+    },
+    "protect": {
+      "name": "Protect",
+      "type": "NORMAL",
+      "category": "STATUS",
+      "base_power": 0,
+      "accuracy": 1.0,
+      "priority": 4,
+      "target": "self"
+    },
+    "psychic": {
+      "name": "Psychic",
+      "type": "PSYCHIC",
+      "category": "SPECIAL",
+      "base_power": 90,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "quiverdance": {
+      "name": "Quiver Dance",
+      "type": "BUG",
+      "category": "STATUS",
+      "base_power": 0,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "self"
+    },
+    "ragefist": {
+      "name": "Rage Fist",
+      "type": "GHOST",
+      "category": "PHYSICAL",
+      "base_power": 50,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "ragepowder": {
+      "name": "Rage Powder",
+      "type": "BUG",
+      "category": "STATUS",
+      "base_power": 0,
+      "accuracy": 1.0,
+      "priority": 2,
+      "target": "self"
+    },
+    "recharge": {
+      "name": "Recharge",
+      "type": "NORMAL",
+      "category": "STATUS",
+      "base_power": 0,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "self"
+    },
+    "recover": {
+      "name": "Recover",
+      "type": "NORMAL",
+      "category": "STATUS",
+      "base_power": 0,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "self"
+    },
+    "reflect": {
+      "name": "Reflect",
+      "type": "PSYCHIC",
+      "category": "STATUS",
+      "base_power": 0,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "allySide"
+    },
+    "rockslide": {
+      "name": "Rock Slide",
+      "type": "ROCK",
+      "category": "PHYSICAL",
+      "base_power": 75,
+      "accuracy": 0.9,
+      "priority": 0,
+      "target": "allAdjacentFoes"
+    },
+    "ruination": {
+      "name": "Ruination",
+      "type": "DARK",
+      "category": "SPECIAL",
+      "base_power": 0,
+      "accuracy": 0.9,
+      "priority": 0,
+      "target": "normal"
+    },
+    "sacredfire": {
+      "name": "Sacred Fire",
+      "type": "FIRE",
+      "category": "PHYSICAL",
+      "base_power": 100,
+      "accuracy": 0.95,
+      "priority": 0,
+      "target": "normal"
+    },
+    "sacredsword": {
+      "name": "Sacred Sword",
+      "type": "FIGHTING",
+      "category": "PHYSICAL",
+      "base_power": 90,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "sandsearstorm": {
+      "name": "Sandsear Storm",
+      "type": "GROUND",
+      "category": "SPECIAL",
+      "base_power": 100,
+      "accuracy": 0.8,
+      "priority": 0,
+      "target": "allAdjacentFoes"
+    },
+    "sandtomb": {
+      "name": "Sand Tomb",
+      "type": "GROUND",
+      "category": "PHYSICAL",
+      "base_power": 35,
+      "accuracy": 0.85,
+      "priority": 0,
+      "target": "normal"
+    },
+    "scaleshot": {
+      "name": "Scale Shot",
+      "type": "DRAGON",
+      "category": "PHYSICAL",
+      "base_power": 25,
+      "accuracy": 0.9,
+      "priority": 0,
+      "target": "normal"
+    },
+    "seedbomb": {
+      "name": "Seed Bomb",
+      "type": "GRASS",
+      "category": "PHYSICAL",
+      "base_power": 80,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "shadowball": {
+      "name": "Shadow Ball",
+      "type": "GHOST",
+      "category": "SPECIAL",
+      "base_power": 80,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "sleeppowder": {
+      "name": "Sleep Powder",
+      "type": "GRASS",
+      "category": "STATUS",
+      "base_power": 0,
+      "accuracy": 0.75,
+      "priority": 0,
+      "target": "normal"
+    },
+    "sludgebomb": {
+      "name": "Sludge Bomb",
+      "type": "POISON",
+      "category": "SPECIAL",
+      "base_power": 90,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "snarl": {
+      "name": "Snarl",
+      "type": "DARK",
+      "category": "SPECIAL",
+      "base_power": 55,
+      "accuracy": 0.95,
+      "priority": 0,
+      "target": "allAdjacentFoes"
+    },
+    "spikyshield": {
+      "name": "Spiky Shield",
+      "type": "GRASS",
+      "category": "STATUS",
+      "base_power": 0,
+      "accuracy": 1.0,
+      "priority": 4,
+      "target": "self"
+    },
+    "spiritbreak": {
+      "name": "Spirit Break",
+      "type": "FAIRY",
+      "category": "PHYSICAL",
+      "base_power": 75,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "spore": {
+      "name": "Spore",
+      "type": "GRASS",
+      "category": "STATUS",
+      "base_power": 0,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "steelroller": {
+      "name": "Steel Roller",
+      "type": "STEEL",
+      "category": "PHYSICAL",
+      "base_power": 130,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "stompingtantrum": {
+      "name": "Stomping Tantrum",
+      "type": "GROUND",
+      "category": "PHYSICAL",
+      "base_power": 75,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "stoneedge": {
+      "name": "Stone Edge",
+      "type": "ROCK",
+      "category": "PHYSICAL",
+      "base_power": 100,
+      "accuracy": 0.8,
+      "priority": 0,
+      "target": "normal"
+    },
+    "strangesteam": {
+      "name": "Strange Steam",
+      "type": "FAIRY",
+      "category": "SPECIAL",
+      "base_power": 90,
+      "accuracy": 0.95,
+      "priority": 0,
+      "target": "normal"
+    },
+    "struggle": {
+      "name": "Struggle",
+      "type": "NORMAL",
+      "category": "PHYSICAL",
+      "base_power": 50,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "randomNormal"
+    },
+    "strugglebug": {
+      "name": "Struggle Bug",
+      "type": "BUG",
+      "category": "SPECIAL",
+      "base_power": 50,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "allAdjacentFoes"
+    },
+    "suckerpunch": {
+      "name": "Sucker Punch",
+      "type": "DARK",
+      "category": "PHYSICAL",
+      "base_power": 70,
+      "accuracy": 1.0,
+      "priority": 1,
+      "target": "normal"
+    },
+    "supercellslam": {
+      "name": "Supercell Slam",
+      "type": "ELECTRIC",
+      "category": "PHYSICAL",
+      "base_power": 100,
+      "accuracy": 0.95,
+      "priority": 0,
+      "target": "normal"
+    },
+    "surgingstrikes": {
+      "name": "Surging Strikes",
+      "type": "WATER",
+      "category": "PHYSICAL",
+      "base_power": 25,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "swordsdance": {
+      "name": "Swords Dance",
+      "type": "NORMAL",
+      "category": "STATUS",
+      "base_power": 0,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "self"
+    },
+    "tailwind": {
+      "name": "Tailwind",
+      "type": "FLYING",
+      "category": "STATUS",
+      "base_power": 0,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "allySide"
+    },
+    "taunt": {
+      "name": "Taunt",
+      "type": "DARK",
+      "category": "STATUS",
+      "base_power": 0,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "terastarstorm": {
+      "name": "Tera Starstorm",
+      "type": "NORMAL",
+      "category": "SPECIAL",
+      "base_power": 120,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "thunderbolt": {
+      "name": "Thunderbolt",
+      "type": "ELECTRIC",
+      "category": "SPECIAL",
+      "base_power": 90,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "thunderclap": {
+      "name": "Thunderclap",
+      "type": "ELECTRIC",
+      "category": "SPECIAL",
+      "base_power": 70,
+      "accuracy": 1.0,
+      "priority": 1,
+      "target": "normal"
+    },
+    "thunderwave": {
+      "name": "Thunder Wave",
+      "type": "ELECTRIC",
+      "category": "STATUS",
+      "base_power": 0,
+      "accuracy": 0.9,
+      "priority": 0,
+      "target": "normal"
+    },
+    "toxic": {
+      "name": "Toxic",
+      "type": "POISON",
+      "category": "STATUS",
+      "base_power": 0,
+      "accuracy": 0.9,
+      "priority": 0,
+      "target": "normal"
+    },
+    "toxicspikes": {
+      "name": "Toxic Spikes",
+      "type": "POISON",
+      "category": "STATUS",
+      "base_power": 0,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "foeSide"
+    },
+    "trickroom": {
+      "name": "Trick Room",
+      "type": "PSYCHIC",
+      "category": "STATUS",
+      "base_power": 0,
+      "accuracy": 1.0,
+      "priority": -7,
+      "target": "all"
+    },
+    "tripleaxel": {
+      "name": "Triple Axel",
+      "type": "ICE",
+      "category": "PHYSICAL",
+      "base_power": 20,
+      "accuracy": 0.9,
+      "priority": 0,
+      "target": "normal"
+    },
+    "uturn": {
+      "name": "U-turn",
+      "type": "BUG",
+      "category": "PHYSICAL",
+      "base_power": 70,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "voltswitch": {
+      "name": "Volt Switch",
+      "type": "ELECTRIC",
+      "category": "SPECIAL",
+      "base_power": 70,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "waterspout": {
+      "name": "Water Spout",
+      "type": "WATER",
+      "category": "SPECIAL",
+      "base_power": 150,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "allAdjacentFoes"
+    },
+    "wavecrash": {
+      "name": "Wave Crash",
+      "type": "WATER",
+      "category": "PHYSICAL",
+      "base_power": 120,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "weatherball": {
+      "name": "Weather Ball",
+      "type": "NORMAL",
+      "category": "SPECIAL",
+      "base_power": 50,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "wideguard": {
+      "name": "Wide Guard",
+      "type": "ROCK",
+      "category": "STATUS",
+      "base_power": 0,
+      "accuracy": 1.0,
+      "priority": 3,
+      "target": "allySide"
+    },
+    "wildcharge": {
+      "name": "Wild Charge",
+      "type": "ELECTRIC",
+      "category": "PHYSICAL",
+      "base_power": 90,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    },
+    "willowisp": {
+      "name": "Will-O-Wisp",
+      "type": "FIRE",
+      "category": "STATUS",
+      "base_power": 0,
+      "accuracy": 0.85,
+      "priority": 0,
+      "target": "normal"
+    },
+    "woodhammer": {
+      "name": "Wood Hammer",
+      "type": "GRASS",
+      "category": "PHYSICAL",
+      "base_power": 120,
+      "accuracy": 1.0,
+      "priority": 0,
+      "target": "normal"
+    }
+  }
+}

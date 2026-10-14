@@ -1,0 +1,2049 @@
+# The thresholds the Red Alert agent plays by. This file is tracked, and a run
+# records its hash, so the values in force for a match can be identified
+# afterwards. Every key of a table is required and no other key is accepted.
+#
+# Units: ticks are game ticks (25 to the second), cells are map cells, hp is
+# percent of full health, cash is credits. Cash, in every key here, is the
+# money the game can spend: the cash and the ore the refineries hold together.
+#
+# The Soviet switches, each called so in its comment below, ship on. They were measured together: Russia against the
+# Normal bot, on 216 fresh seeds for each arm, won 87 games with them on and 70 with them off, at a mean kd of -3,484
+# against -9,082. They are on by the second branch of the decision rule, more wins and a higher kd, not by
+# significance: the difference in wins has a Fisher p of 0.11. A Soviet switch that acts for the Allies as well says
+# so; England, against the Rush and Normal bots on 144 games for each arm, won 98 with every switch on and 99 with
+# every switch off, within the margin of 5 wins, so it is on for both families.
+#
+# The measured switches, each called so in its comment below: creep_next_patch, refinery_field_cap,
+# harvesters_to_fresh_ore, second_yard, tank_factories, rescout, indirect_route, rush_detection with
+# defense_on_threat, and forward_hold. Each was played on 144 games, Russia and England against the Rush and the Normal
+# bot, against the same games with all the measured switches off, which won 97 at a mean kd (the mean trade balance) of
+# 12,835. A switch ships on when its games won more at a higher mean kd and lost no more than 3 games to all off
+# against the Rush bot for either family; only rescout did (docs/BENCHMARKS.md). Six of the others ship on all the
+# same, with the switches of the next paragraph.
+#
+# The script switches and values that the watched game 20261012T091508Z (runs/watch of the harness) of iteration 19
+# played ship on, each called so in its comment below with the iteration that added it: England against the Normal
+# bot's Russia on the sidestep map won by a trade balance of +35,500 at the 20-minute limit. Earlier watched games
+# played growing parts of the set: Ukraine against France won by +14,150, France against England lost by 9,950 and
+# Russia against Russia won by +11,300. No benchmark measured the set (the user's direction). That game also ran the
+# model plan choice (model_plan_choice of the redalert table of config/agent.toml) with the small local model and
+# the compact plan prompt, and its one model plan decision was HOLD. The shipped agent plays these switches with the
+# small model choosing the plan, with the plan briefing, and commanding (model_plan_choice and model_commander on).
+
+[loop]
+# One timing event and one ledger summary are logged for every window of this
+# many ticks.
+timing_window_ticks = 250
+# A movement or attack order is not sent again to a unit that was given the
+# same one fewer than this many ticks ago, unless the unit stands idle.
+reissue_after_ticks = 75
+# The reasoning summary sent with a batch is cut to this many characters.
+reasoning_summary_chars = 200
+# The answer of a decision source is out of date once the game has gone on for
+# more than this many ticks since the question.
+choice_max_age_ticks = 250
+
+[opening]
+# The order of the Building queue's build: "barracks_first" makes a power plant, the barracks, two refineries, a
+# second power plant and the war factory; "refinery_first" makes the first refinery before the barracks;
+# "reach_first" makes barracks_first's build when, as the barracks is on its way, a refinery can stand against its ore
+# field, and else one more power plant right after the barracks, placed toward that field; "factory_first" makes a
+# power plant, the barracks, a refinery, the war factory, the second refinery and the service depot, a power plant
+# between them only when power is short. Under factory_first the opening's only infantry until the depot stands is one
+# rifleman, the first scout, trained as soon as the barracks stands; as soon as the war factory stands the scout slots
+# order one jeep (Allies) or flak truck (Soviets) for the second scout slot, the Vehicle queue's first order; and the
+# home guard's rifles start once the depot stands. No other value is accepted. "reach_first" was measured with the two
+# economy switches of the placement table (see refinery_field_by_reach), and the first refinery could stand against
+# its ore in all 432 games against the Normal bot, so it played the same build. "barracks_first" ships:
+# "factory_first" was measured on the real harness's stepped set (36 games each, same seeds, build 803d0fc, models off)
+# and won 22 of 36 against 28 for "barracks_first": horde 3/12 against 7/12, tech 4/6 against 6/6, base 4/6 against
+# 5/6, rush 5/6 against 4/6, normal 6/6 each.
+order = "barracks_first"
+# Rifle infantry (e1) the home guard holds.
+guard_rifles = 5
+# The home guard stays this close to the construction yard.
+guard_radius_cells = 8
+# The guard stands this far from the construction yard, toward the enemy.
+guard_post_cells = 6
+# A guard unit that has not come back within reach is told again after this long.
+guard_reorder_ticks = 75
+# The anti-armor cover starts at this game time when no enemy armor was seen before.
+anti_armor_at_seconds = 150
+# Rocket infantry (e3) the home guard holds when the cover is infantry.
+guard_rockets = 4
+# Infantry training pauses while cash is below this.
+infantry_min_cash = 100
+# Rifle infantry trained for main once the guard is complete, one at a time ...
+main_rifles = 6
+# ... while cash is at least this.
+main_rifle_min_cash = 400
+# A deploy order that has not turned the MCV into a construction yard is sent again after this long.
+deploy_retry_ticks = 75
+# With defense_on_threat on, the opening buys its defense against infantry (pbox / ftur) only when the rush watch of
+# [scouting] says rush, or still says unknown at rush_unknown_deadline_seconds, or base defense reports a threat
+# before the war factory stands; and it chooses its cover against armor only when the watch says rush and enemy
+# vehicles have been seen, an enemy vehicle that fights is seen within armor_near_base_cells of the base, or base
+# defense reports a major threat; anti_armor_at_seconds then starts nothing. Without one, no early defense is bought
+# and the guard's rifles still form. With rush_detection off, only the threats seen count. A measured switch: with
+# rush_detection on as well, it won 95 of 144 games against 97 with all the measured switches off, at a mean kd of 9,983
+# against 12,835, and 7 games fewer for Russia against the Rush bot. Added in iteration 13, it ships on all the same, as
+# in the watched game 20261012T091508Z (see the head of the file).
+defense_on_threat = true
+# With defense_on_unknown off, a rush watch still saying unknown at rush_unknown_deadline_seconds does not call for the
+# opening's defense against infantry: the defenses answer a threat seen, not one guessed.
+defense_on_unknown = false
+# The opening gun (the Allies' cover against armor) waits for an enemy vehicle that fights seen this close to
+# base_center: armor far off is not armor at the base.
+armor_near_base_cells = 18
+# The rush counter. In the cycle the rush watch of [scouting] says rush, or base defense reports a threat at the base
+# before a war factory stands, the opening orders its defense against infantry (pbox / ftur) until
+# rush_counter_defenses of them stand or are on their way, the second as soon as the Defense queue is free again,
+# whatever the threat and outside base defense's one defense a minute; those standing count, and the rule orders
+# rush_counter_defenses at most in a match (0 switches the counter off). While the rush watch warns of infantry
+# massing at the enemy's start, upkeep holds rush_reserve_cash on top of production_cash_reserve from the optional
+# buildings: refineries beyond the second, barracks and war factories beyond the first, the radar and the tech
+# buildings; never from harvesters, power, the service depot, defenses, the opening's steps or units. While the verdict
+# is rush and main holds fewer than rush_min_tanks tanks, base defense trains infantry against an infantry threat
+# even with a war factory standing. While the verdict is rush and the game time is below rush_hold_until_seconds, main
+# is given no order that takes it farther than 20 cells from base_center. With rush_harvester_crush on, under the rush
+# verdict or a threat at the base before a war factory, a harvester at half its health or more runs over an enemy
+# infantry cluster within 15 cells of base_center that no own tank or APC is in reach of. Aimed at the Rush bot's first
+# wave of 13 to 20 infantry at 211 to 300 s in 54 stepped games; not measured yet.
+rush_counter_defenses = 2
+rush_reserve_cash = 1200
+rush_min_tanks = 3
+rush_hold_until_seconds = 330
+rush_harvester_crush = true
+# With lean_infantry on, the opening trains lean_guard_rifles rifle infantry (e1) for the home guard in place of
+# guard_rifles, none for main in place of main_rifles, and never chooses rocket infantry (e3) as its cover against
+# armor: the cover is the gun, else a second defense against infantry. Once the rush watch of [scouting] says rush,
+# guard_rifles, main_rifles and the rocket cover apply again for the rest of the match. Not measured; added in
+# iteration 15, it ships on, as in the watched game 20261012T091508Z (see the head of the file).
+lean_infantry = true
+lean_guard_rifles = 3
+# With single_scout_rifle on, under every order, once a barracks stands the opening trains one rifleman (e1), the
+# first scout, and holds back every other infantry (the guard's rifles, lean or full, the rifles for main, the
+# second scout slot's) until a release: a rush warning or the rush verdict of [scouting], a threat at the base, or
+# the service depot standing; released, the rules above apply for the rest of the match. The scout lost before
+# rush_watch_until_seconds is replaced once by the scout slots; the second slot waits for the jeep or the dog; the
+# rocket cover against armor, base defense's counter and the rush counter's infantry are never held. Off, the counts
+# above apply from the barracks on. It ships off: on the real harness's stepped raid 1037-1042 and air 1043-1048 seeds
+# (12 games each arm, build 3f906fd) the set with it on won 0/12 and with it off 12/12 (mcv_own_side_share 0.8: 1/12,
+# infantry_spread off: 4/12); on horde 12, tech 6 and rush 6 it had won 16/24 on against 13/24 off.
+single_scout_rifle = false
+
+[upkeep]
+# A power plant is ordered when the power left over, after everything queued, is below the power target, and a
+# building that would take it below the target waits for the power plant. The target is the largest that applies of:
+# headroom_early; headroom_mid from headroom_mid_from_seconds; headroom_large once barracks and war factories
+# standing or on their way number headroom_large_producers; headroom_tesla once headroom_tesla_count Tesla coils do.
+headroom_early = 20
+headroom_mid = 60
+headroom_large = 100
+headroom_tesla = 160
+headroom_mid_from_seconds = 360
+headroom_large_producers = 5
+headroom_tesla_count = 2
+# With lean_power on, the power target is the larger of headroom_early and headroom_share of the planned drain (what
+# the buildings standing drain and what those on their way will), rounded up, in place of headroom_mid and
+# headroom_large: about 15 percent of power to spare. headroom_tesla still applies once headroom_tesla_count Tesla
+# coils stand or are on their way, and a building that would leave less than the target over still waits for a power
+# plant, so the base is never planned short of power. Not measured; added in iteration 15, it ships on, as in the
+# watched game 20261012T091508Z (see the head of the file).
+lean_power = true
+headroom_share = 0.15
+# The advanced power plant is preferred when cash is at least this.
+advanced_power_min_cash = 500
+# The harvester target is min(harvesters_max, harvesters_per_refinery x the refineries standing); the harvesters
+# standing or in production count against it, the free one a refinery brings included. It is the one cap on harvesters,
+# refinery_growth's included. 2 a refinery up to 22 ship, the user's "1-2 harvesters and 1 refinery per ore field", with
+# one refinery a field (max_refineries_per_field of [placement]); the cap of 22 stays, which the base reaches with 11
+# refinery fields. With 3 a refinery, in the game of diag-i29-harv the trucks crowded the home field; with 2 a refinery
+# up to 12 the game of diag-i25-econ built 13 harvesters, none after 10:21.
+harvesters_per_refinery = 2
+harvesters_max = 22
+# Each field an own refinery serves (each refinery serves the field whose ore lies nearest it, see
+# refinery_serves_cells of [placement]) has a share of max(1, min(field_share_per_refinery x the refineries serving
+# it, floor(its ore cells / harvester_cells_per))) harvesters, and room for its share less those working it. A new
+# harvester, a refinery's free one included, and one moved off a dry field, goes to the field with the most room that
+# is not dry, and none is trained while no such field has room. 0 switches the room off. In the game of diag-i29-harv
+# the room by ore cells alone gave the 100-cell home field 10 and the 33-cell east field 3, so the east refineries'
+# free trucks were sent home: by 07:00 the trucks had worked 25.6 harvester-minutes at home and 1.1 east.
+harvester_cells_per = 10
+# With the room on, at most once every harvester_rebalance_seconds one harvester of a field working more than
+# harvester_rebalance_excess over its share (the field furthest over first) is moved to the served field, not dry,
+# with the most room: the harvester of the field nearest that field, with a harvest order to its nearest ore cell,
+# counted there until it arrives. A harvester that flees, is parked, is new, is on its way to a field, or was moved
+# by the move to fresh ore and has not arrived, is never moved. Each move is a harvesters_rebalanced event (harvester,
+# from_field_center, to_field_center).
+harvester_rebalance_seconds = 30
+harvester_rebalance_excess = 1
+# With harvesters_first on, while a harvester is due (below the target, a refinery stands, one can be trained) the
+# Vehicle queue takes turns. Below harvesters_first_per_refinery x the refineries standing (harvesters standing or in
+# production) the harvester is queued first. Else, while main's combat value (harvesters, MCVs and support units left
+# out) is under combat_value_floor, or an enemy army worth 1,000 or more was seen within 25 cells of an own building in
+# the last 30 s, combat vehicles go first; otherwise a harvester and a combat vehicle alternate. When no combat vehicle
+# comes and the Vehicle queue stands free, the harvester takes it. MCVs and the base's emergency counters still come
+# first. Ships on, with 99 and 6,000: 99 a refinery is more than the harvester target ever reaches, so a due harvester
+# always goes first and the turns after it are off; 2 turns them on. With 2, in diag-i28-off main's combat value stayed
+# under 6,000, combat vehicles took the Vehicle queue, and at 09:00 the base had 10 harvesters on 5 refineries and 2,000
+# of cash and ore, against 19 harvesters on 8 refineries and 13,200 in a game with the harvester always first.
+harvesters_first = true
+harvesters_first_per_refinery = 99
+combat_value_floor = 6000
+# The extra refinery's trigger counts every refinery worked once the harvesters reach refinery_worked_harvesters x
+# the refineries standing. 2 ship, the harvester target's 2 a refinery (with 2 and the target's 3, in diag-i28-off the
+# extra refinery was called for from 02:29 on and its economy hold timed out with no money).
+refinery_worked_harvesters = 2
+# A harvester seen idle in this many consecutive states is sent back to harvest ...
+harvester_idle_states = 3
+# ... but not again within this many ticks of its last harvest order.
+harvest_reorder_ticks = 250
+# The Infantry and Vehicle queues are fed only while cash covers the next item and this reserve.
+production_cash_reserve = 300
+# Infantry is queued up to this many at a time; vehicles one at a time.
+infantry_at_a_time = 3
+# With no_army_infantry on, once an own war factory stands the Infantry queue is given no rifles: rocket soldiers (e3)
+# while fewer than rockets_kept of them stand in main, the guard and the escort (the raid group and the scouts are not
+# counted), then the rocket soldiers, and the Soviet infantry counter's flamethrowers (e4), the army is short of the
+# share of its value the mix gives them; after that it is given nothing, and the vehicle goes first when the budget
+# pays for one queue only. No barracks is added beyond the first then. A raid quota's infantry,
+# base defense's counters to a major threat, scout training and the end-of-match spending are trained as with it off,
+# and with no war factory standing, infantry is ordered as with it off. Not measured; added in iteration 15, it ships
+# on, as in the watched game 20261012T091508Z (see the head of the file).
+no_army_infantry = true
+rockets_kept = 4
+# With economy_first on, after the opening the unit queues are given nothing new while one of these is due and the money
+# does not cover it yet, the first that is: a refinery claim (see refinery_claims_reached); one more war factory whose
+# gates but the money are met, which is then ordered once the money covers its price and production_cash_reserve; the
+# second yard's MCV, with second_yard on, whose gates but the money are met. Such a hold ends when the item is ordered,
+# when it is due no longer, or after economy_wait_seconds; the unit queues are then fed for economy_release_seconds at
+# the least before the next hold. Power plants, base defense's emergency and whatever else is ordered ahead of the unit
+# queues are never held. Each start and end of a hold is written as an economy_hold event. Not measured; added in
+# iteration 15, it ships on, as in the watched game 20261012T091508Z (see the head of the file).
+economy_first = true
+economy_wait_seconds = 20
+economy_release_seconds = 20
+# With mcv_first on, and second_yard of the expansion table, the second yard's MCV is bought first: once a service
+# depot stands and the MCV is wanted (fewer than two yards, no MCV alive or on its way, the MCV on offer, no major
+# threat), whatever second_yard_from_seconds says, it is due first. While its money (second_yard_min_cash above
+# production_cash_reserve) is short, a full hold is in force: upkeep orders no new building, refinery claim, barracks
+# or war factory, service depot, radar or kennel, no defense of its own and no unit of the army mix. A power plant
+# against low power, base defense's emergency orders, the scout slots' orders (but a jeep or flak truck while the MCV
+# is due, and a replacement but a rifleman with every slot empty while the hold is in force) and harvesters up to one
+# a refinery still go ahead. The hold ends when the MCV is ordered, when it is wanted no longer, or after
+# mcv_first_wait_seconds; then nothing is held for economy_release_seconds. The MCV is ordered ahead of every other
+# upkeep order but power and a lost core building as soon as the money covers it. Each start and end of a hold is an
+# economy_hold event with scope "all". Not measured; added in iteration 16, it ships on, as in the watched game
+# 20261012T091508Z (see the head of the file).
+mcv_first = true
+mcv_first_wait_seconds = 30
+# The service depot is queued once cash and harvesters are at least these. With main_force = "tanks" of [mix]
+# neither applies: the depot is queued as soon as the war factory stands, the Building queue is free and the money
+# above production_cash_reserve pays for it, ahead of a third refinery and of one more barracks or war factory. It
+# still waits for the power target and for any lost core building saved for, and is not started under a major
+# threat.
+tech_min_cash = 1500
+tech_min_harvesters = 4
+# Repair is switched on for a building below this hp when cash is at least repair_min_cash ...
+repair_below_hp = 75
+repair_min_cash = 300
+# ... and off above this hp, or when cash is below repair_stop_below_cash.
+repair_stop_above_hp = 95
+repair_stop_below_cash = 100
+# A repair on that the game neither rejected nor lost is not sent again within this many ticks, whatever the
+# state reports of the building's repair.
+repair_resend_ticks = 250
+# A repair or power switch is not sent again to a building within this many ticks.
+switch_again_after_ticks = 75
+# The staging point lies this far from the base toward the enemy.
+staging_distance_cells = 10
+# On low power nothing is switched off when a power plant completes within this many seconds.
+low_power_wait_seconds = 10
+# A defense this close to a visible enemy is never powered down.
+power_down_enemy_radius_cells = 10
+# Buildings that were powered down are powered on again when the headroom is at least this.
+power_restore_headroom = 40
+# After the opening a lost defense of it is replaced, but one replacement at most in this many seconds.
+defense_replace_seconds = 60
+# After the opening one more refinery is built while there are fewer than refineries_max (refineries_max_late from
+# refineries_late_after_seconds on), when the money is at least extra_refinery_min_cash and the refineries hold at
+# least refinery_full_share of what they can hold or every refinery has refinery_worked_harvesters harvesters. From
+# refinery_saving_from_seconds on, the unit queues are given nothing while the third refinery is called for or on
+# its way, does not stand yet, and the money is below its cost plus production_cash_reserve.
+extra_refinery_min_cash = 1500
+refinery_full_share = 0.75
+# The unit queues wait for the third refinery only from this game second on; while they do, the third refinery
+# goes ahead of the service depot in the Building queue.
+refinery_saving_from_seconds = 360
+# 6 refineries at the most, before and after refineries_late_after_seconds, ship, as in the watched game
+# 20261012T091508Z (see the head of the file).
+refineries_max = 6
+refineries_max_late = 6
+refineries_late_after_seconds = 480
+# With refinery_field_cap on, no ore field is served by more than max_refineries_per_field of [placement]
+# refineries: one more refinery is ordered only when the place it would be asked onto now stands within
+# refinery_ore_cells of [placement] of a field that fewer serve (the creep target of creep_next_patch, or a field by a
+# second construction yard), and is placed against such a field. With no such field it is not ordered and the unit
+# queues do not wait for it. Each refinery ordered, and each time one is first held back, is written as a
+# refinery_field event with cap_held. Off, one more refinery is ordered whichever field it would serve. A measured
+# switch: with creep_next_patch on as well, it won 92 of 144 games against 97 with all the measured switches off, at a
+# mean kd of 9,790 against 12,835. Added in iteration 13, it ships on all the same, as in the watched game
+# 20261012T091508Z (see the head of the file).
+refinery_field_cap = true
+# With refinery_claims_reached on (it works with creep_from_opening of [placement]), each far field the base reaches,
+# meaning that a refinery can now stand against it from a free place and the far field moves on, is a claim field
+# until an own refinery stands within refinery_ore_cells of [placement] of it, a remembered enemy defense stands within
+# creep_defense_clear_cells of it, or no free place lets a refinery stand against it any more. While there is one and
+# fewer than claim_refineries_max refineries stand or are on their way, a refinery is ordered after the opening as soon
+# as the money covers it and production_cash_reserve, whatever refineries_max, refineries_max_late,
+# extra_refinery_min_cash, refinery_full_share and refinery_saving_from_seconds say, and it is placed against the
+# oldest claim field, written as a refinery_field event with rule "claim". Off, refineries are ordered and placed as
+# before. Not measured; added in iteration 15, it ships on, as in the watched game 20261012T091508Z (see the head of the
+# file).
+refinery_claims_reached = true
+claim_refineries_max = 8
+# With refinery_growth on, the economy keeps growing past four refineries. While at least 4 own refineries stand, fewer
+# than growth_refineries_max stand or are on their way, no refinery is on its way and a field is not taken (no own
+# refinery stands within refinery_ore_cells of [placement] of it, none was asked onto a place against it within
+# promise_ticks and none is on order for it, whatever refinery_spread says) that a refinery can stand against now, a
+# growth refinery is due. It is ordered as soon as the money covers it and production_cash_reserve, whatever
+# refineries_max, refineries_max_late, extra_refinery_min_cash, refinery_full_share and refinery_saving_from_seconds
+# say, after a refinery claim and ahead of more barracks and war factories, and it is placed against the nearest such
+# field, written as a refinery_field event with rule "growth". While it is due and the money short, the unit queues
+# spend only what lies above its price and the reserve, growth_saving_seconds at most for each one; a saving that runs
+# out is a refinery_field event with saving_timed_out true, and the next starts growth_saving_seconds later. With
+# economy_first on, the unit queues also wait for it as for a claim. The harvesters wanted are the harvester target
+# (harvesters_max) either way. Off, refineries are counted as before. Not measured; added in iteration 17, it ships on,
+# as in the watched game 20261012T091508Z (see the head of the file).
+refinery_growth = true
+growth_refineries_max = 8
+growth_saving_seconds = 60
+# Once a service depot stands, a radar is built from this game second on whenever none stands or is on its way, so a
+# lost one is replaced: it opens the artillery of the army mix's dome rows. It waits for a free Building queue, a
+# quiet base, any lost core building saved for and the power target, and is built when the money above
+# production_cash_reserve, with invest_income_share of [income] of what comes in while it is built, pays for it.
+dome_from_seconds = 360
+# Once a war factory stands, a Soviet base keeps this many Tesla coils (tsla), its defense against armor, standing or
+# on their way; 0 keeps none. One is ordered at a time, when the Defense queue is free, the base is quiet, no lost
+# core building is saved for and the money above production_cash_reserve, with invest_income_share of [income] of
+# what comes in while it is built, pays for it; one that would leave less than the power target over waits for a
+# power plant. A lost one is replaced the same way. The Soviet opening builds none: the coil costs and drains too much
+# for the first minutes. Two coils kept: a Soviet switch, on (see the head of the file).
+soviet_tesla_coils = 2
+# With preserve_anti_armor on, the defense a preserved lead adds (see [clock]) is the defense against armor (tsla,
+# gun) when vehicles make up at least vehicle_heavy_share of [mix] of the enemy army seen; off, it is always the
+# defense against infantry (ftur, pbox). On: a Soviet switch that acts for the Allies as well (see the head of the
+# file).
+preserve_anti_armor = true
+# With defenses_on_threat_only on, upkeep buys defenses only against a real threat. A lost defense of the opening is
+# not replaced. A Soviet Tesla coil is ordered only for a vehicle attack: a threat of base defense led by vehicles that
+# has hit an own building or harvester, whose cell lies more than tesla_side_cells from every coil standing or on its
+# way; the coil is placed toward that cell, and soviet_tesla_coils is still the most, ordered while the threat lasts
+# too. The defense a preserved lead adds (see [clock]) is ordered
+# only while a threat is active. The end-of-match spending and base defense's extra defense are as with it off. Not
+# measured; added in iteration 15, it ships on, as in the watched game 20261012T091508Z (see the head of the file).
+defenses_on_threat_only = true
+tesla_side_cells = 12
+# With park_harvesters on, every harvester is sent to wait at a parking cell once park_harvesters_seconds_left or
+# fewer seconds of the match are left, or while the plan is PRESERVE and base defense reports a major threat: a cell
+# park_distance_cells from the construction yard (without one, from the middle of the refineries) on the side away from
+# the enemy's start, or the nearest cell to it that is in the map, open ground and outside every own building. A
+# harvester within 3 cells of it is left where it is, no harvester is told to harvest while they wait, and a harvester
+# with an enemy near it still flees first. When the condition ends with more time than that left, they are all told
+# to harvest again. The start of each parking is written to the match record as one harvesters_parked event. Off, the
+# harvesters keep mining to the end. The switch is off: with the early-attack guard on, parking won 417 of 720 games
+# against 443 without it, at a mean kd of 6,650 against 7,153, and less income came in (docs/BENCHMARKS.md).
+park_harvesters = false
+park_harvesters_seconds_left = 120
+park_distance_cells = 8
+# With harvesters_to_fresh_ore on, an ore field counts as dry once the harvesters within dry_near_cells of a refinery
+# that serves it have been sent back to harvest from standing idle (see harvester_idle_states) dry_idle_count times in
+# all within dry_window_seconds. From the next cycle on each of those harvesters is sent once to harvest at the ore cell
+# nearest it of the nearest field that is not dry, with no remembered enemy defense within
+# fresh_ore_defense_clear_cells of it, no enemy combat unit seen lately within fresh_ore_enemy_clear_cells of it and no
+# remembered defense covering the straight way to it; a field with an own refinery within 10 cells, then one in the
+# lane toward the enemy (see creep_next_patch of [placement]), goes before a nearer one. A field is sent at most twice
+# max_refineries_per_field of [placement] harvesters; the rest wait by their refinery. The field counts as dry no
+# longer once an own harvester has stood on its ore for 3 states in a row. A harvester fleeing from an enemy or parked
+# is never sent. Each move is written to the match record as one harvesters_moved event. Off, harvesters are sent back
+# to harvest wherever they find ore. A measured switch: it won 99 of 144 games against 97 with all the measured switches
+# off, but at a mean kd of 9,380 against 12,835. Added in iteration 13, it ships on all the same, as in the watched game
+# 20261012T091508Z (see the head of the file).
+harvesters_to_fresh_ore = true
+dry_idle_count = 2
+dry_window_seconds = 60
+dry_near_cells = 8
+fresh_ore_enemy_clear_cells = 12
+fresh_ore_defense_clear_cells = 10
+# A field is marked dry only when the idle re-sends counted toward dry_idle_count within dry_window_seconds come from
+# at least dry_distinct_harvesters different harvesters; a field with fewer harvesters (those within dry_near_cells of
+# a refinery that serves it) is marked dry only once all of them were re-sent. In the game of diag-i25-econ one dry
+# call at 09:05 sent 8 harvesters across the map.
+dry_distinct_harvesters = 3
+# With fresh_ore_by_load on (it works with harvesters_to_fresh_ore), the harvesters moved off a dry field are spread by
+# load. Each goes in turn to the first field the move would take (not dry, clear as above, in the order above) whose
+# load is below its share: the load is the own harvesters last sent there or standing within dry_near_cells of it,
+# with those sent there in this move, and the share is field_share_per_refinery for each own refinery within
+# refinery_ore_cells of [placement] of the field, one at the least. With no field below its share, a harvester goes to
+# the first such field all the same; the limit of twice max_refineries_per_field to a field does not apply. The
+# harvesters_moved event adds to_field_centers, one for each harvester. Off, the harvesters are moved as before. Not
+# measured; added in iteration 17, it ships on, as in the watched game 20261012T091508Z (see the head of the file).
+fresh_ore_by_load = true
+field_share_per_refinery = 2
+
+[income]
+# Realized income is the money gained plus what the queues spent, over the samples of the last
+# income_window_seconds; it is renewed every income_update_ticks, and unknown until the samples span
+# income_min_window_seconds. Queue utilization is taken over the same window.
+income_window_seconds = 60
+income_min_window_seconds = 20
+income_update_ticks = 250
+# A building may be invested in when the money above production_cash_reserve of [upkeep], and this share of the
+# income earned while it is built, cover its cost.
+invest_income_share = 0.5
+# An item that leaves the front of its queue at this progress or more was finished; below it, it was cancelled.
+finished_progress = 0.9
+
+[producers]
+# Once the opening's war factory has stood, outside OPENING and while no base-defense threat is active, one more
+# barracks is ordered from barracks_from_seconds on while the Infantry queue was busy busy_share of the last minute,
+# the money and half the income of the build pay for it, and the income is at least the barracks_income entry for
+# it (the 2nd to the 7th barracks, in order). For the 2nd and 3rd, money above barracks_float for float_seconds will
+# do instead; for the 6th and 7th, money above late_barracks_float for float_seconds while both unit queues were busy
+# busy_share of the last minute. There are never more than max_infantry_producers.
+barracks_from_seconds = 210
+busy_share = 0.85
+barracks_income = [100, 100, 150, 150, 170, 170]
+barracks_float = 1500
+late_barracks_float = 2500
+# One more war factory is ordered on the same terms while the Vehicle queue was busy busy_share of the last minute and
+# the income is at least the factories_income entry for it (the 2nd to the 4th, in order); never more than
+# max_war_factories. A barracks that qualifies goes first.
+factories_income = [125, 150, 185]
+float_seconds = 30
+max_infantry_producers = 7
+max_war_factories = 4
+# Money banked and not spent. Once no barracks or war factory is due on the gates above, with exactly one war factory
+# standing and the money above production_cash_reserve of [upkeep] at least bank_factory_money in every state of the
+# last bank_factory_seconds, the second war factory is ordered whatever the income. Once the Building queue has held
+# nothing (nothing queued, building or waiting to be placed) for idle_queue_seconds with at least idle_bank_money above
+# the reserve, the first of these that is allowed is ordered: a war factory while fewer than max_war_factories stand,
+# a refinery for an untaken field one can stand against now under the refinery caps, a power plant the power target
+# calls for; never a defense, and one such order in idle_queue_seconds at most. Both still wait for the power target,
+# and each order is an economy event with the reason bank_factory or idle_bank and the money.
+bank_factory_money = 2500
+bank_factory_seconds = 30
+idle_bank_money = 3000
+idle_queue_seconds = 30
+# Ore near the storage cap: ore that cannot be stored is lost. Once the ore held (the cash not counted) has been at
+# least storage_spend_share of the resource_capacity the game reports in every state of the last storage_spend_seconds,
+# one more war factory is ordered while fewer than storage_war_factories_max stand, in place of max_war_factories, at
+# most one every storage_spend_seconds, still on offer, within the power target and placed as any; and economy_first's
+# holds are lifted so that every unit queue keeps building. Each start and each order is an economy event with the
+# reason storage_near_cap.
+storage_spend_share = 0.6
+storage_spend_seconds = 20
+storage_war_factories_max = 6
+# With tank_factories on, one more war factory is ordered on gates of its own, and before one more barracks: from
+# tank_factories_from_seconds on, while the Vehicle queue was busy tank_factories_busy_share of the last minute and
+# the income is at least the tank_factories_income entry for it (the 2nd to the 4th, in order), on the same
+# investment test and never more than max_war_factories; not while the power target calls for a power plant first,
+# nor while the money is saved for the third refinery. The Vehicle queue is then kept filled with up to
+# tank_factories_queued vehicles (1 to 10) while the unit budget pays for them, and once two war factories stand,
+# vehicles take at least 60 percent of the unit spending when the money pays for one unit queue only. A measured switch:
+# it won 82 of 144 games against 97 with all the measured switches off, at a mean kd of 6,311 against 12,835. Added in
+# iteration 13, it ships on all the same, as in the watched game 20261012T091508Z (see the head of the file).
+tank_factories = true
+tank_factories_income = [90, 120, 150]
+tank_factories_busy_share = 0.6
+tank_factories_from_seconds = 300
+tank_factories_queued = 2
+# The Soviet tech center: with soviet_tech_center on, a Soviet base with 2 or more war factories standing orders one
+# tech center (stek) once the spendable money has stayed at least soviet_tech_min_money in every state of the last
+# soviet_tech_seconds, the stek on offer (its radar stands), none standing or on its way, the Building queue free and
+# no money saved for a lost core building. It goes through the power target (a power plant first when it calls for
+# one) and placement, and each order is an economy event of the reason soviet_tech. Once it stands the stek row of
+# the Soviet tank rows brings the Mammoth tank (4tnk) into the mix. Ships on; not measured.
+soviet_tech_center = true
+soviet_tech_min_money = 4000
+soviet_tech_seconds = 30
+# The war factory load gate: with war_factory_load_gate on, a war factory beyond the first is ordered, by any rule
+# above (the producer gates, tank_factories, the bank, the idle bank and the storage rule, each on its own terms as
+# well), only while the vehicle income is at least war_factory_load_share of what the Vehicle queue spends building
+# without pause at N war factories, N those standing or on their way. The vehicle income is the realized income, in
+# credits a second over the income window, less what the Infantry queue and MCVs spent a second over the same window.
+# The game has one Vehicle queue that each war factory makes faster (build time 100, 75, 60 and 50 percent at 1, 2, 3
+# and 4 or more), so it spends 41.7, 55.6, 69.4 and 83.3 credits a second: at 0.8 the 2nd war factory needs 33.3 a
+# second, the 3rd 44.4, the 4th 55.6 and any more 66.7. Each refusal of a war factory otherwise due is an economy
+# event of the reason war_factory_load_wait, one in 30 seconds at most. An MCV never waits for it. Ships on; not
+# measured.
+war_factory_load_gate = true
+war_factory_load_share = 0.8
+# War factories on load: with war_factory_on_load on (and war_factory_load_gate; with the gate off it does nothing),
+# the load gate is the trigger for a war factory beyond the first. From war_factory_on_load_from_seconds on, one more is
+# ordered whenever the vehicle income is at least war_factory_load_share of the Vehicle queue's spend at N war
+# factories (33.3, 44.4, 55.6 and 66.7 a second for the 2nd, 3rd, 4th and any more), fewer than max_war_factories
+# stand, none is on its way, the Building queue is free and the money above the reserve, with float_seconds of the
+# income, pays for it. The income steps (factories_income, tank_factories_income, their busy shares and
+# tank_factories_from_seconds) no longer order a war factory then; the bank, idle-bank and storage rules still apply
+# behind the gate, and the first war factory and MCVs are unchanged. Each order is an economy event of the reason
+# war_factory_on_load. Ships off: on seed 1001 it ordered war factories at 3:10, 4:24 and 5:47, ahead of the third
+# refinery, and left $188 when a cleanup FINISH failed at 6:00 (the game was lost); with it off and cleanup_min_strength
+# at 8000, 18 seeds won 12 against 8 with it from 6:00 on. Off, the income steps order war factories, behind the gate.
+war_factory_on_load = false
+war_factory_on_load_from_seconds = 180
+
+[placement]
+# Buildings are placed in rings of these distances around the construction yard.
+ring_min_cells = 2
+ring_max_cells = 12
+# This many cells are kept free between two buildings, so that units can pass.
+gap_cells = 1
+# The engine places a building only this close to one that stands: a building within
+# adjacent_cells, a defense within defense_adjacent_cells.
+adjacent_cells = 2
+defense_adjacent_cells = 7
+# Cells this close to the exit side of a war factory are kept free.
+war_factory_exit_cells = 2
+# A defense stands within defense_radius_cells of the construction yard, as near as possible
+# to the point defense_distance_cells from it toward the enemy.
+defense_radius_cells = 6
+defense_distance_cells = 5
+# A refinery is placed toward an ore patch only when the patch is this close to the construction yard.
+ore_reach_cells = 20
+# A finished building that still waits this long after its place order gets another one.
+place_again_after_ticks = 50
+# A cell asked for is kept off the next placements for this long, until the building shows.
+promise_ticks = 75
+# A finished building (of the Building or Defense queue) that has waited this long unplaced, held back for the field
+# reserved for the MCV's site or asked onto a place and still waiting, is cancelled with the cancel order, so that its
+# queue takes the next building; when no cancel order can be sent, it is placed on the free place nearest the
+# construction yard. Each is a creep_placement event with the reason "held_cancelled". A bug fix, not a switch.
+held_cancel_ticks = 500
+# Whether a refinery's ore field is chosen by reach: the nearest unserved field in ore_reach_cells that a refinery
+# can stand against now, else a near field it can share, else the nearest unserved field. False keeps the nearest
+# unserved field in reach, else the nearest in reach. Off: with creep_toward_ore and the opening's "reach_first" it
+# won 422 of 720 games against 444 without them, at a mean kd of 5,793 against 6,703, with about the same income
+# (docs/BENCHMARKS.md).
+refinery_field_by_reach = false
+# A refinery stands against a field when its footprint is this close to an ore cell, counted as a king moves.
+refinery_ore_cells = 2
+# At most this many own refineries serve an ore field (a field chosen by reach, the creep target, the field cap, a new
+# yard's claim; the move to fresh ore sends a field at most twice as many harvesters). 1 ships: the user's "1 refinery
+# per ore field", after the game of diag-i29-harv put a fifth refinery on the mined-out home field ...
+max_refineries_per_field = 1
+# ... and only a field of at least this many ore cells at the start of the match is shared.
+shared_field_min_cells = 24
+# Whether, while a refinery is due and no place for it reaches its ore field, every other building but a defense is
+# placed nearest that field's ore, so that the base creeps toward it. False places them nearest the construction yard.
+# Off, with the other economy switches (see refinery_field_by_reach): on, it placed no building in 432 games against
+# the Normal bot.
+creep_toward_ore = false
+# Whether the base creeps from its home field, the ore field its first refinery serves, to the next field along the
+# lane toward the enemy, field after field. Once the home field has max_refineries_per_field refineries standing or on
+# their way, the creep target is the field in the lane nearest the base along the line from base_center to the
+# enemy's start that is not the home field, has no ore cell within adjacent_patch_cells of a home ore cell and is
+# served by fewer than max_refineries_per_field refineries. A field is in the lane when its center lies within
+# creep_lane_cells of that line, at most creep_max_share of the way along it, more than creep_enemy_clear_cells from
+# the enemy's start, and no remembered enemy defense stands within creep_defense_clear_cells of it. After the opening,
+# while there is a target, every building but a defense is placed nearest the target's ore cell nearest the base, on
+# any free place within adjacent_cells of a building that stands, and a refinery against the target's ore once a place
+# reaches it. False places as before. A measured switch, off: it won 94 of 144 games against 97 with all the measured
+# switches off, at a mean kd of 9,181 against 12,835.
+creep_next_patch = false
+creep_lane_cells = 12
+creep_max_share = 0.6
+creep_enemy_clear_cells = 25
+creep_defense_clear_cells = 10
+adjacent_patch_cells = 6
+# Whether the base walks, from the opening's first building on, in a straight line toward the nearest ore field out of
+# refinery range, field after field, in any direction. The target is the field whose center is nearest the
+# construction yard that no place the base can build on now lets a refinery stand within refinery_ore_cells of, its
+# nearest ore cell within creep_far_max_cells of the nearest own building but a defense (the creep cap), more than
+# creep_enemy_clear_cells from the enemy's start and with no remembered enemy defense within creep_defense_clear_cells
+# of it. Every building but a defense or a refinery then goes to the free place, in the ring or within adjacent_cells
+# of a building that stands, farthest along the line from the yard to the target's ore cell nearest it, among those
+# whose middle lies within creep_line_cells of the line; with none that near, to the compact place nearest the yard.
+# The places from which a refinery would stand against the home field are
+# left to the refineries. On, it takes the place of creep_toward_ore and creep_next_patch for those buildings, and its
+# target is the creep target the second yard and the forward hold read. False places as before. Not measured; added in
+# iteration 14, it ships on, as in the watched game 20261012T091508Z (see the head of the file).
+creep_from_opening = true
+creep_line_cells = 2
+# The creep cap, with creep_continuous on or off: 30 cells, counted as a king moves, from the nearest own building but a
+# defense to the far field's nearest ore cell. With 40 and no cap under creep_continuous, in the watched games of
+# tmp/diag-placement the crawl aimed at fields 42 to 45 cells off once the MCV took the near one, and the base strung
+# out.
+creep_far_max_cells = 30
+# Whether, with creep_from_opening on, the base walks on field after field: the far field lies within the creep cap of
+# wherever the base has grown to, and a field placement skipped (see refused_detection) is never the far field. The
+# other rules stay: out of refinery range, enemy-clear, defense-clear,
+# the nearest the yard first; with no such field left, placement is as with creep_from_opening off. Without
+# creep_from_opening it does nothing. False lets a skipped field be the far field again. Not measured; added in
+# iteration 15, it ships on, as in the
+# watched game 20261012T091508Z (see the head of the file).
+creep_continuous = true
+# Whether, with creep_from_opening on, a second construction yard standing more than ring_max_cells from the first
+# walks toward a far field of its own: the field nearest that yard by the same rules (and creep_continuous), never the
+# main base's far field nor a field placement skipped. The buildings that walk a line take turns from the moment the
+# second yard stands: the 1st, 3rd, 5th... along the main base's line, the 2nd, 4th... along the second yard's line,
+# from that yard's middle over its ring and the places next to any building; a line with no target or no place yields
+# to the other. Each such creep_placement event adds yard "main" or "second". A field the second yard reaches is claimed
+# like any other (see refinery_claims_reached of [upkeep]). Without creep_from_opening it does nothing. False keeps one
+# line. Not measured; added in iteration 15, it ships on, as in the watched game 20261012T091508Z (see the head of the
+# file).
+remote_yard_growth = true
+# Whether a place the engine would not put a building on is noticed and kept off. The engine puts a building elsewhere,
+# without a word, when the cell asked for cannot take it (behind a cliff the map picture does not show, say). With the
+# switch on, a building that shows up within promise_ticks of being asked for, more than refused_miss_cells (counted as
+# a king moves) from the cell it was asked onto, is a miss: the place it was asked onto is never asked for again, for
+# any building, and the last refused_spots_max such places are kept. Each miss is a placement_refused event. After
+# refused_misses_to_skip misses in a row of buildings placed along the line toward the same far field (see
+# creep_from_opening), that field is skipped; one that lands where it was asked resets the count. False places as
+# before. Not measured; added in iteration 15, it ships on, as in the watched game 20261012T091508Z (see the head of the
+# file).
+refused_detection = true
+refused_miss_cells = 3
+refused_misses_to_skip = 2
+refused_spots_max = 64
+# Whether refineries go one to a field before any field gets a second. With the switch on, a field is taken once an own
+# refinery stands within refinery_ore_cells of it, or a refinery was asked onto a place against it and still is
+# promised (promise_ticks), or a claim or growth refinery is on order for it. After the opening a refinery is placed
+# against the untaken field nearest an own yard that a refinery can stand against now, from a free place in the ring
+# or next to a building that stands; only when there is none does a field get a second, the nearest one with fewer than
+# max_refineries_per_field. A claim field (see refinery_claims_reached of [upkeep]) leaves the claims for good once it
+# is taken, and a claim refinery is ordered only while no refinery is on its way. The refinery_field event of such a
+# refinery gives the rule "spread". False places and claims as before. Not measured; added in iteration 17, it ships on,
+# as in the watched game 20261012T091508Z (see the head of the file).
+refinery_spread = true
+# Whether growth toward a far field that makes no headway gives the field up (it works with creep_from_opening and
+# creep_continuous). For the main base's far field, and the second yard's apart (see remote_yard_growth), the best
+# distance is the smallest distance from the middle of any own building but a defense to the field's ore cell nearest
+# the line's start; progress is that distance shrinking by stall_progress_cells or more. The field is skipped (it joins
+# the fields placement skipped, see refused_detection) once stall_placements buildings placed along its line in a row
+# brought no progress, or stall_seconds passed with no progress since it became the far field or last progressed. Each
+# skip is a creep_placement event with the reason "stalled_skip", the field's center and the best distance reached, and
+# the next far field is named in the same cycle. False walks on as before. Not measured; added in iteration 17, it ships
+# on, as in the watched game 20261012T091508Z (see the head of the file).
+creep_stall_skip = true
+stall_placements = 3
+stall_progress_cells = 2
+stall_seconds = 120
+# Whether the second yard's line grows from the second yard (it works with remote_yard_growth). A building placed along
+# that line takes only a place of the second yard's ring or within adjacent_cells of an own building whose middle lies
+# within second_line_radius_cells of the second yard's middle, never one next to the main base, and so never one more
+# than second_line_radius_cells + adjacent_cells + 3 cells from the second yard. With no such place it goes on the main
+# base's line, as before. False takes places next to any building for both lines, as before. Not measured; added in
+# iteration 17, it ships on, as in the watched game 20261012T091508Z (see the head of the file).
+second_line_local = true
+second_line_radius_cells = 15
+# Whether the base grows along a route an infantry unit walked (it works with creep_from_opening). When the far field of
+# the main base's line, or of the second yard's (see remote_yard_growth), has no walked route yet, one rifleman (e1) is
+# sent with move to the field's ore cell nearest the line's start: the first idle one of the home guard or main that
+# holds no scout slot, else, in the opening, the next one trained; for the second yard's line one within
+# second_line_radius_cells of that yard first. One walks at a time. It keeps its group, and the guard's count, but takes
+# no combat, guard or base-defense orders while it walks. A field whose straight way from the line's start crosses a
+# remembered enemy defense's cover gets no walker and is skipped. The walker's cell is kept as a point of the route each
+# time it has moved walk_sample_cells; within 3 cells of the ore cell the route is done and the walker goes back. The
+# field is skipped (it joins the fields placement skipped, see refused_detection) when the walker has not arrived within
+# the larger of walk_timeout_seconds and walk_detour_factor times the straight distance over its speed plus 10 s, or
+# stands still for 10 s short of it (reason walk_unreachable), or once its way grows longer than walk_detour_factor
+# times the straight distance (reason walk_detour). With a done route, a building walking the line takes the place
+# farthest along the straight piece from the line's start to the route's point nearest it and then the route, among
+# those within creep_line_cells of it. Each walk writes route_walk events (sent, done, failed). False grows along the
+# straight line as before. Not measured; it ships off.
+walked_routes = false
+walk_timeout_seconds = 60
+walk_detour_factor = 2.0
+walk_sample_cells = 2
+# With walked_routes on, the walkers are kept from the enemy. A walker that dies ends its walk with the reason
+# "walker_killed" (one that leaves its group, "walker_lost"); once walker_deaths_to_skip walkers were killed toward a
+# field, the field is skipped (reason walk_killed). No walker is sent while the base is under threat, nor while an enemy
+# unit that fights was seen within 8 cells of the straight way to the field in the last walker_enemy_seen_seconds; a
+# field within walker_enemy_refinery_cells of a remembered enemy refinery gets none and is skipped (reason
+# walk_enemy_field).
+walker_deaths_to_skip = 2
+walker_enemy_seen_seconds = 60
+walker_enemy_refinery_cells = 12
+# With refinery_unserved_only on, each refinery of ours serves one field: the one whose ore lies nearest its footprint,
+# counted as a king moves, the one whose center lies nearer on a tie, when that ore lies within refinery_serves_cells
+# of it, and none farther (a refinery asked onto a place lately or on order for a field counts for it). The harvester
+# room counts a field's refineries the same way, and placement uses no other
+# count: it replaces the nearest field's center, the taken fields and max_refineries_per_field. Every refinery the
+# economy orders after the opening's (a claim, growth, a new yard's, the bank's, one more) is placed against an
+# unserved field that is not dry (see harvesters_to_fresh_ore of [upkeep]) of at least mcv_site_min_ore_cells (of the
+# expansion table) ore cells, from a place that serves that field, the fields whose nearest own yard is an expansion
+# yard first, then the field nearest an own yard; only when no unserved field can be stood against, as the second
+# refinery of a field served once with at least refinery_second_min_cells ore cells, its middle
+# refinery_second_spacing_cells or more from the field's other refinery; otherwise no refinery is ordered, and a
+# refinery_field event of the reason waiting_unserved says so at most once a minute. No refinery stands with its
+# footprint within a known enemy ground defense's range plus refinery_enemy_defense_margin_cells. While fewer than 2
+# own refineries stand or are planned, a refinery keeps the opening's place, but one whose place serves a served or dry
+# field goes against an unserved field that is not dry when one can be stood against, and only else is spaced as a
+# second is, whatever the field's size. False places and orders refineries as before. In the game of diag-i25-econ, 5
+# of 7 refineries stood on the two home fields: it ships on. refinery_second_min_cells ships 9999, more ore cells than
+# any known map's field has, so that no field gets a second refinery: in the game of diag-i29-harv a fifth refinery went
+# to the mined-out 100-cell home field as its second.
+refinery_unserved_only = true
+refinery_second_min_cells = 9999
+refinery_second_spacing_cells = 6
+refinery_enemy_defense_margin_cells = 2
+# 5 ship: refinery_ore_cells and the 3 cells (refused_miss_cells) the engine may put a refinery off its place without
+# placement calling the place refused. In the game of diag-i29-harv a refinery 3 cells from the east field's ore, so
+# serving none within refinery_ore_cells, left that field unserved, and it got a second refinery.
+refinery_serves_cells = 5
+# For one refinery a field (the unserved test, the opening's spaced place and a new yard's claim), an own refinery that
+# serves no field within refinery_serves_cells counts against the field whose ore lies nearest its footprint within
+# refinery_counts_cells, counted as a king moves: its harvesters work that field all the same. The harvester room keeps
+# to refinery_serves_cells. In game 20261013T142816Z the opening's second refinery stood at (15, 51), 7 cells from the
+# west field (6, 53)'s ore: serving no field, it left that field unserved, and the third refinery went onto it at
+# (10, 49).
+refinery_counts_cells = 8
+# With refinery_unserved_only on, when no unserved field of at least mcv_site_min_ore_cells (of the expansion table)
+# can be stood against, a field of at least refinery_second_when_stuck_cells ore cells with one refinery takes a
+# second, its middle refinery_second_spacing_cells or more from every other refinery of ours, as a refinery_field event
+# of the rule second_when_stuck: the one exception to one refinery a field (refinery_second_min_cells stays 9999). In
+# game 913 of diag-i30-maps the base stayed at 2 refineries for 16 minutes: the only unserved field in reach had 21
+# cells.
+refinery_second_when_stuck_cells = 80
+
+[expansion]
+# With second_yard on, the base gets a second construction yard early. Once the war factory stands, from
+# second_yard_from_seconds on, a service depot is ordered when none stands or is on its way, on the power target, with
+# no major threat and the money above production_cash_reserve of [upkeep] for it (tech_min_cash and
+# tech_min_harvesters do not apply). Once it stands, one MCV is trained on the Vehicle queue ahead of the army mix when
+# the money less production_cash_reserve is at least second_yard_min_cash, fewer than two yards stand, no MCV lives or
+# is on its way, there is no major threat and no lost core building is saved for. It is deployed at the free place for
+# a yard nearest the creep target's ore (see creep_next_patch of [placement]), within mcv_deploy_cells of that field's
+# ore; without a target by the nearest field of the lane no refinery serves; else in the base. It goes there only with
+# main units worth at least mcv_escort_strength in a fight, and waits at home while a remembered enemy defense stands
+# within 10 cells of its site, an enemy army seen lately stronger than the escort within 15, or the base is under a
+# major threat; after mcv_wait_ticks of waiting in all it deploys at home. A deploy refused for room is tried one cell
+# farther from the ore, 3 times at most, then at home. With two yards a building is placed by the yard nearest its
+# goal. Each step is written to the match record as an expansion event. Off, no MCV is trained. A measured switch: with
+# creep_next_patch on as well, it won 85 of 144 games against 97 with all the measured switches off, at a mean kd of
+# 5,881 against 12,835. Added in iteration 13, it ships on all the same, as in the watched game 20261012T091508Z (see
+# the head of the file).
+second_yard = true
+second_yard_from_seconds = 240
+second_yard_min_cash = 2000
+mcv_escort_strength = 1500
+mcv_deploy_cells = 4
+mcv_wait_ticks = 1500
+# With mcv_to_skipped_fields on (and second_yard), the MCV is deployed by the field placement skipped (see
+# refused_detection of [placement]) nearest the base, when that field lies more than creep_enemy_clear_cells of
+# [placement] from the enemy's start and no remembered enemy defense stands within creep_defense_clear_cells of it:
+# a field the base cannot grow to is the one a second yard is for. Without such a field the site is chosen as before.
+# Not measured: off.
+mcv_to_skipped_fields = false
+# With mcv_safe_site on (and second_yard), the MCV deploys by the nearest ore field within mcv_site_max_cells of the
+# main yard (the yard nearest the base's center) that no own refinery stands within refinery_ore_cells of, that lies
+# more than creep_enemy_clear_cells of [placement] from the enemy's start and has no remembered enemy defense within
+# creep_defense_clear_cells, and whose deploy place a safe route reaches: the straight line, else the way by one of the
+# two side waypoints side_offset_cells of the raids table off it. A cell is unsafe when a remembered enemy defense
+# covers it or an enemy unit that fights was seen in the last mcv_enemy_seen_ticks within its weapon range and
+# mcv_danger_margin_cells of it. A field placement skipped is one more such field, and mcv_to_skipped_fields then does
+# nothing of its own. Without such a field the MCV deploys at home. An MCV on its way that loses health, or comes within
+# 8 cells of an unsafe cell, is sited again from where it stands, once in 250 ticks at most. Each choice is an expansion
+# event of phase "site". Not measured; added in iteration 16, it ships on, as in the watched game 20261012T091508Z (see
+# the head of the file).
+mcv_safe_site = true
+mcv_site_max_cells = 30
+mcv_enemy_seen_ticks = 1500
+mcv_danger_margin_cells = 3
+# With mcv_new_area on (it works with mcv_safe_site), the MCV opens a new area. Its site's field is never one that is
+# taken (an own refinery stands within refinery_ore_cells of [placement] of it, one was asked onto a place against it
+# within promise_ticks or one is on order for it), a claim field (see refinery_claims_reached of [upkeep]) or the field
+# of the creep target. Of the rest, the fields whose center lies mcv_refinery_spacing_cells or more from every own
+# refinery, standing or asked, come first, nearest the main yard first, then the others; the safe route and
+# mcv_site_max_cells stay. With none, the site is chosen as with the switch off, then at home. A site whose field
+# becomes taken while the MCV is on its way is chosen again from where the MCV stands, as an expansion event of phase
+# "site" with the reason "taken", once in 250 ticks at most. Off, the site is chosen as before. Not measured; added in
+# iteration 17, it ships on, as in the watched game 20261012T091508Z (see the head of the file).
+mcv_new_area = true
+mcv_refinery_spacing_cells = 12
+# With mcv_new_area on, the MCV's site is by a field it lasts by whenever one has a place a safe route reaches: a field
+# of a new area with at least mcv_site_min_ore_cells ore cells (its cells in the map's picture, none once it is marked
+# dry; see harvesters_to_fresh_ore of [upkeep]), no own refinery, standing or asked, within mcv_refinery_spacing_cells
+# of its center (a hard test here) and no own harvester whose last cell on ore lies in it, nearest the main yard first.
+# Without such a field the site is chosen as above, and an expansion event of phase "site_check" with the reason
+# "site_fallback" says so. An MCV that has waited mcv_wait_ticks for the want of its escort alone goes to its site,
+# with the escort it has, when mcv_safe_site's safe route reaches it, and deploys at home only without one. Not
+# measured; it ships with mcv_new_area.
+mcv_site_min_ore_cells = 30
+# With mcv_reserve_field on (it works with second_yard and mcv_safe_site), the MCV's site is chosen when the MCV is
+# ordered, and the field of that site is reserved while the MCV is on order, out of the factory, waiting or on its way:
+# no refinery is asked onto a place against it (by today's rules, refinery_spread of [placement], a claim or growth of
+# [upkeep]), it is not a claim field and mcv_new_area's check for a taken field passes it over. A refinery that could
+# stand against no other field waits. The reservation moves with a site chosen again, and ends once the MCV deploys,
+# is lost or is sent home. The site chosen at the order is kept when the MCV comes out unless its field became taken
+# or (with mcv_safe_site) no safe route reaches it from the MCV. False chooses the site when the MCV comes out and
+# reserves nothing, as before. Not measured; added in iteration 18, it ships on, as in the watched game 20261012T091508Z
+# (see the head of the file).
+mcv_reserve_field = true
+# Whether an MCV expansion holds the refineries for fields one of ours serves already (second and second_when_stuck of
+# [placement]'s refinery_unserved_only): from the cycle the MCV's site is chosen, through its order and its way, until
+# it deploys or is lost, 60 s pass with no site and no MCV on order or out, or 120 s pass since the site, no such
+# refinery is ordered, and one refinery_field event of the reason held_for_mcv says so; a refinery for an unserved field
+# and the opening's are never held, and once the MCV deploys the new yard's claim comes first. In game 20261014T030940Z
+# the site was chosen at 04:33, a second_when_stuck refinery went onto the served home field at 05:07 and the MCV was
+# trained only at 05:13. False orders such a refinery during the expansion, as before.
+hold_refinery_for_mcv = true
+# With mcv_short_escort on (it works with second_yard), an MCV that has waited at home short_escort_wait_ticks in a row
+# with its escort the only reason (escort_short: the main units it can take are worth less than mcv_escort_strength,
+# and no major threat, remembered defense within 10 cells of its site or stronger enemy army within 15 keeps it) sets
+# out with the escort units it has, as an expansion event of phase "mcv_moving" with the reason
+# "escort_short_timeout". With no escort unit it sets out alone, but only on a safe route: with mcv_safe_site on, the
+# route that rule checks from the MCV's cell; otherwise no remembered enemy defense within 10 cells of the site and no
+# enemy army seen lately within 15. Any other reason to wait starts the count again; mcv_wait_ticks and the deploy at
+# home after it stay as they are. False waits for the whole escort, as before. Not measured; added in iteration 18, it
+# ships on, as in the watched game 20261012T091508Z (see the head of the file).
+mcv_short_escort = true
+short_escort_wait_ticks = 500
+# Whether the second MCV that finds no safe site on its way (the home_fallback of an expansion site event) waits by home
+# without deploying, as a further MCV does, and looks for a site again from where it stands once every 10 s by the safe
+# site rules; a site found sends it out again, and after second_mcv_wait_seconds without one it deploys at home. In game
+# 20261014T050310Z the second MCV ran out to its field at 07:46, met unsafe ground at 08:44, and deployed at home at
+# 08:58. False deploys it at home at once, as before.
+second_mcv_waits = true
+second_mcv_wait_seconds = 90
+# With mcv_repeat on (it works with second_yard), the yards allowed grow with the income: 1 + floor(income a second /
+# yards_income_per_yard), max_yards at the most, the income as the income estimate reports it (none while unknown).
+# Standing own yards and MCVs out or on order count against it; a lost yard frees its place. Each change of the cap is
+# an expansion event of reason "yard_cap" with the income, the yards, the MCVs and the cap. An MCV, the second yard's as
+# a further one, is wanted while the yards and MCVs are fewer than allowed, second_yard_from_seconds has passed, more
+# than repeat_mcv_cutoff_seconds of the match are left and a far field qualifies (see mcv_far_site_max_cells), besides
+# the second MCV's terms (a depot, no MCV out or on order, the MCV on offer, no major threat, the money above
+# production_cash_reserve covering the MCV and second_yard_min_cash, mcv_first's hold). It goes with an escort, waits
+# and is sited again on its way like the second MCV, and its field is reserved with mcv_reserve_field. A further MCV
+# never deploys at home: without a site it waits at home (an expansion event with the reason "repeat_no_site") and
+# looks again every 250 ticks, and after mcv_wait_ticks it deploys at the free place for a yard nearest the second yard
+# when a safe route reaches it, else where it stands. Its expansion events carry the reason "repeat". False wants two
+# yards at most, as before. Not measured; it ships on, as in the watched game 20261012T091508Z (see the head of the
+# file).
+mcv_repeat = true
+yards_income_per_yard = 40
+max_yards = 6
+repeat_mcv_cutoff_seconds = 180
+# With mcv_repeat on, every MCV, the second yard's and the further ones alike, goes to a far field that lasts, whatever
+# mcv_safe_site says: not taken and no claim field, at least mcv_site_min_ore_cells ore cells, no own refinery
+# (standing or asked) within mcv_refinery_spacing_cells of its center, no own harvester's last harvest in it, its center
+# within mcv_far_site_max_cells of the nearest own yard (in place of mcv_site_max_cells), clear of the enemy's start and
+# of remembered defenses as for mcv_safe_site, with a place for a yard a safe route reaches (the straight line or a side
+# waypoint's way; with waypoints of [routing] on, the straight line or the graph's way). Of those, the one whose route
+# is shortest. The crawl target's field qualifies like any other, however near own buildings stand to it (the MCV
+# does not keep to the crawl); an MCV that goes to it moves the crawl on to its next target, since the MCV's
+# reservation keeps refineries off that field. In game 20261013T142816Z the south field (13, 76), the crawl target from
+# 02:27, was kept off while the war factory stood 19.7 cells from it, and the MCV was ordered only at 06:54.
+mcv_far_site_max_cells = 50
+# From second_mcv_due_seconds on, while one own yard stands and no MCV is out or on order, the second MCV is due
+# whatever the income: the yards allowed are 2 at the least for it, it is ordered as soon as a far field qualifies (see
+# mcv_far_site_max_cells) and the money covers its price, ahead of every war factory beyond the first and every building
+# but power (a lost core building still goes first). While the money is short, the full hold of mcv_first is in force
+# with no time limit and no release, and a due refinery claim still goes ahead of it. The depot, the MCV on offer, no
+# major threat and the Vehicle queue's room still apply. While one of those or the site or the money blocks it, an
+# expansion event of the reason second_mcv_blocked names what blocks it (blocked_by: depot, major_threat, core_saved,
+# site, money or queue), at most once in 30 s. In the game of diag-i25-econ the MCV was ordered at 07:00 and deployed at
+# 08:47: the only field of 40 ore cells or more was the crawl target until 06:29, and the Vehicle queue held it behind
+# three vehicles.
+second_mcv_due_seconds = 300
+# With mcv_safe_site or mcv_repeat on, an MCV's site, chosen or travelled to, does not qualify while a known enemy
+# construction yard, refinery or ground defense (one that does not shoot at aircraft alone) stands within
+# mcv_enemy_building_cells of it: every choice of a site passes over such a place, and with mcv_safe_site on an MCV
+# waiting or on its way whose site becomes one is sited again from where it stands, as an expansion event of phase
+# "site" with the reason "enemy_building_near" (once in 250 ticks at most), and goes home as before when no site is
+# left. The move to fresh ore (harvesters_to_fresh_ore of [upkeep]) sends no harvester to a field no own refinery
+# serves whose center lies within mcv_enemy_building_cells of a known enemy building. A yard deployed 10 cells from an
+# enemy yard was killed by a turret with two harvesters.
+mcv_enemy_building_cells = 14
+# With mcv_safe_site or mcv_repeat on, an MCV's site, chosen or travelled to, qualifies only when its distance from the
+# base's center is at most mcv_own_side_share of its distance from the enemy's start (the spawn the world model takes as
+# the enemy's): every choice of a site passes over a place on the enemy's side, a second MCV due by its time that has a
+# far field only on that side is not ordered and second_mcv_blocked names "own_side", and with mcv_safe_site on an MCV
+# waiting or on its way whose site no longer qualifies is sited again, as an expansion event of phase "site" with the
+# reason "own_side". While the enemy's start is unknown, the rule does not apply. At 1.1 an untouched field in the
+# middle of the map qualifies: in the watched game 20261014T015507Z the north field (53, 13), 43 cells from our start
+# and 45 from the enemy's, failed only this rule at 0.8 (its site at 0.883) and the enemy took it at 05:51. The lost
+# game of diag-i28-loss, where the second yard went up at (50, 17) 7 cells from an enemy yard, is covered by
+# mcv_enemy_building_cells (no site within 14 cells of a known enemy yard, refinery or ground defense) and the re-site
+# when such a building appears.
+mcv_own_side_share = 1.1
+# While the MCV travels to its site (on its way, or with a deploy out there), enemy combat units seen within the last
+# 10 s standing within 15 cells of the site and worth together at least mcv_site_army_value (cost by health share) make
+# it hold short: a stop once it stands 15 cells or more from every one of them, a move straight away from the nearest
+# to that distance before, and one expansion event of phase "mcv_hold" with the reason "site_army". No deploy goes out
+# meanwhile. Once they have stood there mcv_site_hold_seconds, the MCV is sited again from its cell with that field
+# passed over, as a "site" event of the reason "site_army", or goes home without a site; once they are gone it goes on.
+# Without it, only enemies within weapon range and 3 cells of the site send a travelling MCV elsewhere: in game
+# 20261013T142816Z the yard at (19, 78) was lost 21 s after it deployed beside the enemy army escorting its own MCV to
+# that field.
+mcv_site_army_value = 600
+mcv_site_hold_seconds = 30
+
+[composition]
+# With main_force = "tanks" of the mix table and this switch on, the Vehicle queue trains no vehicle of the army mix
+# until a service depot (fix) stands: the base rows' light tanks and flak trucks are never built for main. Harvesters,
+# MCVs and the raid quota (its light tanks, under allied_raid_light_tanks) still are, and the infantry follows its own
+# rules; the money not spent on main goes to the early service depot and the harvesters. Ships on; with false the base
+# rows' vehicles are built before the depot.
+main_vehicles_need_depot = true
+# The raid quota that is filled first under the RAID plan: light vehicles (Allies), from 1 to 12 ...
+raid_vehicles = 4
+# ... which with allied_raid_light_tanks = true are light tanks (1tnk) only, once a war factory stands, and never a
+# jeep; with false, light tanks, or jeeps when no light tank can be had. Off, with the army switches it was measured
+# with (see standing of the raids table). With them, England won 210, 175 and 111 of 360 games with raids of 4, 6 and
+# 8 light tanks, against 270 for the shipped values; with the army switches off no size was chosen, and raid_vehicles
+# keeps its value (docs/BENCHMARKS.md).
+allied_raid_light_tanks = false
+# ... or grenadiers (Soviets) ...
+raid_infantry = 6
+# ... who, once a war factory stands, raid with this many flak trucks and this many grenadiers. With 0 the Soviet raid
+# takes no flak truck: a Soviet switch, on (see the head of the file).
+raid_mixed_vehicles = 0
+raid_mixed_infantry = 3
+# The Soviet raid: "infantry", the grenadiers (and flak trucks) above; "apc_rockets", raid_apcs APCs (1 to 4), each
+# carrying raid_apc_rockets rocket soldiers (1 to 5), once a war factory and a barracks stand; or "none", no Soviet
+# raid at all: RAID is never open for the Soviets and production makes main's mix alone. "infantry" ships: with the
+# other army switches Russia won 55 of 360 games with "apc_rockets" against 134 with "none", and with "none" the army
+# switches won 309 of 720 games against 444 for the shipped values (docs/BENCHMARKS.md).
+soviet_raid = "infantry"
+raid_apcs = 2
+raid_apc_rockets = 5
+# The Allied support units, trained only while vehicle_repair of [combat] is on and only when on offer (a mechanic
+# needs a service depot): the Infantry queue trains a mechanic for every mechanics_per_tanks (1 or more) of main's
+# tanks (1tnk, 2tnk, 3tnk, 4tnk), up to mechanics_max. The first mechanics_max - mechanics_base are mobile: they trail
+# main 3 cells behind its long-range units (or its centroid), on the side away from the enemy's start, and never
+# attack; then mechanics_base stand at the base repair point beside the service depot. A medic is trained for every
+# medics_per_infantry of main's infantry (1 or more), up to medics_max, and trails main as the mobile mechanics do.
+# Mechanics and medics heal on their own while idle. A mobile mechanic that a vehicle in repair is sent to stops
+# trailing main until that vehicle leaves repair. A mechanic per 3 tanks up to 3, all mobile, as the user directed: in
+# the watched games mechanics healed about 2 hp% a second beside a large army, and the base ones idled. With no base
+# mechanic a vehicle in repair with no mobile mechanic near goes to the staging point, where it does not heal. Not
+# measured; it ships on. medics_max is 0, so that no medic is trained: vehicle repair is what matters, not going
+# further into infantry.
+mechanics_per_tanks = 3
+mechanics_max = 3
+mechanics_base = 0
+medics_per_infantry = 6
+medics_max = 0
+# With soviet_infantry_counter on and main_force = "tanks", the Soviet tank rows from the dome stage on answer an
+# infantry-heavy enemy: while infantry make up at least enemy_infantry_share of the enemy units that fight seen in the
+# last 120 s, counted by unit, flamers_share points of the row go to the flamethrowers (e4) and v2_infantry_bonus more
+# to the V2s (v2rl), both from the heavy tank (3tnk), so that the row still holds 100 and no share passes max_share.
+# A flamethrower needs a flame tower (ftur), which nothing builds for it: while e4 is not on offer its points go to the
+# V2s as well. While the counter is in force, no_army_infantry of [upkeep] lets the Infantry queue train e4 up to its
+# share besides the rocket soldiers. In the Soviet game of diag-i26-soviet the enemy fielded mostly rifles and rockets
+# and all 18 heavy tanks died. Not measured; it ships on.
+soviet_infantry_counter = true
+enemy_infantry_share = 0.6
+flamers_share = 20
+v2_infantry_bonus = 15
+
+[mix]
+# The army mix: what share of the army's value each item of the Infantry and Vehicle queues is to have. There is a
+# row for each family and tech stage, in the tables [mix.<family>.<stage>] below; the stage is the highest whose
+# buildings stand: base (no service depot), fix (a service depot) and dome (a service depot and a radar); the Soviet
+# tank rows add stek (a tech center), which every other set of rows plays with its dome row. A row gives
+# each queue's items and their shares in points: every share is a whole number from 0 to max_share, and a row's
+# shares add up to exactly 100. When the money pays for the next item of only one unit queue, the queue furthest
+# below its share of the unit spending of the last minute goes first: the Vehicle queue's share is what the row, as
+# shifted, gives its vehicles together, the Infantry queue's the rest. A max_share of 95 ships, as in the watched game
+# 20261012T091508Z (see the head of the file): a tank row gives one vehicle 95 points.
+max_share = 95
+# Which rows the main force is built from: "mixed", the rows [mix.<family>.<stage>], or "tanks", the rows
+# [mix.tanks.<family>.<stage>], which are read the same way and shift the same way. "tanks" ships, as in the watched
+# game 20261012T091508Z (see the head of the file), with the tank rows below. Tank rows with more infantry, added in
+# iteration 12, were measured with the other army switches (see standing of the raids table), and together they won 309
+# of 720 games against 444 for the values shipped then, at a mean kd of -2,201 against 6,703 (docs/BENCHMARKS.md).
+main_force = "tanks"
+# The seen enemy army is the remembered enemy units that fight and are not stale, by value. Once it is worth at least
+# counter_min_value, the row shifts toward what beats it; which shift applies is decided again every
+# counter_every_ticks.
+counter_min_value = 1500
+counter_every_ticks = 250
+# With at least vehicle_heavy_share of its value in vehicles, vehicle_counter_points move from the rifles (e1) to the
+# rockets (e3), for the Soviets too: the grenadiers (e2) died to a man against armor in diag-i26-soviet ...
+vehicle_heavy_share = 0.5
+vehicle_counter_points = 15
+# ... and with at least infantry_heavy_share in infantry, infantry_counter_points move from the main tank (2tnk,
+# 3tnk) to the rifles, and at the dome stage artillery_counter_points more from it to the artillery (arty, v2rl). No
+# share goes below 0 or above max_share.
+infantry_heavy_share = 0.7
+infantry_counter_points = 10
+artillery_counter_points = 5
+
+# The tank rows, played with main_force = "tanks", as they ship: the medium tank (Allies) or the heavy tank (Soviets)
+# is the bread and butter, with artillery or V2s to back it up, rocket soldiers (e3) against aircraft and for fire
+# support, and light tanks only raid. The base rows, light tanks and flak trucks with 5 points of rocket soldiers,
+# stay loadable, but with main_vehicles_need_depot (see the composition table) on no main vehicle is built before the
+# service depot. From the depot on a row is 12 tanks : 4 artillery or V2s : 8 rocket soldiers by count (tanks to
+# artillery 3 : 1, tanks to rocket soldiers 3 : 2), as the user directed, its points the value of those units at their
+# costs: Allies 12 x 850, 4 x 850 and 8 x 300 of 16,000 credits; Soviets 12 x 1,150, 4 x 900 and 8 x 300 of 19,800.
+# The artillery or V2s' points at the fix stage go to the main tank until the radar puts them on offer. The Soviet
+# stek row, once a tech center stands, splits the tanks 2 : 1 between the heavy and the Mammoth tank (4tnk):
+# 8 x 1,150, 4 x 2,000, 4 x 900 and 8 x 300 of 23,200. Not measured.
+[mix.tanks.allies.base]
+infantry = { e3 = 5 }
+vehicle = { 1tnk = 95 }
+
+[mix.tanks.allies.fix]
+infantry = { e3 = 15 }
+vehicle = { 2tnk = 64, arty = 21 }
+
+[mix.tanks.allies.dome]
+infantry = { e3 = 15 }
+vehicle = { 2tnk = 64, arty = 21 }
+
+[mix.tanks.soviet.base]
+infantry = { e3 = 5 }
+vehicle = { ftrk = 95 }
+
+[mix.tanks.soviet.fix]
+infantry = { e3 = 12 }
+vehicle = { 3tnk = 70, v2rl = 18 }
+
+[mix.tanks.soviet.dome]
+infantry = { e3 = 12 }
+vehicle = { 3tnk = 70, v2rl = 18 }
+
+[mix.tanks.soviet.stek]
+infantry = { e3 = 10 }
+vehicle = { 3tnk = 40, 4tnk = 34, v2rl = 16 }
+
+# The mixed rows, played with main_force = "mixed".
+[mix.allies.base]
+infantry = { e1 = 50, e3 = 15 }
+vehicle = { 1tnk = 35 }
+
+[mix.allies.fix]
+infantry = { e1 = 40, e3 = 15 }
+vehicle = { 2tnk = 45 }
+
+[mix.allies.dome]
+infantry = { e1 = 30, e3 = 10 }
+vehicle = { 2tnk = 30, arty = 30 }
+
+# The Soviet rows keep the flak truck to a small share of the base stage and out of the later ones: a Soviet switch,
+# on (see the head of the file).
+[mix.soviet.base]
+infantry = { e1 = 50, e2 = 10, e3 = 25 }
+vehicle = { ftrk = 15 }
+
+[mix.soviet.fix]
+infantry = { e1 = 35, e2 = 10, e3 = 15 }
+vehicle = { 3tnk = 40 }
+
+[mix.soviet.dome]
+infantry = { e1 = 35, e2 = 5, e3 = 10 }
+vehicle = { 3tnk = 25, v2rl = 25 }
+
+# An alternative to the Soviet rows above with the flak truck as filler, the Soviet switch off, to be played with
+# raid_mixed_vehicles = 3 and air_flak_points = 10 (see the composition and anti-air tables).
+# [mix.soviet.base]
+# infantry = { e1 = 45, e2 = 15, e3 = 10 }
+# vehicle = { ftrk = 30 }
+#
+# [mix.soviet.fix]
+# infantry = { e1 = 35, e2 = 15, e3 = 10 }
+# vehicle = { 3tnk = 40 }
+#
+# [mix.soviet.dome]
+# infantry = { e1 = 30, e2 = 15 }
+# vehicle = { 3tnk = 30, v2rl = 25 }
+
+[base_defense]
+# A threat is declared when a visible enemy combat unit is this close to an own building, or an own building
+# or harvester is reported under attack or loses hp with such an enemy this close to it.
+alarm_radius_cells = 12
+# The threat area: the threat's size is the summed cost of the visible enemy combat units this close to
+# base_center or to the threatened building or harvester, and the threat lasts while one is this close to
+# base_center or to an own building.
+threat_area_cells = 15
+# A threat of one enemy unit of at most this cost is minor; any other is major.
+minor_max_cost = 600
+# The threat ends once no enemy combat unit has been in the threat area for this long.
+threat_end_ticks = 125
+# A major threat is answered by the home guard and every own combat unit this close to base_center.
+response_radius_cells = 25
+# A responder standing idle this close to the threatened cell has arrived and is not sent there again; so has
+# a fleeing harvester this close to its shelter.
+arrived_cells = 2
+# A harvester with a visible enemy combat unit this close flees to the nearest own defense ...
+harvester_flee_cells = 6
+# ... and harvests again once no enemy combat unit has been this close to it ...
+harvester_safe_cells = 10
+# ... for this long.
+harvester_return_ticks = 125
+# While a major threat lasts, the Infantry queue trains the counter to it this many at a time ...
+counter_at_a_time = 3
+# ... and the Defense queue builds one extra defense at most once in this many seconds, and one per threat: only for
+# a threat with a ground enemy that hit an own building or stands within extra_defense_near_cells of a main-base
+# building (one within threat_area_cells of base_center), and only while our ground strength (combat units and ground
+# defenses) within 12 cells of its ground enemies is below extra_defense_strength_share times theirs. It is placed on
+# the side of the base facing the threat. A threat that only hit harvesters, or only of aircraft, adds none.
+extra_defense_seconds = 120
+extra_defense_near_cells = 12
+extra_defense_strength_share = 1.5
+# Repair is switched on for a building under attack, whatever its hp, when cash is at least this.
+repair_min_cash = 100
+# With harvester_group_response on, a threat that hit an own harvester more than alarm_radius_cells from base_center,
+# while the plan is HOLD, RAID or PRESERVE and main has a unit fit to fight, is answered by main alone: it goes with
+# attack_move to the threat's cell under the defense override, and the guard and the units near the base stay home.
+# main is let go back to its plan when the threat ends or after harvester_response_seconds. While main answers a
+# major one and its strength against the threat's enemies is at least engage_ratio of [combat], no counter infantry
+# is trained. Each step is a base_defense event. Not measured; added in iteration 17, it ships on, as in the watched
+# game 20261012T091508Z (see the head of the file).
+harvester_group_response = true
+harvester_response_seconds = 60
+# With keep_attack_army on, while the plan is PRESS, STRIKE or FINISH a major threat neither draws main's units in nor
+# calls main home, unless it is worth more than the guard's strength and the own standing defenses within
+# threat_area_cells of the threat's cell together. Base defense's override is set on the units answering a threat
+# alone, not on their whole group, so the rest of a group keeps its orders. A threat whose enemies are all aircraft
+# draws in no ground unit that cannot hit air and calls no group home. Not measured; added in iteration 19, it ships on,
+# as in the watched game 20261012T091508Z (see the head of the file).
+keep_attack_army = true
+# With harass_tower on, when a known enemy building stands within the range of a cheap ground defense (pbox or gun,
+# ftur or tsla) of a cell our base can place it at, no enemy army worth 1,000 or more is within 10 cells of that cell
+# and no known enemy ground defense reaches within its range plus 2 cells of it, that defense is placed there, in range
+# of the enemy building: at most harass_tower_max standing or on their way, and one per enemy building. Each is a
+# base_defense event of reason harass_tower.
+harass_tower = true
+harass_tower_max = 2
+# A threat more than far_rescue_cells from base_center draws no unit of main in and does not call main home while main,
+# weighed against the threat's enemies in sight within threat_area_cells of its cell and the enemy ground defenses
+# reaching it, is under far_rescue_min_ratio as strong as they are (no enemy in sight there weighs nothing), or while a
+# known enemy construction yard or ground defense stands within 14 cells of the threat's cell. main stays under its plan
+# or the commander's order, its units already sent there go back to the staging point, and the guard, the other units
+# near the base and the defenses answer as before. One base_defense event of reason far_rescue_declined per threat.
+far_rescue_cells = 20
+far_rescue_min_ratio = 1.0
+# With closing_intercept on, while the model commander does not command main and the plan is HOLD or RAID, an enemy
+# army closing on an own construction yard, the travelling MCV, its site or base_center is answered by main before it
+# reaches base defense's alarm radius: the enemy combat units seen in the last 10 s within closing_cells of the target,
+# worth closing_min_value or more together, whose centroid is closer to it than 15 s before (or none of them seen
+# then). With main, gathered at the staging point, at least closing_min_ratio as strong as that army, main
+# attack-moves to the cell intercept_front_cells in front of the target on the line to the army, pulled back toward the
+# target out of every known enemy ground defense's coverage; otherwise main defends the target's cell when it lies
+# within far_rescue_cells of base_center, and holds at the staging point beyond, the travelling MCV holding where it
+# stands (and going back toward the base while the army keeps closing on it). It ends when the army is unseen 20 s,
+# stands beyond closing_cells + 10 of the target, or main's ratio there falls under strike_abandon_ratio of
+# [plan_rules]; main then goes back to the staging point. No major threat, strike or PRESERVE meanwhile; one at a time.
+# Each start and end is a combat event of reason closing_intercept. Not measured: it answers an enemy army seen 24
+# cells from the travelling MCV that met no answer until the new yard was hit.
+closing_intercept = true
+closing_min_value = 1000
+closing_cells = 30
+intercept_front_cells = 8
+closing_min_ratio = 1.0
+
+[scouting]
+# The enemy base counts as seen once an enemy construction yard, or any enemy building this close to the
+# enemy's start, has been in sight.
+base_seen_cells = 15
+# A scout covered by a remembered enemy defense, or below withdraw_below_hp, withdraws this far toward base_center.
+withdraw_cells = 8
+withdraw_below_hp = 50
+# A scout this close to enemy_base starts to circle it through four waypoints at circle_radius_cells from it.
+arrival_cells = 10
+circle_radius_cells = 10
+# A scout this close to the cell it is sent to has reached it ...
+reached_cells = 2
+# ... and one that has stood idle this long since it was sent there gives the cell up.
+stuck_ticks = 125
+# Knowledge is stale when no enemy building has been seen for this long; then a new scout is sent ...
+stale_after_ticks = 2250
+# ... but a new scout at most once in this many seconds.
+new_scout_seconds = 60
+# A scout lost before an enemy building was seen on its mission is replaced after this many seconds ...
+replace_after_seconds = 30
+# ... and after this many such losses in a row no scout is sent for pause_seconds; the scout sent after the pause
+# is the fastest idle unit that fights, and goes by a waypoint side_offset_cells to the side of its direct line.
+blind_losses_before_pause = 2
+pause_seconds = 60
+side_offset_cells = 12
+# With rescout on, the staleness above is replaced: a scout is due when no cell within base_seen_cells of the enemy's
+# start has been in our units' sight for rescout_base_seconds, no enemy unit that fights has been seen for
+# rescout_army_seconds, or an ore field more than 25 cells from our base has been out of sight for
+# rescout_fields_seconds. A mission then ends after scout_mission_max_seconds, and with a scout due and no jeep,
+# flak truck or rifleman to send for scout_train_after_seconds, one rifleman is trained for it. A measured switch, on:
+# it won 108 of 144 games against 97 with all the measured switches off, at a mean kd of 13,259 against 12,835, and
+# against the Rush bot 3 games more for Russia and 1 more for England.
+rescout = true
+rescout_base_seconds = 90
+rescout_army_seconds = 60
+rescout_fields_seconds = 180
+scout_mission_max_seconds = 120
+scout_train_after_seconds = 30
+# With indirect_route on, a scout does not drive straight at the enemy's start. It goes by a waypoint
+# scout_side_cells to the side of the line from our base to it, scout_side_share of the way (the side changing from
+# one mission to the next), then by up to scout_fields_max ore fields within scout_field_cells of its way that have
+# been out of sight for two minutes, then to the enemy base's flank on that side and around the base's far side,
+# scout_view_cells from the enemy's start, and comes home by the other side. No waypoint lies within
+# scout_min_enemy_cells of the enemy's start or where a remembered defense covers it, and a scout whose health drops
+# by scout_hit_hp_drop or more in one state goes on to its next waypoint away from what hit it. A measured switch, off:
+# with rescout on as well, it won 89 of 144 games against 97 with all the measured switches off, at a mean kd of 8,225
+# against 12,835.
+indirect_route = false
+scout_side_cells = 14
+scout_side_share = 0.4
+scout_field_cells = 15
+scout_fields_max = 2
+scout_view_cells = 14
+scout_min_enemy_cells = 9
+scout_hit_hp_drop = 10
+# With rush_detection on, a watch on the first rush_watch_until_seconds of the match gives a verdict the opening can
+# read: rush, none or unknown. Either of these is a rush: rush_infantry enemy infantry or rush_vehicles enemy
+# fighting vehicles seen farther than rush_near_base_cells from the enemy's start; an enemy army worth
+# rush_approach_value within rush_approach_cells of our base. With the enemy base seen and none of them, the verdict
+# is none; with the base still unseen at rush_unknown_deadline_seconds, it stays unknown. One rifleman of main
+# watches the way in from watcher_share of the way to the enemy's start until the watch ends. A measured switch: with
+# defense_on_threat of [opening] on as well, it won 95 of 144 games against 97 with all the measured switches off, at
+# a mean kd of 9,983 against 12,835, and 7 games fewer for Russia against the Rush bot. Added in iteration 13, it ships
+# on all the same, as in the watched game
+# 20261012T091508Z (see the head of the file).
+rush_detection = true
+rush_watch_until_seconds = 300
+rush_unknown_deadline_seconds = 150
+rush_barracks = 2
+rush_barracks_before_seconds = 240
+rush_early_factory_seconds = 180
+rush_infantry = 6
+rush_vehicles = 2
+rush_near_base_cells = 20
+rush_approach_value = 1000
+rush_approach_cells = 30
+watcher_share = 0.4
+# With rush_scout_direct on, the first scout slot's scout drives straight at the enemy's start until it has been within
+# rush_scout_pass_cells of it, then stands at the cell rush_exit_post_cells from it toward our base until
+# rush_watch_until_seconds, holding fire and stepping back when hit. rush_mass_infantry enemy infantry or more seen
+# within rush_near_base_cells of the enemy's start by rush_mass_before_seconds is a warning that holds cash (see
+# rush_reserve_cash of [opening]), not a rush. The verdict comes only from infantry or vehicles seen out of the
+# enemy's start, or an army approaching our base: rush_barracks, rush_barracks_before_seconds and
+# rush_early_factory_seconds are read but unused (the rush and normal bots build barracks and war factories alike).
+rush_scout_direct = true
+rush_scout_pass_cells = 5
+rush_exit_post_cells = 13
+rush_mass_infantry = 8
+rush_mass_before_seconds = 200
+# An ore field with one of our buildings (a refinery, a second yard, any other) within own_field_cells of its center or
+# of its nearest ore cell is ours: our building watches it, and no scout mission, rescout, expansion watch, scout place
+# or commander scout option goes there. The watches of the fields by the enemy's start are unchanged.
+own_field_cells = 12
+# With scout_slots on, scouting is scout_slot_count designated scouts kept for the whole match in place of the
+# missions above: the first infantry trained, then a jeep (Allies) or a dog (Soviets, from a kennel upkeep builds
+# after the opening) for each once one can be trained, and a new one for each scout lost, the fastest that can be
+# trained, at least scout_replace_floor_seconds after the last (a rifleman at once when every slot is empty). Not
+# measured; added in iteration 15, it ships on, as in the watched game 20261012T091508Z (see the head of the file).
+scout_slots = true
+scout_slot_count = 2
+scout_replace_floor_seconds = 20
+# With scout_spend_cap on as well, the scout slots spend less: a lost scout is replaced at least
+# capped_replace_seconds after the last replacement (in place of scout_replace_floor_seconds), and the slots order at
+# most fast_scouts_max fast scouts (jeeps, flak trucks or dogs, upgrades and replacements alike) in a match; after
+# that no slot is upgraded and a lost scout is replaced by a rifleman, each refused fast scout a scout_slot event of
+# kind capped. While every slot is empty and nothing is on its way, a rifleman is still ordered at once. Not measured;
+# added in iteration 17, it ships on, as in the watched game 20261012T091508Z (see the head of the file).
+scout_spend_cap = true
+capped_replace_seconds = 60
+fast_scouts_max = 6
+# The faster unit the Soviet scout slots train: "dog", from the kennel upkeep builds after the opening, or "ftrk", the
+# flak truck, once a war factory stands, which is faster still and needs no kennel (none is built). While no kennel
+# puts a dog on offer, a slot is held and refilled by a rifle (e1). "dog" ships: in diag-i26-soviet 5 flak-truck scouts
+# died ($3,000), and a scout is a rifle or a dog, never a flak truck.
+soviet_scout_unit = "dog"
+# For the Allies, no jeep is ordered for a scout slot, as an upgrade or as a replacement, until 2 war factories stand
+# or the game time reaches allied_fast_scout_after_seconds; until then a lost scout is replaced by a rifleman (e1) from
+# the barracks, within the scout spend cap's wait. The Soviet scouts are unchanged. Not measured; it ships at 300: in
+# games 911 and 913 England's one war factory built two scout jeeps between 03:04 and 03:43, and the first rush, at
+# 05:00, met 2 medium tanks with 4 Soviet heavy tanks.
+allied_fast_scout_after_seconds = 300
+# With scout_slots on, each scout is steered every cycle toward the next place to look at. A cell is dangerous when
+# a remembered enemy defense covers it or it lies within an enemy unit in sight's weapon range and
+# scout_danger_margin_cells; a way that crosses a dangerous cell or passes within scout_center_clear_cells of the
+# map's center goes by a side waypoint. A scout with a dangerous cell within scout_flee_cells flees that far from it,
+# one within scout_reached_cells of its destination takes the next, and one below scout_release_below_hp health
+# leaves its slot for main. At most scout_orders_per_batch scout orders go in one batch.
+scout_danger_margin_cells = 3
+scout_flee_cells = 6
+scout_center_clear_cells = 12
+scout_reached_cells = 3
+scout_orders_per_batch = 2
+scout_release_below_hp = 40
+# With scout_wide_berth on as well, the scouts keep a wider berth: an enemy unit in sight is dangerous within its range
+# and wide_danger_margin_cells, a scout flees danger within wide_flee_cells, and one below wide_release_below_hp health
+# leaves its slot for main. A scout whose health drops by hurt_min_drop or more between two states marks where it
+# stood as a hurt area: for hurt_avoid_seconds the ground within hurt_area_cells of it is dangerous to every scout,
+# which keeps its ways out, flees it, and is neither sent nor offered to the model there; at most hurt_areas_max such
+# areas at a time, the oldest given up first. Each is a scout_slot event of kind hurt. Not measured; added in
+# iteration 16, it ships on, as in the watched game 20261012T091508Z (see the head of the file).
+scout_wide_berth = true
+wide_danger_margin_cells = 6
+wide_flee_cells = 10
+hurt_area_cells = 10
+hurt_avoid_seconds = 60
+wide_release_below_hp = 60
+hurt_min_drop = 5
+hurt_areas_max = 8
+# With model_scout_choice of [redalert] in config/agent.toml on as well, the red_alert_scout chain is asked where each
+# scout goes next, among the script's best scout_choice_options places, each with what was last seen there; an answer
+# later than scout_choice_deadline_ms is not waited for, and a scout whose pick is scout_choice_every_ticks old is
+# asked about again.
+scout_choice_options = 6
+scout_choice_deadline_ms = 1500
+scout_choice_every_ticks = 125
+# With scout_missions on as well as scout_slots, each slot's scout takes one of the script's missions: watching an ore
+# field the enemy may expand to, the edge of the enemy's main facing our base, the way to our next expansion, or the
+# middle of the lane between the bases. A mission scores its priority times how stale the place is over the seconds it
+# takes to go there and watch it mission_observe_seconds; the scouts are given the best pair, two missions within 15
+# cells of each other counted at half. A scout keeps its mission until it has watched the place
+# mission_observe_seconds, the way there turns unsafe, or another mission scores mission_switch_margin times its own;
+# a mission on which the scout lost health is not given again for mission_blacklist_seconds. model_scout_choice is not
+# asked. Not measured; added in iteration 19, it ships on, as in the watched game 20261012T091508Z (see the head of the
+# file).
+scout_missions = true
+mission_switch_margin = 1.25
+mission_blacklist_seconds = 90
+mission_observe_seconds = 10
+# With scout_cautious on as well as scout_slots, the slots' scouts are careful. A unit that takes a slot is set to
+# hold_fire, so it never stops to shoot, and one that leaves its slot for main gets main's attack_anything back; a
+# slot's scout is given no attack or attack_move order. A scout whose health drops by scout_retreat_hp_drop or more
+# between two states (cause hit), or whose enemy units that fight in sight within scout_outclass_cells are worth more
+# than it is worth holding fire (cause outclassed), retreats: it is sent directly away from the nearest enemy in sight,
+# or back along its way with none in sight, as far as it goes in scout_retreat_seconds, and then takes up its mission
+# again; each retreat is a scout_slot event of kind retreat. The ground within scout_enemy_base_cells of every seen
+# enemy building that is not a wall is dangerous to the scouts, as a remembered defense's cover is, and the viewing
+# point on the enemy main's edge is moved out of it. Not measured; it ships on.
+scout_cautious = true
+scout_retreat_hp_drop = 1
+scout_outclass_cells = 10
+scout_enemy_base_cells = 8
+scout_retreat_seconds = 8
+# With exposed_trucks on, the enemy harvesters in sight are grouped by the ore field they stand on or within 3 cells
+# of. A field whose center lies more than truck_field_min_cells from the enemy's start, where the enemy units that
+# fight within truck_guard_cells of it are worth at most truck_guard_max_value and no remembered enemy defense covers
+# its center, is a raid opportunity: the field's center, how many harvesters, the guard's worth, the tick and the cell
+# of the harvester nearest our base. The opportunities are published as exposed_trucks of the match context, the
+# newest first, each kept until truck_seen_seconds after it was last seen and dropped as soon as a remembered defense
+# covers it or its guard grows past truck_guard_max_value; each new one is a scout_slot event of kind exposed_trucks.
+# It only records: an opportunity is acted on only by a switch of its own, such as prefer_exposed_trucks of [raids].
+# Not measured; it ships on.
+exposed_trucks = true
+truck_field_min_cells = 20
+truck_guard_max_value = 600
+truck_guard_cells = 8
+truck_seen_seconds = 60
+
+[coverage]
+# A remembered enemy defense covers every cell within its weapon range plus this margin; scouts and raids keep out.
+margin_cells = 2
+# The weapon range taken for a defense the item table gives none for.
+unknown_range_cells = 7
+
+[combat]
+# The estimate of a fight is made for a group while an enemy combat unit in sight or not stale, or a remembered
+# enemy defense, is within contact_cells of the group's centroid. It counts the group's units within
+# own_reach_cells of the centroid and the enemy combat units within contact_cells of it, each at its cost times
+# its share of health ...
+contact_cells = 12
+own_reach_cells = 8
+# ... and each remembered enemy defense whose range plus defense_margin_cells reaches the centroid, at
+# defense_weight times its cost. A defense whose weapon hits aircraft alone (agun, sam) counts nothing, there and in
+# main's choice of the building it goes on.
+defense_margin_cells = 1
+defense_weight = 2.0
+# The enemy's strength is multiplied by this when any enemy counted is out of sight.
+unseen_factor = 1.2
+# The group's strength is multiplied by matchup_factor when it has no unit able to damage the class (infantry or
+# vehicles) that makes up more than dominant_share of the enemy's strength.
+matchup_factor = 0.5
+dominant_share = 0.6
+# The ratio of the two strengths when the enemy is worth nothing.
+ratio_without_enemy = 99.0
+# An enemy unit of a type the item table values neither as itself nor as a variant of a listed type (the
+# FransBots' technicians tecn and tecn2) counts in the fight estimate and its ratios at unknown_unit_value times
+# its share of health, wearing armour none as infantry does; elsewhere it is worth 0. A whole number of at least 1.
+unknown_unit_value = 300
+# A group engages at a ratio of at least engage_ratio and retreats to the staging point below retreat_ratio;
+# between the two it keeps its mode.
+engage_ratio = 1.3
+retreat_ratio = 0.9
+# After a change of mode a group keeps the new one for mode_hold_ticks, unless its ratio falls below
+# emergency_ratio, which is a retreat at once.
+emergency_ratio = 0.5
+mode_hold_ticks = 125
+# A unit this close to the staging point has reached it: a retreating group is not sent there again, and main
+# advances once its strength is at least the plan's min_attack_strength and this share of its units are there.
+gathered_cells = 6
+gathered_share = 0.8
+# The units made after main went forward wait at the staging point until they are worth this much together, and
+# are then sent after it as one group.
+reinforcement_strength = 1000
+# An engaged group gives each unit the enemy it does the most damage to, per hit point the enemy has left, times the
+# focus weight of the enemy's class: an enemy unit at most weak_hp in health that can hurt what the group is mostly
+# made of, a harvester, another fighting unit, a building of the enemy's economy and army, anything else. A target
+# has enough attackers once the damage they do in focus_window_seconds reaches overkill_factor times its hit points
+# left: a full heavy tank takes about five medium tanks. A unit keeps its target unless another is worth retarget_gain
+# times as much to it, and for focus_min_hold_seconds after it was given it whatever else is worth, while the target
+# is in sight and within the unit's weapon range. One memory of the targets given is shared by main's focus fire, its
+# fire while it holds and base defense's. An enemy beyond a unit's
+# weapon range is worth out_of_range_factor times as much to it as it would be in range. An enemy of a type without
+# known hit points counts unknown_target_hp left, so that it comes after every known enemy.
+weak_hp = 40
+overkill_factor = 1.2
+focus_weight_weak_threat = 1.0
+focus_weight_harvester = 1.2
+focus_weight_fighter = 1.0
+focus_weight_core = 0.6
+focus_weight_other = 0.4
+# An armed enemy defense whose weapon hurts one of the group's units (an anti-aircraft gun or SAM site only
+# aircraft), with one of them within its weapon range and defense_threat_margin_cells, is weighed
+# focus_weight_threat_defense, above every other class: a group under a Tesla coil kills the coil before it shoots a
+# power plant. An armed defense out of the group's reach is weighed as another fighting unit (focus_weight_fighter).
+focus_weight_threat_defense = 2.0
+defense_threat_margin_cells = 1
+focus_window_seconds = 6
+retarget_gain = 2.5
+focus_min_hold_seconds = 2
+out_of_range_factor = 0.5
+unknown_target_hp = 1000000
+# Against an aircraft a unit does the damage of its anti-air weapon, at that weapon's range, and an aircraft without
+# a weapon is weighed focus_weight_harmless_air. In the estimate an enemy aircraft without a weapon counts nothing,
+# and one with a weapon counts 1 + air_unanswered_weight x (1 - the share of the group's strength in units with an
+# anti-air weapon) times its strength. With air_targeting = false aircraft are weighed and counted like any other
+# enemy unit.
+air_targeting = true
+focus_weight_harmless_air = 0.05
+air_unanswered_weight = 1.0
+# With contact_focus on, every unit in contact fires at the enemy it hurts most. A unit's candidate targets are the
+# enemies within the range of the weapon that hits them and focus_unit_reach_cells of the unit itself, not those around
+# its group's centroid, so a unit in contact is engaged though its group's centroid is far. A unit whose best target is
+# covered moves to another uncovered target only when that one is worth at least spill_floor times the best, and
+# joins the best otherwise. The commander's order leaves out the units given a targeted attack or in contact (pull
+# back, retreat home and the retreat override keep every unit and fire nothing), and the units it leads with no target
+# in sight are not sent after an enemy out of sight. Under the commander's hold and gather and while main gathers or
+# holds at its gather point, the units in contact fire at targets already within their weapon range and are not sent
+# forward. Under a major threat, base defense's responders that have arrived or are in contact are handed out over the
+# enemies as a group is. Off, targeting picks its candidates within contact_cells of the group's centroid.
+# It ships on, not measured.
+contact_focus = true
+# With tank_charge_artillery on, a vehicle of ours other than artillery and V2 whose target is an enemy unit with a
+# minimum range (artillery, V2) is ordered to move onto the target's cell while it stands farther than that minimum
+# range less 1 cell, and to attack it once inside: the artillery does no harm in there, and a tank that stops at its
+# own weapon range is a still target for the shells. The move is sent again only when the target has moved more than
+# 2 cells. It ships on, not measured.
+tank_charge_artillery = true
+focus_unit_reach_cells = 4
+spill_floor = 0.25
+# With contact_focus on, the value of a unit's pairing with a ground target is multiplied by the unit's damage against
+# the target's armour over its mean damage across the five armour classes, raised to counter_power: a rocket soldier,
+# whose rockets hurt heavy armour nearly twice its mean and infantry under a fifth of it, prefers a tank to a rifle,
+# and a medium tank prefers a full heavy tank to a half-dead rocket soldier. 0 leaves the value as it is. Against an
+# aircraft only the anti-air damage counts, with no such factor.
+counter_power = 2.0
+# A unit is not paired with a ground target whose armour it does less than focus_min_effectiveness times its mean
+# damage across the five armour classes to: a rifle, at a fifth of its mean against heavy armour, never fires on a
+# heavy tank. Within a group the units are handed out vehicles first (but artillery and V2), then artillery and V2,
+# then infantry, each class the unit whose best pairing is worth the most first.
+focus_min_effectiveness = 0.25
+# Artillery and V2 are paired only with targets within their weapon range and never sent after an enemy. An enemy
+# infantry unit is worth 1 more to them for each other enemy infantry unit within arty_splash_cells of it, which the
+# shell hits as well. While a crush run is on they take enemy vehicles first, a stopped one before one on the move,
+# then infantry.
+arty_splash_cells = 1.5
+# With infantry_spread on, a move or attack-move to a point of the infantry of main, the raid group or the guard gives
+# each infantry unit a cell of its own: the passable cells nearest the point that no building stands on, in rings
+# infantry_spread_cells (1 or more) apart, the unit nearest the point first; the vehicles keep the order as it was.
+# An idle one that shares its cell with another of ours is moved to the nearest free cell, at most once in
+# infantry_spread_recheck_seconds. At most infantry_spread_max_orders such orders go out a cycle, the units that have
+# waited longest first; the rest keep the plain order meanwhile. Attacks on a target, boarding, retreats, base
+# defense's emergency moves and the commander's order are never spread. A splash then kills one, not a crowd.
+infantry_spread = true
+infantry_spread_cells = 1
+infantry_spread_recheck_seconds = 5
+infantry_spread_max_orders = 8
+# A unit of cost withdraw_min_cost or more below withdraw_below_hp is sent back to the staging point on its own
+# while its group's ratio is below withdraw_below_ratio, when no enemy combat unit is within withdraw_clear_cells
+# of the first withdraw_path_cells cells of its straight way back ...
+withdraw_min_cost = 700
+withdraw_below_hp = 35
+withdraw_below_ratio = 2.0
+withdraw_path_cells = 6
+withdraw_clear_cells = 3
+# ... and rejoins its group at rejoin_hp, or after rejoin_after_ticks.
+rejoin_hp = 60
+rejoin_after_ticks = 750
+# With vehicle_repair on, the withdrawal above is for infantry alone. A vehicle of main (not on a crush run or a
+# detachment) worth repair_min_cost or more goes into repair mode at repair_below_hp or less, or at repair_ttd_max_hp
+# or less when the hp it lost per second over the last repair_window_seconds (1 or more) would have it lost within
+# repair_ttd_seconds. In repair mode it leaves main's orders, gate, body and fight and keeps within 2 cells of its
+# repair zone, the first of: the mobile mechanics' centroid while one is within 25 cells of main, the base repair point
+# while a base mechanic lives, else the staging point. It rejoins main, through the units joining it, at
+# repair_done_hp; at the staging point with no mechanic, also once main has no enemy near or after 90 s. Each entry
+# and exit is a combat event with the reason repair. Not measured; it ships on.
+# Such a vehicle also goes into repair mode at repair_early_hp or less while a mobile mechanic stands within
+# repair_mechanic_reach_cells of it. In repair, a vehicle with a mobile mechanic in that reach goes beside the nearest
+# one, within 1 cell, and gets no move while its hp rose in the last 5 s; after 5 s without a rise it is sent beside
+# the nearest one again. With none in reach, the zone above applies. In the watched game half the retreats died 15 to
+# 38 cells from a mechanic, entering at 22 to 61 hp.
+vehicle_repair = true
+repair_window_seconds = 5
+repair_ttd_seconds = 8
+repair_ttd_max_hp = 70
+repair_below_hp = 35
+repair_min_cost = 700
+repair_done_hp = 90
+repair_early_hp = 60
+repair_mechanic_reach_cells = 15
+# Under FINISH with no enemy building or MCV known, main sweeps the enemy's start, the other starts and the centers
+# of a sweep_grid_size by sweep_grid_size grid over the map; it is at a point once its centroid is within
+# sweep_reached_cells of it, or once all its units have stood idle sweep_patience_ticks after it set out for it.
+sweep_grid_size = 4
+sweep_reached_cells = 6
+sweep_patience_ticks = 50
+# Under FINISH main fights only the enemy units within this many cells of its way to its objective.
+sweep_engage_cells = 6
+# With forward_hold on, main under HOLD (not under base defense's override) gathers at the forward point once its
+# strength is at least forward_hold_min_strength, else at the staging point: forward_hold_share of the way from the base
+# to the enemy's start, or forward_hold_cover_cells beyond the nearest own construction yard or creep target field that
+# lies farther forward along that line; then moved back toward the base until it is no farther than halfway and outside
+# every remembered enemy defense's range plus forward_hold_defense_clear_cells. The barracks and war factories rally
+# there. At the forward point main engages the enemy units (never a building, nor a unit a remembered defense covers)
+# within contact_cells at engage_ratio or more, and a unit that has chased forward_hold_chase_cells from the point goes
+# back to it. Main falls back to the staging point below retreat_ratio, or when enemy units in sight worth more than
+# main come at the forward point, and goes forward again once its ratio has stayed at engage_ratio or more for
+# mode_hold_ticks. Each change of the gather point is written as a hold_position event. Off, HOLD gathers main at the
+# staging point. A measured switch, off: it won 92 of 144 games against 97 with all the measured switches off, at a
+# mean kd of 8,610 against 12,835.
+forward_hold = false
+forward_hold_share = 0.4
+forward_hold_min_strength = 1500
+forward_hold_cover_cells = 6
+forward_hold_chase_cells = 10
+forward_hold_defense_clear_cells = 4
+# With sticky_attack_target on, main under FINISH keeps one target instead of going each cycle on the remembered enemy
+# building nearest to it. The target is chosen among the remembered enemy buildings, the enemy's production
+# (construction yard, war factory, barracks, airfield, helipad) first however long ago it was seen; within production
+# and then among the rest, one seen within stale_target_seconds first, the nearest to main, else the one seen last.
+# With no building remembered, a remembered enemy MCV. It is kept, wherever main goes, until it is no longer in the
+# enemy memory (lost), or, while it is no production building, until an enemy production building comes within
+# contact_cells of main, which becomes the target (production_in_contact). Each change is written as an attack_target
+# event. Off, FINISH goes on the nearest. Not measured; added in iteration 19, it ships on, as in the watched game
+# 20261012T091508Z (see the head of the file).
+sticky_attack_target = true
+stale_target_seconds = 60
+# With crush_runs on, tanks run over tightly clustered enemy infantry instead of shooting it. A cluster is the largest
+# set of enemy infantry in sight within crush_cluster_cells of its centroid; it is run over when it has at least
+# crush_min_infantry units, lies within crush_reach_cells of one of the own tanks or APCs a run may take (main's, called
+# home or not, the guard's, and any base defense has taken to answer a threat), no remembered enemy defense that fires
+# at ground units covers it (an AA gun or SAM site is no cover), and the ratio of the own combat units to the enemy
+# combat units in sight within 15 cells of it, tanks included, is at least crush_min_ratio (1.0: a unit advantage). Then
+# max(crush_min_tanks, min(crush_max_tanks, one for each crush_per_tanks infantry)) of those tanks and APCs within
+# crush_reach_cells of it at crush_min_hp percent hp or more, the nearest first, each move in the same cycle to the cell
+# 2 beyond the centroid on their side's far side, taking no other manager's order and none of main's but its retreat or
+# a withdrawal, until they reach it, the cluster drops below its minimum, or 8 seconds pass. No run starts with fewer
+# than that whole count of them: 12 rifles wait for 3 tanks, 12 infantry with 4 rocket soldiers for 5, and the cluster
+# is told skipped with the gate short_group. A cluster whose rocket soldiers (e3) and shock troopers (shok, the Tesla
+# infantry) make up crush_at_share or more of it is anti-tank-heavy: it qualifies from crush_at_min_infantry and takes
+# one tank for each crush_at_per_tanks infantry, crush_at_max_tanks at the most, since some are lost on the way in. One
+# run is in force at a time, and none starts while the commander's run-over detachment is out; that detachment keeps its
+# own size, with no minimum. Each run is a combat event with the reason crush_run, with the infantry killed, their cost,
+# the tanks lost and the trade (killed cost less lost cost). Off, tanks fight infantry as any other enemy. Not measured;
+# it ships on. crush_per_tanks and crush_at_per_tanks are at least 1 and crush_min_hp at most 100.
+crush_runs = true
+crush_min_infantry = 4
+crush_cluster_cells = 3
+crush_reach_cells = 10
+crush_per_tanks = 3
+crush_max_tanks = 3
+crush_min_hp = 50
+crush_min_ratio = 1.0
+crush_min_tanks = 2
+crush_at_share = 0.33
+crush_at_per_tanks = 2
+crush_at_max_tanks = 5
+crush_at_min_infantry = 3
+# With nuke_spread on, the first sighting of each enemy missile silo (mslo) sets when its nukes are expected: at that
+# sighting + nuke_charge_ticks - nuke_build_ticks, then every nuke_charge_ticks. From 1,500 ticks before each expected
+# launch until 500 after it, main gathering or standing idle (PRESERVE, the HOLD gather point, the staging point, the
+# reinforcements waiting there) is split into nuke_spread_groups groups at cells at least nuke_spread_cells apart, each
+# at least nuke_keep_off_cells from the center of our densest cluster of structures (those within 5 cells of one). A
+# known silo is main's first FINISH target and, where no defense covers it, a raid's first target. Each start and end
+# of the spreading is a combat event with the reason nuke_spread. Not measured; it ships on, since it acts only once an
+# enemy silo has been seen. nuke_charge_ticks and nuke_spread_groups are at least 1.
+nuke_spread = true
+nuke_charge_ticks = 13500
+nuke_build_ticks = 1500
+nuke_spread_groups = 3
+nuke_spread_cells = 8
+nuke_keep_off_cells = 12
+# With forward_staging on, main setting out on an objective (the plan's advance, march, siege and sweep, or the
+# commander's advance, attack beyond near_attack_cells of [commander], flank on its last leg and siege) while a known
+# enemy defense that fires at ground units or a visible enemy combat unit is within 20 cells of the objective stops at
+# the staging cell: the last cell of its way there before one nearer than an enemy's range plus staging_margin_cells to
+# such a defense or such a unit within 20 cells of the objective (an AA gun, a SAM site and aircraft are none); none
+# when main stands in reach already, no cell of the way is in reach or the cell is within 4 cells of main's centroid.
+# The cell is worked out again in every cycle main stages. Main goes on into its normal movement once
+# staging_body_share of its units stand within staging_body_cells of the cell and every artillery and V2 within
+# staging_body_cells + 4, or staging_timeout_seconds after it was first sent there, and stages no more until its
+# objective changes, it retreats or the commander's forward gate closes. While the cell stands, the units joining main
+# go to it, and on together once worth reinforcement_strength or 30 s after the first arrived. Each arrival and each
+# going on is a combat event with the reason staging. Off, main goes straight on. Not measured; it ships on.
+forward_staging = true
+staging_margin_cells = 3
+staging_body_share = 0.75
+staging_body_cells = 6
+staging_timeout_seconds = 25
+# With strike_near_expansion on, an enemy MCV or construction yard seen within expansion_near_cells of an own building
+# or of the nearest cell of a field an own harvester harvests, and an enemy ground defense (never an AA gun or a SAM
+# site) whose weapon range plus defense_near_refinery_margin_cells reaches an own refinery, is a must-kill target while
+# it was seen in the last 30 s. The smallest set of main's units, the nearest first and for a defense its artillery and
+# V2s first, worth strike_min_ratio against it with the defenses that cover it counted, strikes it at once: it
+# attack-moves to it, fires from its band on a defense, and is not recalled by a plan change, the forward gate, gather
+# or the commander's picks. With no such set, main as a whole makes the target its objective, the commander's
+# objective while the commander commands main. The strike ends when the target is destroyed or unseen for 30 s, or
+# early when its own fight stays below retreat_ratio of [commander] for retreat_confirm_ticks or base defense calls
+# main home or takes it over. Each start and end is a combat event with the reason strike_near. Not measured; it
+# ships on.
+strike_near_expansion = true
+expansion_near_cells = 15
+defense_near_refinery_margin_cells = 4
+strike_min_ratio = 1.5
+# With strike_overextended on, an enemy refinery whose footprint, or an enemy harvester seen in the last 20 s, lies
+# within 3 cells of an ore cell of a field, more than overextended_min_enemy_start_cells from the enemy's start and from
+# every known enemy construction yard, with no known enemy ground defense within overextended_defense_clear_cells of
+# it, is an over-extended target. While no strike runs, no must-kill target is due, the base is under no major threat,
+# the plan is not PRESERVE, the commander's standing action for main is no pull back, retreat home or hold, and at least
+# gathered_share of main stands within gathered_cells of the staging point, main's gathered units that can hurt it go
+# when they are worth strike_min_ratio against the visible enemy units within 8 cells of it and the ground defenses that
+# reach it, and worth at least half of what the enemy army is estimated at. The refinery and harvesters there are their
+# focus targets. The strike ends when they are dead or out of sight for 20 s, or when the units' ratio there or around
+# themselves falls under strike_abandon_ratio of [plan_rules]; its units go back to the staging point. Each start and
+# end is a combat event with the reason strike_overextended; the commander's targets block lists the target. Not
+# measured; it ships on.
+strike_overextended = true
+overextended_min_enemy_start_cells = 25
+overextended_defense_clear_cells = 8
+# With defended_redirect on, main's objective (the cell of the commander's forward action, or the plan's objective) is
+# defended while a known enemy ground defense has it within its weapon range and defended_margin_cells. main is then
+# weighed there: every unit of it against the enemy combat units within contact_cells of the objective and those
+# defenses at defense_weight times their cost. Under defended_engage_ratio main sends no order into any known ground
+# defense's coverage (a move to a covered cell stops at its edge; an attack on a covered target is kept only for the
+# units within range of it) and takes the best attack point by worth over distance: an uncovered enemy yard, refinery,
+# production building or harvester at a field, reached straight or by the graph of waypoints and set out on once
+# gathered_share of main stands at its rally cell (a combat event defended_redirect), abandoned for 30 s under
+# strike_abandon_ratio of [plan_rules]; or, with artillery or V2s, a lone defense with no enemy combat unit within 10
+# cells, shelled from its range and defended_margin_cells (defense_shelling). With none, the artillery and V2s stand
+# just beyond the coverage and fire on what comes into their band, the other units hold 3 cells behind them toward the
+# base, and every vision_dart_seconds a jeep, else the fastest tank, darts to the front for vision (defended_siege).
+# Not measured; it ships on.
+defended_redirect = true
+defended_engage_ratio = 1.2
+defended_margin_cells = 2
+vision_dart_seconds = 30
+
+[siege]
+# How main's artillery (arty) and V2 (v2rl), its siege subgroup, fight: "screened" fires them from their firing band
+# behind a screen of main's other units; "frontal" sends them in with the rest of main. No other value is accepted.
+mode = "screened"
+# A long-range unit's firing band against a target runs out to its weapon range less band_inner_margin, and in from
+# its minimum range plus band_min_range_margin, or from the range plus band_defense_margin of every known enemy
+# defense that could reach it in the band, raised by that defense's distance from the target; whichever is farther.
+# A unit does not engage a target whose band is empty.
+band_inner_margin = 0.5
+band_min_range_margin = 1
+band_defense_margin = 0.5
+# While main advances or fights, its screen holds a line this many cells ahead of the siege subgroup's centroid,
+# toward its objective: screen_gap_arty for artillery, screen_gap_v2rl for V2s, the larger for both ...
+screen_gap_arty = 2
+screen_gap_v2rl = 5
+# ... and at least screen_defense_margin outside the range of every known enemy defense.
+screen_defense_margin = 1
+# A known enemy defense is worth this focus weight to a long-range unit.
+defense_priority_weight = 1.5
+# A long-range unit with an enemy unit within its minimum range plus fallback_margin moves fallback_step cells toward
+# the base: an arty once while the enemy stays that close, a V2 again and again while all of them are infantry.
+fallback_margin = 2
+fallback_step = 4
+# A long-range unit is ordered to move again only to a cell at least reissue_cells from the one it was last sent to,
+# and is given at most one order in reissue_ticks.
+reissue_cells = 2
+reissue_ticks = 25
+# The siege subgroup goes forward from the staging point only with a screen worth at least screen_ratio_allies
+# (Allies) or screen_ratio_soviet (Soviets) times what it is worth itself; under FINISH main goes forward whatever its
+# screen is worth.
+screen_ratio_allies = 1.0
+screen_ratio_soviet = 1.0
+# With march_when_clear on, while main advances under PRESS, STRIKE or FINISH and is clear of the enemy, the screen
+# attack-moves on the objective, sent again when it stands idle away from it or the objective changes, and the
+# long-range units follow, held back by the screen line alone. The advance becomes clear once no enemy unit that counts
+# in a fight and no remembered defense that fires at ground units (not agun or sam) is within march_clear_cells of any
+# of its units, and stops being clear once one comes within march_blocked_cells. A clear advance whose centroid gains
+# less than march_progress_cells toward the objective in march_progress_seconds goes frontal, all of main attack-moving
+# on the objective, until it is no longer clear or the plan changes; each such switch is a siege event with the reason
+# stall_frontal. That watch starts over when main fights, goes back to the staging point, or its plan or objective
+# changes, not when an enemy comes and goes. Not measured; added in iteration 19, it ships on, as in the watched game
+# 20261012T091508Z (see the head of the file).
+march_when_clear = true
+march_progress_cells = 5
+march_progress_seconds = 15
+march_clear_cells = 15
+march_blocked_cells = 12
+# A long-range unit with no enemy unit in sight and no known defense within its weapon range and 2 cells moves to a
+# slot of its own, slot_spacing_cells from the next on a line across the approach toward the objective: on a march the
+# middle of its band with no defense near (8.25 cells for arty, 7.25 for v2rl) behind the screen's front, while the
+# screen holds its line as deep as the line lets it go. It is sent there again once the slot has moved
+# slot_resend_cells from the cell it was sent to, or once it has stood idle slot_idle_ticks away from it. Not
+# measured; there is no switch.
+slot_spacing_cells = 2
+slot_resend_cells = 3
+slot_idle_ticks = 50
+
+[raids]
+# With enabled = false the agent does not raid: RAID is never open, no unit is trained for the raid quota, and the
+# raid group goes back to main.
+enabled = true
+# With standing = true the raid group is formed, filled first by production and sent out under every plan after the
+# opening but PRESERVE (HOLD, RAID, PRESS, STRIKE and FINISH), alongside main; under PRESERVE it is called back to the
+# staging point and waits there. With false it raids under RAID and PRESS only. Off: with the tank rows of the mix,
+# the light-tank raid and no Soviet raid it won 309 of 720 games against 444 for the shipped values, at a mean kd of
+# -2,201 against 6,703, and England won fewer games the larger the raid group (docs/BENCHMARKS.md). The raids killed
+# little, so the units held out of the main army cost more than the raids returned.
+standing = false
+# With launchable_only = true RAID is open only while a raid could set out now: a raid target is known, a way that
+# crosses no covered cell leads from the staging point to one, and the raid group's units with the fit main units
+# within borrow_home_cells of the base's center or the staging point (none gone forward, none in a fight, never the
+# home guard) fill the quota. When RAID is chosen those main units go into the raid group at once. When no raid has
+# set out launch_within_ticks after RAID was chosen, the raid group goes back to main and RAID stays closed for
+# resend_after_ticks. With false RAID opens on a raid target alone. Not measured; added in iteration 14, it ships on, as
+# in the watched game 20261012T091508Z (see the head of the file).
+launchable_only = true
+borrow_home_cells = 15
+launch_within_ticks = 1500
+# The raid group is ready once it holds its full quota within gathered_cells of the staging point.
+gathered_cells = 6
+# Only a unit at fit_hp or more is taken into the raid group.
+fit_hp = 60
+# A raid attacks from the cell approach_cells short of its target on the line from the staging point, and goes
+# round by a waypoint side_offset_cells to the side of that line when the line crosses a covered cell.
+approach_cells = 8
+side_offset_cells = 12
+# A raid has reached a cell on its way once its centroid is within reached_cells of it, or once all its units
+# have stood idle when it has been on its way there for leg_patience_ticks.
+reached_cells = 3
+leg_patience_ticks = 50
+# A raid goes after enemy harvesters. It goes after a refinery only when no enemy harvester has been seen for
+# refinery_after_ticks and the group's damage over refinery_kill_seconds reaches the refinery's hit points left.
+refinery_after_ticks = 1500
+refinery_kill_seconds = 20
+# A raid breaks off when its estimate is below raid_break_off_ratio, when its units' mean hp is below break_off_hp,
+# when a unit stands in a covered cell, when it has lost lost_share of the units it set out with, or when its target
+# has been out of sight at its last known cell for target_unseen_ticks.
+raid_break_off_ratio = 0.7
+break_off_hp = 50
+lost_share = 0.5
+target_unseen_ticks = 250
+# A raid that broke off is not sent out again for this long; its units below fit_hp leave it.
+resend_after_ticks = 500
+# The APCs of an APC raid unload unload_cells short of their target and stay within as many cells of the rockets.
+# When the rockets are to board again, the APCs leave once all are aboard or after reload_wait_ticks, whichever is
+# first.
+unload_cells = 3
+reload_wait_ticks = 75
+# With prefer_exposed_trucks on, a raid goes after the harvesters of the raid opportunities scouting records
+# (exposed_trucks of [scouting]) before any other harvester, the nearest of them first; off, the raid's targets are
+# ranked as above. Not measured; it ships off.
+prefer_exposed_trucks = false
+# With raid_exposed_trucks on, a raid opportunity scouting records (exposed_trucks of [scouting]) whose guard is worth
+# at most exposed_raid_guard_max and whose harvesters were seen within exposed_raid_seen_seconds launches the raid at
+# the harvester nearest our base, the freshest opportunity first, whenever no raid is out and the units on hand fill
+# the raid quota: under RAID and PRESS, and under HOLD and FINISH, which keep the raid group, too. Off, raids are as
+# above. Not measured; it ships on.
+raid_exposed_trucks = true
+exposed_raid_guard_max = 200
+exposed_raid_seen_seconds = 20
+
+[anti_air]
+# The rocket squads of the army mix answer a few aircraft; extra anti-air waits until more than a few are seen, as the
+# user directed: while at least aa_min_aircraft (1 or more) enemy combat aircraft (an aircraft with a weapon: heli,
+# mh60, yak, mig) have been seen in the last aa_window_seconds, each counted once by its id, those shot down included.
+# A helipad or airfield seen calls for nothing extra. With none seen for aa_window_seconds the extra answer stops.
+# With enabled = false nothing is seen, and none of what follows is done.
+enabled = true
+aa_min_aircraft = 3
+aa_window_seconds = 180
+# While the extra answer is in force, after the counter shift of [mix] and within its bounds, the army mix adds a
+# rocket squad for every aa_aircraft_per_squad (1 or more) aircraft beyond aa_free_aircraft, up to aa_squads_max:
+# aa_squad_points more points to the rockets (e3) for each, the row then scaled back to 100, so that 8 points add 4 to
+# 5 rockets to the 8 of 12 tanks. For the Soviets it moves air_flak_points from the main tank (3tnk) to the flak
+# truck (ftrk) as well; with 0 the rockets alone answer aircraft: a Soviet switch, on (see the head of the file).
+aa_free_aircraft = 2
+aa_aircraft_per_squad = 2
+aa_squads_max = 3
+aa_squad_points = 8
+air_flak_points = 0
+# While the extra answer is in force and a radar stands, the base keeps aa_defenses AA defenses (agun, sam) standing or
+# on their way, and aa_defenses_many from aa_many_aircraft aircraft seen in the window. One is ordered at a time, when
+# the Defense queue is free, the base is quiet, no lost core building is saved for, the power target allows and the
+# money above production_cash_reserve of [upkeep], with invest_income_share of [income] of what comes in while it is
+# built, pays for it; a lost one is replaced the same way while they are wanted.
+aa_defenses = 1
+aa_defenses_many = 2
+aa_many_aircraft = 6
+# An AA defense is placed on the free cell nearest the own refinery nearest the enemy's start, within this many cells
+# of it; with no such cell free it is placed as any other defense.
+aa_refinery_cells = 6
+# With remote_base_aa on, an enemy combat aircraft in sight within 8 cells of a remote base (a base cluster without the
+# main yard whose center is remote_base_cells or more from it, or with a yard of its own) while that base loses hp gets
+# one AA defense ordered and placed within 4 cells of that base's buildings, the radar first with none standing and 5
+# rockets (e3) sent there meanwhile, whatever the count above, the reserve, a quiet base or a hold on the economy; none
+# while an AA defense stands within 6 cells of the building hit, at most one at a base, and none once the aircraft is
+# destroyed before it is placed with no other seen near the base for 30 s.
+remote_base_aa = true
+remote_base_cells = 15
+
+[plan_rules]
+# The strength main must be worth before it goes forward, by plan: 99999 is more than any army is worth, so main
+# never goes forward under OPENING, HOLD, RAID and PRESERVE.
+opening_attack_strength = 99999
+hold_attack_strength = 99999
+raid_attack_strength = 99999
+press_attack_strength = 3000
+strike_attack_strength = 1200
+finish_attack_strength = 1200
+preserve_attack_strength = 99999
+# R2 and R3: with this many seconds or fewer left, a positive trade balance is preserved (PRESERVE) and a zero
+# balance is played under HOLD.
+clock_seconds = 180
+# R4: with this many seconds or fewer left and a negative trade balance, the agent presses (PRESS).
+press_late_seconds = 120
+# With late_press_guard on, R4 does not open while base defense reports a major threat on the base, and a PRESS R4
+# set ends as soon as one is reported; the plan is then what the other rules give. Off, R4 does not look at threats.
+# The guard is on, with press_late_seconds at 120 (300 with the guard off): a Soviet switch that acts for the Allies
+# as well (see the head of the file).
+late_press_guard = true
+# Once R2, R3 or R4 has set the plan, it stays until the trade balance has been more than clock_balance_margin on
+# the other side of zero (for R3, on either side) for clock_switch_ticks in a row.
+clock_balance_margin = 500
+clock_switch_ticks = 250
+# With finish_over_preserve on, R6 is checked before R2 and R3 in the last clock_seconds: the plan is FINISH whenever
+# R6 applies (finish_rest_ticks included), and a FINISH in force stays until R6 has not applied for clock_switch_ticks
+# in a row; PRESERVE or HOLD only when it does not. R4 and the late-PRESS guard are as above. Off, R2 and R3 come first.
+finish_over_preserve = true
+# R5: STRIKE starts only up to this game second, with the enemy base seen and no enemy defense remembered, while
+# the enemy's combat value is at most strike_max_enemy_value and main is worth at least strike_min_strength ...
+strike_until_seconds = 240
+strike_max_enemy_value = 500
+strike_min_strength = 1200
+# ... and is given up for the rest of the match once a defense is remembered or main's ratio falls below this.
+strike_abandon_ratio = 0.9
+# R6(a): FINISH from this game second, with the enemy base seen and no negative balance, when the own army is worth
+# at least finish_min_army and finish_army_ratio times the enemy's combat value plus finish_defense_weight times
+# the cost of its remembered defenses.
+finish_from_seconds = 480
+finish_min_army = 3000
+finish_army_ratio = 1.3
+finish_defense_weight = 2.0
+# R6(a) also needs tanks and long-range units (1tnk, 2tnk, 3tnk, 4tnk, arty, v2rl, ttnk) to make up at least this
+# share of main's value, each unit at its cost times its share of health; with main worth nothing this does not apply.
+finish_heavy_share = 0.3
+# R6(b): FINISH from cleanup_from_seconds on, when enemy buildings are remembered, no enemy combat unit or defense
+# is, no enemy combat unit has been in sight for cleanup_unseen_ticks, and main is worth cleanup_min_strength or more.
+# 8000: on seed 1001 a cleanup FINISH started on stale intel at 6:00 with main at 6,500 failed and the game was lost.
+cleanup_from_seconds = 360
+cleanup_min_strength = 8000
+cleanup_unseen_ticks = 1500
+# R7: PRESS is open from this game second with an army worth at least press_min_army and press_army_ratio times
+# the enemy's combat value.
+press_from_seconds = 360
+press_min_army = 3000
+press_army_ratio = 1.5
+# With blind_press_guard on, an enemy army counts as known while one of its units that fights (not a harvester, MCV,
+# aircraft or defense) was seen less than enemy_army_fresh_ticks ago. While it is unknown, the rule above and the
+# ratio below weigh an enemy army worth assumed_enemy_share times the own, so that, with a share of at least 1 /
+# press_army_ratio, PRESS does not open against an enemy army nobody has seen. While it is known, they weigh the
+# larger of its remembered combat value and the largest it had within the last enemy_army_fresh_ticks. STRIKE and
+# FINISH weigh what is remembered. With blind_press_guard off, the enemy's remembered value is weighed throughout
+# (ratio_without_enemy of [combat] while it is 0), and PRESS also opens, whatever the army, from
+# press_unseen_base_seconds on while the enemy base has not been seen and no scout is out.
+enemy_army_fresh_ticks = 3000
+assumed_enemy_share = 1.0
+blind_press_guard = true
+press_unseen_base_seconds = 300
+# A big army facing an enemy army nobody sees: while main is worth at least big_army_value, no enemy unit that fights
+# on the ground (as above) has been in sight for unknown_army_seconds and the enemy base has been seen, an enemy army
+# that is not known is weighed at main's worth over big_army_assumed_ratio instead of assumed_enemy_share times the own,
+# and the table below presses whenever PRESS is open on that. Every other condition of PRESS holds: the base must be
+# known, the clock rules come first (a late lead is kept), a major threat holds, and main keeps out of a fight under
+# enemy defenses. With scout_missions of [scouting] on, the scouts are then sent to the attack lane and the enemy
+# main's edge before any other mission, at most once a minute. A ratio of 0 weighs nothing from main.
+big_army_value = 15000
+unknown_army_seconds = 120
+big_army_assumed_ratio = 1.5
+# With early_attack_guard on, R5 never starts STRIKE, whatever strike_until_seconds allows, and before the game second
+# early_press_until_seconds R7 opens PRESS only once the enemy has committed its army: a major threat on the base has
+# ended with no fewer own core buildings (refinery, power plant, barracks, war factory, construction yard) standing
+# than when it began, or the value the agent has killed (kills_cost) has reached early_press_kill_value. A PRESS in
+# force is not ended by this, and R4 is left as it is. Every comparison of the own army with the enemy's (the ratio of
+# the table below, the PRESS rule above and R6(a)) then counts the own combat units only, each at its cost, without
+# the harvesters, the MCV and the other units that do not fight. Each block of STRIKE or of an early PRESS is written to
+# the match record as one plan_rule_blocked event with the reason early_attack_guard. Off, none of this applies. The
+# guard is on: against the Normal bot, Russia and England together on 432 fresh seeds for each arm, it won 263 games
+# against 222 with it off, at a mean kd of 5,305 against 1,007 (docs/BENCHMARKS.md).
+early_attack_guard = true
+early_press_until_seconds = 540
+early_press_kill_value = 1500
+# R7, the script's choice among the open plans, on the ratio of the own army's value to the enemy's combat value
+# (ratio_without_enemy of [combat] while the one weighed is 0), the first that applies: HOLD under a major threat or at
+# a ratio below default_weaker_ratio; PRESS when it is open and the ratio is at least default_press_ratio (or, with
+# blind_press_guard off, the enemy base has not been seen); RAID when it is open; else HOLD.
+default_weaker_ratio = 1.0
+default_press_ratio = 2.0
+# A plan a decision source chose is not changed by its next answer within answer_hold_ticks.
+answer_hold_ticks = 250
+# A plan R5, R6 or R7 changed to is kept at least plan_hold_ticks, unless R1 to R4 apply, the enemy base is gone or
+# a STRIKE is given up; FINISH is not taken up again within finish_rest_ticks of leaving it.
+plan_hold_ticks = 750
+finish_rest_ticks = 750
+# With model plan choice on, the red_alert_plan chain is asked at most once in this many ticks, and given this many
+# milliseconds to answer.
+choice_every_ticks = 125
+choice_deadline_ms = 1500
+# With model_plan_hold on, a plan a decision source's answer changed to is held for model_plan_hold_ticks: no later
+# answer replaces it, the chain is not asked meanwhile, and R7 keeps it even when it is no longer open. R1 to R4 end
+# the hold whenever they apply, R5 and R6 once plan_hold_ticks is over, and so do a major threat on the base and, for
+# a held RAID, the closed reasons "no raid target known" and "raid did not set out"; each such end is one
+# plan_rule_blocked event with the reason model_hold_ended and its cause. Under a major threat the chain is not asked
+# and no answer is taken: one that arrives is a plan_rule_blocked event with the reason model_answer_discarded. Off,
+# answer_hold_ticks and plan_hold_ticks hold a chosen plan as above. Not measured; added in iteration 16, it ships on,
+# as in the watched game 20261012T091508Z (see the head of the file). It changes nothing while model_plan_choice of
+# [redalert] in config/agent.toml is off, as it ships.
+model_plan_hold = true
+model_plan_hold_ticks = 750
+
+[clock]
+# Under PRESERVE every group farther than this from base_center is called back to the staging point.
+preserve_recall_cells = 15
+# With this many seconds or fewer left (under R3, from the start of R3), and money of at least spend_floor_cash,
+# the production reserve is waived and every empty Defense, Vehicle and Infantry queue is given the dearest
+# defense or fighting unit the money pays for, until less than spend_floor_cash is left.
+spend_remaining_seconds = 120
+spend_floor_cash = 300
+# Under PRESERVE one defense is built every preserve_defense_seconds while the money is at least
+# preserve_defense_min_cash: the defense against infantry (ftur, pbox), or, with preserve_anti_armor of [upkeep] on,
+# the defense against armor (tsla, gun) when vehicles make up at least vehicle_heavy_share of [mix] of the enemy army
+# seen, held to the power target of [upkeep] with a power plant first when it would leave less over.
+preserve_defense_seconds = 60
+preserve_defense_min_cash = 600
+# With endgame_defenses off, the spending of the last minutes leaves the Defense queue out, and the money goes to the
+# unit queues, unless a ground enemy hit an own building within the last 60 seconds.
+endgame_defenses = false
+
+[terrain]
+# A cell of the map picture a building can stand on shows one of these characters: clear ground, road and a spawn,
+# the only ground the engine places a building on. Every other cell is blocked, rough ground (,) among them, and the
+# ore ($ * M) even when it is listed here. At least one character.
+buildable_characters = ".=S"
+# One handled error is logged at the start of a match when the characters that are neither listed above nor known to
+# be blocked (water ~, rock ^, trees T, rough ground , and the ore) cover more than this share of the picture's cells.
+unknown_block_warn_share = 0.2
+
+[world]
+# A unit that boards a transport leaves the state's units and is reported lost although it is alive. A unit gone from
+# the units is taken as boarded on a transport when the agent's latest enter_transport order for it was sent at most
+# board_window_ticks before, the transport still stands and holds fewer than transport_capacity units. A unit still
+# walking to its transport board_window_ticks after that order is ordered in again, and units unloaded from a
+# transport that have not reappeared board_window_ticks after the unload are no longer counted aboard.
+board_window_ticks = 100
+transport_capacity = 5
+
+[commander]
+# With model_commander of [redalert] in config/agent.toml on, the red_alert_commander chain is asked every batch to
+# pick one of the script's checked actions for the first scout, then, once main's own units reach
+# handover_combat_units, for main for the rest of the match. An answer older than answer_max_age_ticks, or naming an
+# action no longer offered, is dropped; the order of a standing action is sent again once it is that old. The prompt
+# shows the last history_size picks and at most options_max actions, each kind of action under a letter of its own.
+# Not measured; the switch ships off.
+handover_combat_units = 6
+answer_max_age_ticks = 25
+history_size = 4
+options_max = 6
+# main gathers at the staging point until its forward gate opens: its value at least go_min_value and go_enemy_share
+# of the enemy estimate (unless that is assumed), and go_body_share of its units within gathered_cells of [raids] of
+# its centroid. The gate closes once main's value falls below regroup_value_share of its value when it opened. While
+# it is closed main is offered no forward action but an attack on a group within near_attack_cells.
+go_min_value = 4000
+go_enemy_share = 0.8
+go_body_share = 0.75
+regroup_value_share = 0.5
+near_attack_cells = 10
+# A picked action is kept this long unless its units arrived, the threat changed, the scout must flee, it is no
+# longer offered or the gate opened or closed.
+commit_seconds = 8
+# The script moves main to the staging point once its fight stays under retreat_ratio for retreat_confirm_ticks,
+# until it reads no enemy (no enemy unit within 15 cells and no ground defense reaching main), it is at least
+# resume_ratio, or main is within 6 cells of the staging point. These are this table's own, not retreat_ratio of
+# [combat]. A strike near us does not read them: it is abandoned on strike_abandon_ratio of [plan_rules].
+retreat_ratio = 0.9
+retreat_confirm_ticks = 25
+resume_ratio = 1.2
+# While main, its units' cost times their health, is worth less than attack_min_army_share of the enemy estimate of
+# its question (enemy_total_est) once the enemy army has been seen (an assumed estimate never holds main back), main
+# is offered no attack, advance, siege, flank, raid trucks or task on a target more than 15 cells from the base's
+# center. Gather is always offered.
+attack_min_army_share = 0.5
+# main's question lists at most targets_max targets within target_reach_cells of its body's center, the nearest first,
+# each with our win chance: the enemy groups, whose units are joined by single link at target_group_cells, and the
+# ground defenses.
+target_reach_cells = 20
+target_group_cells = 4
+targets_max = 4
+# A picked task (run over, kill defense, hit group) or raid trucks sends a detachment out of main, at most
+# detachments_max at once. A task fails once its own chance stays under task_fail_chance percent for task_fail_ticks,
+# or half its units are lost; a kill defense ends after kill_defense_seconds and a hit group after hit_group_seconds.
+detachments_max = 2
+task_fail_chance = 20
+task_fail_ticks = 50
+kill_defense_seconds = 45
+hit_group_seconds = 30
+# A kill defense is offered only on a defense seen less than kill_defense_seen_seconds ago, with an artillery piece or
+# V2 of main whose firing band against it is not empty and no detachment on it; one fails once every one of its units'
+# bands is empty, or its target has gone unseen kill_defense_seen_seconds, for task_fail_ticks.
+kill_defense_seen_seconds = 20
+# Retreat home is offered only while main's centroid is more than retreat_home_min_cells from the base's center; from
+# nearer, main is home already and the other defensive actions (pull back, hold) are offered without it. It lies
+# beyond the staging point, staging_distance_cells (10) of [upkeep] out, so that retreat home is not offered at or
+# near it: in the watched game retreat home was picked there, about 10 cells from the base's center, 12 times in 24 s.
+retreat_home_min_cells = 14
+# main's question reads a military state: the enemy's buildings, ours and the enemy's combat units each in clusters by
+# single link at cluster_cells (a sprawled base or a stretched army is one cluster, two far apart are two), labelled
+# E1, B1 and F1 and keeping their number while their center moves less than that between questions. An enemy force's
+# or base's infantry that a crush run would qualify on counts at crush_discount of its strength in the crush-adjusted
+# ratio while main has as many fit tanks as the run takes (crush_per_tanks of [combat]), else in full.
+cluster_cells = 8
+crush_discount = 0.333
+# A cluster of buildings without a construction yard whose center lies within base_merge_cells of the center of a
+# cluster with a yard of the same side is part of the nearest such base and keeps that base's label; one farther off
+# stays an outpost, and an expansion with its own yard always stays apart. In the watched game refineries 8.5 cells
+# from our yard showed as outposts of their own at cluster_cells 8.
+base_merge_cells = 16
+# While the forward gate is open, main is not offered to gather while main as a whole (its units and those joining it
+# within 30 cells of its centroid or sent on to it) is worth regroup_block_ratio of a seen enemy estimate or more,
+# main lost no fight in the last 30 s and no major threat is on the base: in the watched game a gather picked while
+# main was winning pulled it 28 cells home. A gather offered while main is still worth the enemy estimate or more
+# goes to main's own centroid, not to the staging point.
+regroup_block_ratio = 1.5
+
+[routing]
+# With waypoints on, the agent keeps a graph of waypoints for the match: the center of every ore field, the base's
+# center, the four cells scout_view_cells of [scouting] north, east, south and west of the enemy's start, the corners
+# and middles of the map's sides 4 cells inside it, and the ends of the walked routes. Two of them within
+# edge_max_cells of each other are joined when the straight line between them crosses no blocked ground and no cell
+# within edge_clear_margin_cells of the ground a remembered enemy defense covers; a walked route joins its ends. The
+# graph is built at the start of the match and again whenever the remembered defenses or the walked routes change. A
+# raid whose straight way is covered, a scout whose straight way crosses danger, the commander's flank and the second
+# yard's MCV (with mcv_safe_site of [expansion]) go by the shortest chain of waypoints, and as they did without the
+# switch when there is none; each way taken is a route event. Not measured; the switch ships off.
+waypoints = false
+edge_max_cells = 30
+edge_clear_margin_cells = 2

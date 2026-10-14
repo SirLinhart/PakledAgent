@@ -1,0 +1,9 @@
+t=230/969
+me=allies en=soviet
+cash=1850 pw=100 harv=1
+bal=0 army=3100 assets=11500
+grp guard=5/500 main=6/2600 raid=0/0
+bld factx1 pboxx1 powrx2 procx1 tentx1 weapx1
+en seen=1 def=1 army=700 harv=0 veh=1 age=0
+threat=none
+plan=RAID

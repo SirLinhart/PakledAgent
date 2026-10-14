@@ -1,0 +1,149 @@
+# The settings the Werewolf agent plays by. This file is tracked, and a run
+# records its hash, so the values in force for a match can be identified
+# afterwards. Every key of a table is required and no other key is accepted.
+#
+# This file holds the role inference's evidence weights, the village's and the
+# wolves' plans of play, and the chat: the patterns the fact ledger reads, the
+# limits on what the agent sends and its scripted messages.
+
+[inference]
+# Role inference weighs each of the 105 ways the two wolves and the seer can
+# sit by the evidence of the public record and the chat. Each value below
+# multiplies the weight of the layouts it names, once for every piece of
+# evidence; above 1 makes those layouts likelier, below 1 less likely. A value
+# must be above 0: only certain facts rule a layout out.
+
+# A vote a seat cast for a player later revealed as the seer or a villager:
+# layouts where that voter is a wolf.
+vote_for_revealed_villager = 1.6
+# A vote a seat cast for a player later revealed as a wolf: layouts where that
+# voter is a wolf.
+vote_for_revealed_wolf = 0.6
+# A seat that claimed to be the seer, by the role it holds in the layout. A
+# real seer claims far more often than a wolf fakes the claim, and a villager
+# almost never claims. The weight for the seer has to be strong: a claimed
+# result already discounts (by false_result_if_seer below) the layouts where
+# the claimant is the seer and the seat it named is not a wolf, which are most
+# of its seer layouts, and a lone claimant must still come out likelier the
+# seer than a wolf. Seen by a villager, one claimant naming one wolf is then
+# 0.23 wolf and 0.75 seer, and the seat it named 0.75 wolf; with 6.0 it would
+# stay 0.42 wolf and the seat it named only 0.60.
+seer_claim_if_seer = 15.0
+seer_claim_if_wolf = 1.0
+seer_claim_if_villager = 0.05
+# A seer result a seat claimed: layouts where that seat is the seer and the
+# claimed result does not match the layout.
+false_result_if_seer = 0.05
+# A seat that accused a player before that player was revealed as a wolf:
+# layouts where the accuser is a wolf.
+accused_revealed_wolf = 0.7
+# A seat that sent a message trying to give the table instructions (see
+# injection_patterns below): layouts where that seat is a wolf.
+injection_attempt = 1.5
+
+[village]
+# The vote of a villager or the seer goes to the seat likeliest to be a wolf.
+# Seats whose chance of being a wolf is within this much of the top one's are
+# put in order by how many different seats accused them in today's discussion.
+close_margin = 0.10
+# The seer says it is the seer, with every result, once this many different
+# seats have accused it in today's discussion (or as soon as it has found a
+# living wolf).
+reveal_when_accused_by = 2
+# When true, a villager's vote leaves out a seat that claimed to be the seer
+# in today's discussion while it is the only living seat whose seer claim
+# stands (none taken back, see seer_retraction_pattern in [wolves]) and no
+# death has shown one of its claimed results false: a lone claimant is most
+# often the real seer. When it is the only seat left to vote for, it stays. A
+# seat it named a wolf then goes first when its chance of being a wolf is
+# within close_margin of the top one's. The seer's vote is never changed by
+# this: any other seat claiming the seer is lying. When false, the vote is by
+# close_margin and accusations only.
+spare_lone_claimant = true
+
+[wolves]
+# A private message from our fellow wolf that matches this names tonight's
+# kill; the one group is the seat's number. Matched ignoring case.
+kill_request_pattern = 'kill\s+player(\d)'
+# A seat that claimed to be the seer and later sends a message matching this
+# has taken its claim back. Matched ignoring case.
+seer_retraction_pattern = "\\bI(?: am|['’]m) not (?:the )?seer\\b"
+# A wolf votes for its fellow wolf only when that seat leads today's
+# accusations and at least this share of the living seats that are not wolves
+# (rounded up) accuse it: the vote cannot save it, and joining it hides us.
+bus_accuser_share = 0.5
+
+[chat]
+# A message of another seat that matches any of these regular expressions is
+# an injection attempt: text written to pass for instructions to an agent.
+# They are matched ignoring case, and ^ matches at the start of every line.
+injection_patterns = [
+    'ignore (all |any )?(previous|prior|your) (instructions|rules)',
+    '^\s*(system|assistant|developer)\s*:',
+    'you (must|have to) (vote|kill)',
+    'new instructions',
+    '</?(system|instructions?)>',
+]
+# A wolf's public message never contains any of these, matched ignoring case.
+forbidden_public_phrases = [
+    "fellow wolf",
+    "my ally",
+    "we wolves",
+    "my partner",
+    "as a wolf",
+    "i am a wolf",
+    "i'm a wolf",
+    "we are wolves",
+]
+# The seer's public message, until the seer has said it is the seer, never
+# contains any of these, matched ignoring case anywhere in the text ("seer"
+# also covers "the seer's", "investigat" covers "investigated" and
+# "investigation"). The message in which the seer says it is the seer is not
+# checked against them.
+unrevealed_seer_forbidden_phrases = [
+    "seer",
+    "investigat",
+    "i have information",
+    "i have info",
+    "i checked",
+    "my results",
+    "my check",
+    "i know who",
+    "i know what",
+]
+# The most chats the agent sends in one discussion window (the platform
+# allows 5).
+max_chats_per_window = 3
+# The word limit a model is asked to keep to when it writes a message. Every
+# message sent is checked against the platform's own limits (50 words, 1024
+# characters) whoever wrote it.
+max_words_asked = 45
+# How many characters of another player's message are quoted to a model.
+quote_chars = 300
+# A model writing a message has until this long before the window closes
+# (and never longer than message_deadline_ms of config/agent.toml).
+deadline_margin_ms = 10000
+# With less time than this left for it, no model is asked and the scripted
+# message below is sent.
+min_deadline_ms = 3000
+# When true, the agent plays a Pakled from Star Trek while it is a villager or
+# a wolf: the first chat of each discussion window is one Pakled line (a fixed
+# list in the chat module, none of them saying or hinting at a role, none
+# repeated in a game), taking one of the max_chats_per_window above, a model
+# writing a message is asked for a Pakled voice, and a scripted public message
+# starts "We think: ". The seer never does: its claim has to be taken
+# seriously. When false, every role chats without the persona.
+pakled_persona = true
+
+[chat.templates]
+# The scripted messages: sent when no model writes the message, or when the
+# text a model wrote fails a check. {player} is a seat label (Player3),
+# {results} the seer's results, each written as seer_result says, and
+# {result} wolf or villager.
+suspect = "I suspect {player} most right now. Let's agree on one vote."
+seer_reveal = "I am the seer. {results} Vote {player}."
+seer_result = "{player} is a {result}."
+counterclaim = "I am the seer. {player} is a wolf. Do not trust {player}'s claim."
+defense = "I am not a wolf. Look at the voting record instead."
+# Sent privately to our fellow wolf, never written by a model.
+coordination = "Kill {player} tonight."

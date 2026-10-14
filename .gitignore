@@ -1,0 +1,19 @@
+/tmp/
+.env
+.agent.lock
+runs/
+tmp/
+docs/reference/research/
+docs/reference/altruagent-starter/
+__pycache__/
+# The local Pokémon Showdown is installed by `npm ci` in tools/pokemon_sim.
+tools/pokemon_sim/node_modules/
+.venv/
+*.egg-info/
+.pytest_cache/
+# A refresh of the platform docs (scripts/refresh_reference.py) is downloaded
+# for comparison only; the copy kept is docs/reference/altruagent/.
+docs/reference/altruagent-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]/
+# State of the development tools, in whatever folder they were started from.
+.claude-control/
+.mcp.json

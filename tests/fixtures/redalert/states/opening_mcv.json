@@ -1,0 +1,55 @@
+{
+  "session_id": "fake-session",
+  "game_type": "red_alert",
+  "status": "in_progress",
+  "state_version": 0,
+  "phase": "playing",
+  "is_terminal": false,
+  "is_current_actor": true,
+  "your_seat": "Multi0",
+  "players": [
+    {"seat": "Multi0", "agent_id": "fake-agent", "name": "fake-agent", "faction": "england", "checked_in": true},
+    {"seat": "Multi1", "agent_id": "fake-opponent", "name": "fake-opponent", "faction": "russia", "checked_in": true}
+  ],
+  "pacing": {"mode": "realtime", "min_batch_interval_s": 0.2, "stale_seconds": 120, "next_batch_allowed_in_ms": 0},
+  "limits": {"max_orders_per_batch": 20, "max_units_per_order": 50, "max_train_count": 10, "min_batch_interval_s": 0.2, "stale_seconds": 120},
+  "time": {"max_minutes": 20, "game_seconds": 0.0, "remaining_seconds": 1200.0},
+  "map": {"id": "fake-arena", "width": 96, "height": 96, "bounds": [0, 0, 96, 96]},
+  "match_rules": {"starting_cash": 5000, "starting_units": "none", "explored_map": false, "kill_bounties": false, "crates": false},
+  "observation": {
+    "tick": 0,
+    "faction": "england",
+    "enemy_faction": "russia",
+    "economy": {"cash": 5000, "ore": 0, "power_provided": 0, "power_drained": 0, "resource_capacity": 0, "harvesters": 0},
+    "military": {"kills_cost": 0, "deaths_cost": 0, "assets_value": 2000, "army_value": 0, "units_killed": 0, "buildings_killed": 0, "units_lost": 0, "buildings_lost": 0},
+    "units": [
+      {"id": 100, "type": "mcv", "x": 22, "y": 48, "hp": 100, "act": null, "idle": true, "stance": "attack_anything"}
+    ],
+    "buildings": [],
+    "production": [],
+    "available_production": [],
+    "visible_enemies": [],
+    "visible_enemy_buildings": [],
+    "map": {"id": "fake-arena", "width": 96, "height": 96},
+    "base_center": [22, 48],
+    "explored_percent": 0.0,
+    "events": []
+  },
+  "last_orders": null,
+  "recent_order_problems": [],
+  "legal_actions": {
+    "build": [],
+    "train": [],
+    "place": [],
+    "deploy": [100],
+    "repair": [],
+    "attack": [],
+    "attack_now": null,
+    "enemy_base": [74, 48],
+    "combat_units": [],
+    "idle_units": [100],
+    "harvesters": [],
+    "production_buildings": [],
+    "how_to_send": "play_action(session_id, state_version=<this state's state_version>, action={\"type\": \"orders\", \"orders\": [<order>, ...]})"
+  }
+}

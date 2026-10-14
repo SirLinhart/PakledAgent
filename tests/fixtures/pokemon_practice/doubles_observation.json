@@ -1,0 +1,182 @@
+{
+  "_source": "guide-derived, unverified on the platform: the doubles `moving` observation and doubles_turn action of docs/reference/altruagent/pokemon.md section 7 (field names from its singles board table and Pokémon summary list, made per-slot lists for doubles as the guide says); the guide gives no values, so the example values here are those of a turn-1 board; weather, fields and side conditions use poke-env's names; the practice harness checks its field names and value kinds against this file",
+  "observation": {
+    "phase": "moving",
+    "battle_format": "gen9vgc2025regi",
+    "format": "gen9vgc2025regi",
+    "is_doubles": true,
+    "waiting_for_action": true,
+    "finished": false,
+    "turn": 1,
+    "weather": {},
+    "fields": {"ELECTRIC_TERRAIN": 0},
+    "active_pokemon": [
+      {
+        "species": "urshifurapidstrike",
+        "name": "Urshifu-Rapid-Strike",
+        "types": ["FIGHTING", "WATER"],
+        "base_stats": {"hp": 100, "atk": 130, "def": 100, "spa": 63, "spd": 60, "spe": 97},
+        "level": 50,
+        "current_hp": 176,
+        "max_hp": 176,
+        "current_hp_fraction": 1.0,
+        "status": null,
+        "stats": {"atk": 200, "def": 120, "spa": 74, "spd": 80, "spe": 149},
+        "item": "choicescarf",
+        "ability": "unseenfist",
+        "moves": ["surgingstrikes", "closecombat", "aquajet", "uturn"],
+        "boosts": {"accuracy": 0, "atk": 0, "def": 0, "evasion": 0, "spa": 0, "spd": 0, "spe": 0},
+        "fainted": false,
+        "active": true,
+        "revealed": true,
+        "is_terastallized": false
+      }
+    ],
+    "opponent_active_pokemon": [
+      {
+        "species": "miraidon",
+        "name": "Miraidon",
+        "types": ["ELECTRIC", "DRAGON"],
+        "base_stats": {"hp": 100, "atk": 85, "def": 100, "spa": 135, "spd": 115, "spe": 135},
+        "level": null,
+        "current_hp": 100,
+        "max_hp": 100,
+        "current_hp_fraction": 1.0,
+        "status": null,
+        "stats": null,
+        "item": null,
+        "ability": "hadronengine",
+        "moves": [],
+        "boosts": {"accuracy": 0, "atk": -1, "def": 0, "evasion": 0, "spa": 0, "spd": 0, "spe": 0},
+        "fainted": false,
+        "active": true,
+        "revealed": true,
+        "is_terastallized": false
+      }
+    ],
+    "team": {
+      "p1: Urshifu": {
+        "species": "urshifurapidstrike",
+        "name": "Urshifu-Rapid-Strike",
+        "types": ["FIGHTING", "WATER"],
+        "base_stats": {"hp": 100, "atk": 130, "def": 100, "spa": 63, "spd": 60, "spe": 97},
+        "level": 50,
+        "current_hp": 176,
+        "max_hp": 176,
+        "current_hp_fraction": 1.0,
+        "status": null,
+        "stats": {"atk": 200, "def": 120, "spa": 74, "spd": 80, "spe": 149},
+        "item": "choicescarf",
+        "ability": "unseenfist",
+        "moves": ["surgingstrikes", "closecombat", "aquajet", "uturn"],
+        "boosts": {"accuracy": 0, "atk": 0, "def": 0, "evasion": 0, "spa": 0, "spd": 0, "spe": 0},
+        "fainted": false,
+        "active": true,
+        "revealed": true,
+        "is_terastallized": false
+      }
+    },
+    "opponent_team": {
+      "p2: Miraidon": {
+        "species": "miraidon",
+        "name": "Miraidon",
+        "types": ["ELECTRIC", "DRAGON"],
+        "base_stats": {"hp": 100, "atk": 85, "def": 100, "spa": 135, "spd": 115, "spe": 135},
+        "level": null,
+        "current_hp": 100,
+        "max_hp": 100,
+        "current_hp_fraction": 1.0,
+        "status": null,
+        "stats": null,
+        "item": null,
+        "ability": "hadronengine",
+        "moves": [],
+        "boosts": {"accuracy": 0, "atk": -1, "def": 0, "evasion": 0, "spa": 0, "spd": 0, "spe": 0},
+        "fainted": false,
+        "active": true,
+        "revealed": true,
+        "is_terastallized": false
+      }
+    },
+    "available_moves": [
+      [
+        {
+          "id": "surgingstrikes",
+          "name": "Surging Strikes",
+          "type": "WATER",
+          "category": "PHYSICAL",
+          "base_power": 25,
+          "accuracy": 1.0,
+          "priority": 0,
+          "current_pp": 8,
+          "max_pp": 8,
+          "target": "normal",
+          "targets": [-2, 1, 2]
+        }
+      ],
+      []
+    ],
+    "available_switches": [
+      [
+        {
+          "species": "amoonguss",
+          "name": "Amoonguss",
+          "types": ["GRASS", "POISON"],
+          "base_stats": {"hp": 114, "atk": 85, "def": 70, "spa": 85, "spd": 80, "spe": 30},
+          "level": 50,
+          "current_hp": 219,
+          "max_hp": 219,
+          "current_hp_fraction": 1.0,
+          "status": null,
+          "stats": {"atk": 94, "def": 132, "spa": 105, "spd": 105, "spe": 50},
+          "item": "rockyhelmet",
+          "ability": "regenerator",
+          "moves": ["spore", "ragepowder", "protect", "pollenpuff"],
+          "boosts": {"accuracy": 0, "atk": 0, "def": 0, "evasion": 0, "spa": 0, "spd": 0, "spe": 0},
+          "fainted": false,
+          "active": false,
+          "revealed": false,
+          "is_terastallized": false
+        }
+      ],
+      []
+    ],
+    "force_switch": [false, false],
+    "side_conditions": {},
+    "opponent_side_conditions": {},
+    "can_tera": [true, true]
+  },
+  "legal_action": {
+    "action_id": "doubles_turn",
+    "label": "Choose one action for each of your two slots",
+    "input": {
+      "session_id": "practice-pokemon",
+      "action_id": "doubles_turn",
+      "state_version": 0,
+      "action": {
+        "type": "doubles_turn",
+        "instructions": "Submit one choice per slot together.",
+        "slots": [
+          {
+            "slot": 0,
+            "board_position": -1,
+            "active": {"species": "urshifurapidstrike", "name": "Urshifu-Rapid-Strike"},
+            "options": [{"type": "move", "move_id": "surgingstrikes", "name": "Surging Strikes", "targets": [-2, 1, 2]}]
+          }
+        ],
+        "target_legend": {
+          "1": "opponent position A",
+          "2": "opponent position B",
+          "-1": "your position A (slot 0)",
+          "-2": "your position B (slot 1)",
+          "0": "no target needed (self, field or spread move)"
+        }
+      }
+    }
+  },
+  "answer": {
+    "type": "doubles_turn",
+    "slot_0": {"type": "move", "move_id": "surgingstrikes", "target": 2},
+    "slot_1": {"type": "switch", "species": "amoonguss"}
+  }
+}

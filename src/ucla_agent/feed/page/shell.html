@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Match feed</title>
+<style>
+/* styles */
+</style>
+</head>
+<body>
+<header id="header" class="strip" aria-label="Match figures"></header>
+<section id="throughput" class="band" aria-label="Order throughput"></section>
+<main class="columns">
+  <section id="choices" class="panel" aria-labelledby="choices-title">
+    <h2 id="choices-title">Model choices</h2>
+  </section>
+  <div class="stack">
+    <section id="plans" class="panel" aria-labelledby="plans-title">
+      <h2 id="plans-title">Plan timeline</h2>
+    </section>
+    <section id="activity" class="panel" aria-labelledby="activity-title">
+      <h2 id="activity-title">Activity</h2>
+    </section>
+  </div>
+</main>
+<footer id="status" role="status">Connecting to the feed.</footer>
+<script>
+/* scripts */
+Feed.start();
+</script>
+</body>
+</html>

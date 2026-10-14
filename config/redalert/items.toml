@@ -1,0 +1,596 @@
+# Red Alert item facts the agent falls back on when a match gives no rules of
+# its own. The platform's game reference (get_game_config("red_alert").rules)
+# is the authority: every value it gives replaces the value here, so this file
+# only decides what the agent believes when that reference is missing or
+# leaves a value out.
+#
+# The layout follows the platform's rules object: one table per building under
+# [buildings] and one per unit under [units].
+#
+#   cost           credits
+#   power          positive provides, negative drains
+#   queue          the production queue that makes the item; an item without
+#                  one cannot be produced (the construction yard)
+#   prerequisites  buildings that must stand, besides the building that
+#                  produces the item's queue
+#   factions       the factions that can produce it; left out when all can
+#   hp             hit points, as the engine counts them. Observations report
+#                  hp as a percentage, so these only weigh items against each
+#                  other
+#   speed          cells per second on clear ground
+#   range          weapon range in cells
+#   roles          what the item is for, in the agent's own words
+#   build_time_s   seconds to build at full power; left out when it is the
+#                  usual 0.024 s per credit
+#
+# Values come from the rule files of the OpenRA development branch
+# (mods/ra/rules, mods/ra/weapons): speed is the engine's Speed x 25 / 1024.
+# Lines marked "estimate" were not taken from a rule file. All of them are to
+# be corrected from a captured platform rules file (scripts/capture_rules.py,
+# scripts/diff_rules.py).
+
+# -- buildings: the Building queue -------------------------------------------
+
+[buildings.fact]
+cost = 2000
+power = 0
+prerequisites = []
+hp = 150000
+roles = ["construction_yard"]
+
+[buildings.powr]
+cost = 300
+power = 100
+queue = "Building"
+prerequisites = []
+hp = 40000
+roles = ["power"]
+
+[buildings.apwr]
+cost = 500
+power = 200
+queue = "Building"
+prerequisites = ["dome"]
+hp = 70000  # estimate
+roles = ["power"]
+
+[buildings.tent]
+cost = 500
+power = -20
+queue = "Building"
+prerequisites = ["powr"]
+factions = ["england", "france", "germany"]
+hp = 60000
+roles = ["barracks"]
+
+[buildings.barr]
+cost = 500
+power = -20
+queue = "Building"
+prerequisites = ["powr"]
+factions = ["russia", "ukraine"]
+hp = 60000
+roles = ["barracks"]
+
+[buildings.proc]
+cost = 1400
+power = -30
+queue = "Building"
+prerequisites = ["powr"]
+hp = 90000
+roles = ["refinery"]
+
+[buildings.weap]
+cost = 2000
+power = -30
+queue = "Building"
+prerequisites = ["proc"]
+hp = 150000
+roles = ["war_factory"]
+
+[buildings.fix]
+cost = 1200
+power = -30
+queue = "Building"
+prerequisites = ["weap"]
+hp = 80000  # estimate
+roles = ["service_depot"]
+
+[buildings.dome]
+cost = 1500
+power = -40
+queue = "Building"
+prerequisites = ["proc"]
+hp = 100000
+roles = ["radar"]
+
+[buildings.kenn]
+cost = 200
+power = -10
+queue = "Building"
+prerequisites = ["powr"]
+factions = ["russia", "ukraine"]
+hp = 30000
+roles = ["kennel"]
+
+[buildings.atek]
+cost = 1500
+power = -200
+queue = "Building"
+prerequisites = ["weap", "dome"]
+factions = ["england", "france", "germany"]
+hp = 60000
+roles = ["tech"]
+
+[buildings.stek]
+cost = 1500
+power = -100
+queue = "Building"
+prerequisites = ["weap", "dome"]
+factions = ["russia", "ukraine"]
+hp = 80000
+roles = ["tech"]
+
+[buildings.hpad]
+cost = 500
+power = -10
+queue = "Building"
+prerequisites = ["dome"]
+factions = ["england", "france", "germany"]
+hp = 80000
+roles = ["airfield"]
+
+[buildings.afld]
+cost = 500
+power = -20
+queue = "Building"
+prerequisites = ["dome"]
+factions = ["russia", "ukraine"]
+hp = 100000
+roles = ["airfield"]
+
+[buildings.syrd]
+cost = 1000
+power = -20
+queue = "Building"
+prerequisites = ["powr"]
+factions = ["england", "france", "germany"]
+hp = 100000
+roles = ["naval_yard"]
+
+[buildings.spen]
+cost = 800
+power = -20
+queue = "Building"
+prerequisites = ["powr"]
+factions = ["russia", "ukraine"]
+hp = 100000
+roles = ["naval_yard"]
+
+# -- buildings: the Defense queue --------------------------------------------
+
+[buildings.silo]
+cost = 150
+power = -10
+queue = "Defense"
+prerequisites = ["proc"]
+hp = 30000
+roles = ["storage"]
+
+[buildings.pbox]
+cost = 600
+power = -20
+queue = "Defense"
+prerequisites = ["tent"]
+factions = ["england", "france", "germany"]
+hp = 40000
+range = 6.0
+roles = ["defense", "anti_infantry"]
+
+[buildings.hbox]
+cost = 750
+power = -20
+queue = "Defense"
+prerequisites = ["tent"]
+factions = ["england", "france", "germany"]
+hp = 40000
+range = 6.0
+roles = ["defense", "anti_infantry"]
+
+[buildings.gun]
+cost = 800
+power = -40
+queue = "Defense"
+prerequisites = ["tent"]
+factions = ["england", "france", "germany"]
+hp = 40000
+range = 6.5
+roles = ["defense", "anti_armor"]
+
+[buildings.ftur]
+cost = 600
+power = -20
+queue = "Defense"
+prerequisites = ["barr"]
+factions = ["russia", "ukraine"]
+hp = 40000
+range = 5.0
+roles = ["defense", "anti_infantry"]
+
+[buildings.tsla]
+cost = 1200
+power = -80
+queue = "Defense"
+prerequisites = ["weap"]
+factions = ["russia", "ukraine"]
+hp = 40000
+range = 7.0
+roles = ["defense", "anti_infantry", "anti_armor"]
+
+[buildings.agun]
+cost = 800
+power = -50
+queue = "Defense"
+prerequisites = ["dome"]
+factions = ["england", "france", "germany"]
+hp = 40000
+range = 10.0
+roles = ["defense", "anti_air"]
+
+[buildings.sam]
+cost = 700
+power = -40
+queue = "Defense"
+prerequisites = ["dome"]
+factions = ["russia", "ukraine"]
+hp = 40000
+range = 7.5
+roles = ["defense", "anti_air"]
+
+# -- units: the Infantry queue -----------------------------------------------
+
+[units.e1]
+cost = 100
+queue = "Infantry"
+prerequisites = []
+hp = 5000
+speed = 1.32
+range = 5.0
+roles = ["infantry", "anti_infantry"]
+
+[units.e2]
+cost = 150
+queue = "Infantry"
+prerequisites = []
+factions = ["russia", "ukraine"]
+hp = 5000
+speed = 1.66
+range = 4.0
+roles = ["infantry", "anti_infantry"]
+
+[units.e3]
+cost = 300
+queue = "Infantry"
+prerequisites = []
+hp = 4500
+speed = 1.32
+range = 5.0
+roles = ["infantry", "anti_armor", "anti_air"]
+
+[units.e4]
+cost = 300
+queue = "Infantry"
+prerequisites = ["ftur"]
+factions = ["russia", "ukraine"]
+hp = 4000
+speed = 1.32
+range = 5.0
+roles = ["infantry", "anti_infantry"]
+
+[units.e6]
+cost = 400
+queue = "Infantry"
+prerequisites = []
+hp = 2500
+speed = 1.32
+roles = ["infantry", "engineer"]
+
+[units.dog]
+cost = 200
+queue = "Infantry"
+prerequisites = ["kenn"]
+factions = ["russia", "ukraine"]
+hp = 1800
+speed = 2.44
+range = 3.0
+roles = ["infantry", "anti_infantry", "scout"]
+
+[units.medi]
+cost = 200
+queue = "Infantry"
+prerequisites = []
+factions = ["england", "france", "germany"]
+hp = 6000
+speed = 1.20
+roles = ["infantry", "support"]
+
+[units.mech]
+cost = 500
+queue = "Infantry"
+prerequisites = ["fix"]
+factions = ["england", "france", "germany"]
+hp = 8000
+speed = 1.20
+roles = ["infantry", "support"]
+
+[units.spy]
+cost = 500
+queue = "Infantry"
+prerequisites = ["dome"]
+factions = ["england", "france", "germany"]
+hp = 2500
+speed = 1.32
+roles = ["infantry", "support"]
+
+[units.thf]
+cost = 500
+queue = "Infantry"
+prerequisites = ["dome"]
+factions = ["russia", "ukraine"]
+hp = 8000
+speed = 1.76
+roles = ["infantry", "support"]
+
+# -- units: the Vehicle queue ------------------------------------------------
+
+[units.harv]
+cost = 1100
+queue = "Vehicle"
+prerequisites = ["proc"]
+hp = 60000
+speed = 1.60  # estimate
+roles = ["vehicle", "harvester"]
+
+[units.mcv]
+cost = 2000
+queue = "Vehicle"
+prerequisites = ["fix"]
+hp = 60000
+speed = 1.46
+roles = ["vehicle", "mcv"]
+build_time_s = 40.0
+
+[units.jeep]
+cost = 500
+queue = "Vehicle"
+prerequisites = []
+factions = ["england", "france", "germany"]
+hp = 15000
+speed = 4.00
+range = 4.0
+roles = ["vehicle", "anti_infantry", "scout"]
+
+[units.1tnk]
+cost = 700
+queue = "Vehicle"
+prerequisites = []
+factions = ["england", "france", "germany"]
+hp = 23000
+speed = 2.76
+range = 4.75
+roles = ["vehicle", "tank", "anti_armor"]
+
+[units.2tnk]
+cost = 850
+queue = "Vehicle"
+prerequisites = ["fix"]
+factions = ["england", "france", "germany"]
+hp = 46000
+speed = 1.76
+range = 4.75
+roles = ["vehicle", "tank", "anti_armor"]
+
+[units.3tnk]
+cost = 1150
+queue = "Vehicle"
+prerequisites = ["fix"]
+factions = ["russia", "ukraine"]
+hp = 60000
+speed = 1.56
+range = 4.75
+roles = ["vehicle", "tank", "anti_armor"]
+
+[units.4tnk]
+cost = 2000
+queue = "Vehicle"
+prerequisites = ["fix", "stek"]
+factions = ["russia", "ukraine"]
+hp = 90000
+speed = 1.05
+range = 4.75
+roles = ["vehicle", "tank", "anti_armor", "anti_air"]
+
+[units.apc]
+cost = 850
+queue = "Vehicle"
+prerequisites = []
+factions = ["russia", "ukraine"]
+hp = 35000
+speed = 3.12
+range = 4.0
+roles = ["vehicle", "anti_infantry", "transport"]
+
+[units.ftrk]
+cost = 600
+queue = "Vehicle"
+prerequisites = []
+factions = ["russia", "ukraine"]
+hp = 15000
+speed = 2.76
+range = 6.0
+roles = ["vehicle", "anti_infantry", "anti_air", "scout"]
+
+[units.arty]
+cost = 850
+queue = "Vehicle"
+prerequisites = ["dome"]
+factions = ["england", "france", "germany"]
+hp = 10000
+speed = 1.76
+range = 12.0
+roles = ["vehicle", "artillery"]
+
+[units.v2rl]
+cost = 900
+queue = "Vehicle"
+prerequisites = ["dome"]
+factions = ["russia", "ukraine"]
+hp = 20000
+speed = 1.76
+range = 10.0
+roles = ["vehicle", "artillery"]
+
+[units.truk]
+cost = 500
+queue = "Vehicle"
+prerequisites = []
+hp = 11000
+speed = 2.76
+roles = ["vehicle", "support"]
+
+[units.mnly]
+cost = 800
+queue = "Vehicle"
+prerequisites = ["fix"]
+hp = 30000
+speed = 2.76
+roles = ["vehicle", "support"]
+
+# -- units: the Ship queue ---------------------------------------------------
+
+[units.ss]
+cost = 950
+queue = "Ship"
+prerequisites = ["spen"]
+factions = ["russia", "ukraine"]
+hp = 25000
+speed = 1.90
+range = 9.0
+roles = ["ship"]
+
+[units.msub]
+cost = 2000
+queue = "Ship"
+prerequisites = ["spen", "stek"]
+factions = ["russia", "ukraine"]
+hp = 40000
+speed = 1.07
+range = 20.0
+roles = ["ship", "artillery"]
+
+[units.pt]
+cost = 500
+queue = "Ship"
+prerequisites = ["syrd"]
+factions = ["england", "france", "germany"]
+hp = 20000
+speed = 3.47
+range = 5.5
+roles = ["ship"]
+
+[units.dd]
+cost = 1000
+queue = "Ship"
+prerequisites = ["syrd", "dome"]
+factions = ["england", "france", "germany"]
+hp = 40000
+speed = 2.25
+range = 7.5
+roles = ["ship", "anti_air"]
+
+[units.ca]
+cost = 2400
+queue = "Ship"
+prerequisites = ["syrd", "atek"]
+factions = ["england", "france", "germany"]
+hp = 80000
+speed = 1.07
+range = 20.0
+roles = ["ship", "artillery"]
+
+[units.lst]
+cost = 500
+queue = "Ship"
+prerequisites = []
+hp = 40000
+speed = 2.81
+roles = ["ship", "transport"]
+
+# -- units: the Aircraft queue -----------------------------------------------
+
+[units.heli]
+cost = 2000
+queue = "Aircraft"
+prerequisites = ["hpad", "atek"]
+factions = ["england", "france", "germany"]
+hp = 12000
+speed = 3.64
+range = 5.0
+roles = ["aircraft", "anti_armor"]
+
+[units.mh60]
+cost = 1500
+queue = "Aircraft"
+prerequisites = ["hpad"]
+factions = ["england", "france", "germany"]
+hp = 10000
+speed = 2.73
+range = 5.0
+roles = ["aircraft", "anti_infantry"]
+
+[units.tran]
+cost = 900
+queue = "Aircraft"
+prerequisites = ["hpad"]
+factions = ["england", "france", "germany"]
+hp = 14000
+speed = 3.12
+roles = ["aircraft", "transport"]
+
+[units.yak]
+cost = 1350
+queue = "Aircraft"
+prerequisites = ["afld"]
+factions = ["russia", "ukraine"]
+hp = 6000
+speed = 4.35
+range = 5.0
+roles = ["aircraft", "anti_infantry"]
+
+[units.mig]
+cost = 2000
+queue = "Aircraft"
+prerequisites = ["afld", "stek"]
+factions = ["russia", "ukraine"]
+hp = 8000
+speed = 5.44
+range = 9.0
+roles = ["aircraft", "anti_armor"]
+
+# -- units: the support powers' aircraft, which no queue makes ---------------
+# The paradrop plane and the spy plane: hp and speed from mods/ra/rules/aircraft.yaml, and no cost (the rules give
+# them none).
+
+[units.badr]
+cost = 0
+prerequisites = []
+hp = 40000
+speed = 4.39
+roles = ["aircraft", "support_power"]
+
+[units.u2]
+cost = 0
+prerequisites = []
+hp = 200000
+speed = 9.11
+roles = ["aircraft", "support_power"]

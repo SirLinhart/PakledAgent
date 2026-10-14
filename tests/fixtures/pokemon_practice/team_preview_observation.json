@@ -1,0 +1,55 @@
+{
+  "_source": "guide-derived, unverified on the platform: the team_preview observation and select_lineup action of docs/reference/altruagent/pokemon.md section 6; the guide shows species, name, types and base_stats of a roster entry and elides the rest (\"…\"), which is filled in here with the set the practice harness shows; the practice harness checks its field names and value kinds against this file",
+  "observation": {
+    "phase": "team_preview",
+    "battle_format": "gen9vgc2025regi",
+    "waiting_for_action": true,
+    "your_roster": [
+      {
+        "species": "incineroar",
+        "name": "Incineroar",
+        "types": ["FIRE", "DARK"],
+        "base_stats": {"hp": 95, "atk": 115, "def": 90, "spa": 80, "spd": 90, "spe": 60},
+        "level": 50,
+        "max_hp": 202,
+        "stats": {"atk": 135, "def": 156, "spa": 90, "spd": 111, "spe": 80},
+        "item": "assaultvest",
+        "ability": "intimidate",
+        "moves": ["fakeout", "knockoff", "flareblitz", "partingshot"]
+      }
+    ],
+    "opponent_roster": [
+      {
+        "species": "urshifurapidstrike",
+        "name": "Urshifu-Rapid-Strike",
+        "types": ["FIGHTING", "WATER"],
+        "base_stats": {"hp": 100, "atk": 130, "def": 100, "spa": 63, "spd": 60, "spe": 97},
+        "level": 50,
+        "item": "choicescarf",
+        "ability": "unseenfist",
+        "moves": ["surgingstrikes", "closecombat", "aquajet", "uturn"]
+      }
+    ]
+  },
+  "legal_action": {
+    "action_id": "select_lineup",
+    "label": "Choose 4 of your roster to bring and 2 of them to lead",
+    "input": {
+      "session_id": "practice-pokemon",
+      "action_id": "select_lineup",
+      "state_version": 0,
+      "action": {
+        "type": "select_lineup",
+        "roster": ["incineroar", "urshifurapidstrike", "amoonguss", "rillaboom", "whimsicott", "grimmsnarl"],
+        "bring_count": 4,
+        "lead_count": 2,
+        "instructions": "Bring 4 different species from `roster` and lead with 2 of them."
+      }
+    }
+  },
+  "answer": {
+    "type": "select_lineup",
+    "bring": ["incineroar", "rillaboom", "amoonguss", "urshifurapidstrike"],
+    "leads": ["incineroar", "rillaboom"]
+  }
+}

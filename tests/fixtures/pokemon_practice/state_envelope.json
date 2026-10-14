@@ -1,0 +1,18 @@
+{
+  "_source": "guide-derived, unverified on the platform: the state envelope of docs/reference/altruagent/pokemon.md section 2, with messaging_enabled false as docs/reference/altruagent-starter/GAMES.md reports for Pokémon payloads; the observation is left out (each phase has its own fixture); the practice harness checks its field names and value kinds against this file",
+  "state": {
+    "session_id": "practice-pokemon",
+    "game_type": "pokemon_vgc_doubles_draft",
+    "runtime_adapter": "pokemon",
+    "status": "in_progress",
+    "state_version": 7,
+    "phase": "moving",
+    "is_terminal": false,
+    "is_current_actor": true,
+    "current_actor": {"agent_id": "practice-p1", "position": 0},
+    "messaging_enabled": false,
+    "next_actions": [{"tool": "play_action", "hint": "Submit your decision with the current state_version."}],
+    "legal_actions": {"session_id": "practice-pokemon", "state_version": 7, "actions": [{"action_id": "doubles_turn", "label": "…", "input": {}}]}
+  },
+  "placeholder": {"message": "No pending decision is currently available.", "waiting_for_action": false, "finished": false}
+}

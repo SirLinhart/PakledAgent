@@ -1,0 +1,19 @@
+# The vendored starter is kept byte-for-byte as published upstream; its
+# manifest (src/altruagent/UPSTREAM.md) records the SHA-256 of those bytes,
+# so no checkout may convert its line endings.
+src/altruagent/** -text
+
+# A run records the SHA-256 of every file under config/. Keeping those files
+# LF in every checkout makes the recorded hash the same on every machine and
+# equal to the hash of the committed content.
+config/** text eol=lf
+
+# Generated fixtures are compared byte for byte with what their generator
+# writes, which is LF on every platform.
+tests/fixtures/** text eol=lf
+
+# The reference copies are kept byte-for-byte as downloaded:
+# scripts/refresh_reference.py compares their SHA-256 with a fresh download,
+# so no checkout may convert their line endings.
+docs/reference/altruagent/** -text
+docs/reference/altruagent-rules/** -text
