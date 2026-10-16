@@ -70,8 +70,13 @@ def test_six_enemy_infantry_25_cells_from_the_enemy_start_at_230_s_give_rush_wit
 
     ask(agent, at(230, visible_enemies=rifles))
 
-    assert agent.ctx.rush_verdict == "rush" and match_record("rush_verdict")[-1]["signs"] == ["infantry_out"]
-    assert verdict_after(at(230, visible_enemies=rifles[:5])) == "unknown"
+    # Six rifles 27 cells from our base are an army approaching as well.
+    signs = ["infantry_out", "army_approaching"]
+    assert agent.ctx.rush_verdict == "rush" and match_record("rush_verdict")[-1]["signs"] == signs
+    # Five rifles 27 cells from our base are worth 500, an army approaching at the shipped 300: the count alone is
+    # tested with the army sign at 1000.
+    by_count = dataclasses.replace(RUSH_WATCH, scouting=scouting_off(rush_detection=True, rush_approach_value=1000))
+    assert verdict_after(at(230, visible_enemies=rifles[:5]), tuning=by_count) == "unknown"
 
 
 # -- the warning of infantry massing at the enemy's start ----------------------------------------------------------
@@ -149,12 +154,13 @@ def test_two_enemy_vehicles_out_of_the_enemy_base_give_rush():
     assert verdict_after(at(200, visible_enemies=tanks[:1])) == "unknown"
 
 
-def test_an_enemy_army_worth_1200_25_cells_from_our_base_at_250_s_gives_rush():
-    # Four rocket soldiers: too few to be a sign by their number.
-    rockets = [enemy(800 + number, "e3", 47, 46 + number) for number in range(4)]
+def test_an_enemy_army_worth_300_25_cells_from_our_base_at_250_s_gives_rush():
+    # One rocket soldier, 300, is worth rush_approach_value; two rifles, 200, are not.
+    rocket = [enemy(800, "e3", 47, 46)]
+    rifles = [enemy(800 + number, "e1", 47, 46 + number) for number in range(2)]
 
-    assert verdict_after(at(250, visible_enemies=rockets)) == "rush"
-    assert verdict_after(at(250, visible_enemies=rockets[:3])) == "unknown"
+    assert verdict_after(at(250, visible_enemies=rocket)) == "rush"
+    assert verdict_after(at(250, visible_enemies=rifles)) == "unknown"
 
 
 def test_the_base_seen_at_90_s_with_no_sign_gives_none():

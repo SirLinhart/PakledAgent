@@ -203,6 +203,12 @@ the new one, whatever the creep target, and its `refinery_field` event gives
 the rule and the reason `new_yard`. The claim ends once the refinery is
 ordered: one refinery for each new yard. A refinery claim is due while the
 field is published, so `economy_first` holds the unit queues for its money.
+With `new_yard_refinery_until_standing` on, the field is published whatever
+the refinery caps say until a refinery of ours stands counted against it, and
+its refinery is ordered only while its place exists and none is on its way,
+placed there once the own units on it have moved off, and ordered again after
+a refusal or a cancel (see `new_yard_refinery`); a later placement of the same
+claim is written with the reason `new_yard_retry`.
 
 With `scout_slots` of [scouting] switched on, a Soviet base also gets one
 kennel once the opening's build is complete, so that its designated scouts
@@ -256,6 +262,17 @@ what the infantry leaves, so that the queue never waits for the next order
 then 60 percent at the least, and when the budget pays for one queue the
 infantry goes first only while the vehicles keep that share with the
 infantry's price spent.
+With `counter_quota` of [composition] switched on, each unit queue the plan
+feeds trains first the counter unit the enemy army seen lately calls for that
+the army is furthest short of, and a Soviet base orders one flame tower for
+the flamethrowers it wants (see `counter_units`).
+With `spending_focus` on, under the military focus (see `spending_focus`) no
+refinery is ordered past those of the opening but in place of a lost one: no
+claim, no growth, no third or fourth, none from the bank; one ordered is
+placed, and the harvesters for those standing are trained as ever. The
+Vehicle queue's next army vehicle is then the family's artillery while main
+and the guard hold fewer than `military_focus_first_artillery` of it, and
+defenses go up toward the enemy (`FocusDefenses`).
 
 One barracks and one war factory make units only so fast; a base whose income
 outgrows them banks money it cannot spend. So once the opening's build is
@@ -370,6 +387,12 @@ platform reports the moment with a `low_power` event; the rule reads the
 power figures of the state, which say the same and are still there when
 events were missed. What was switched off is switched on again when there is
 power to spare, the most needed first and only as far as the power reaches.
+
+With `canary_alarm` on, while the canary alarm is in force (see
+`canary_alarm`) the unit queues train nothing, no harvester is trained but
+one for a standing refinery that has none, and no MCV, refinery beyond the
+second, barracks or war factory beyond the first, radar or tech building is
+ordered: the money goes to the defenses base defense orders meanwhile.
 """
 
 from __future__ import annotations
@@ -377,21 +400,35 @@ from __future__ import annotations
 import math
 from collections import Counter
 from dataclasses import dataclass
-from typing import Iterable, Mapping, NamedTuple, Protocol
+from typing import Iterable, Mapping, NamedTuple, Protocol, Sequence
 
 from ucla_agent.core import records
-from ucla_agent.games.redalert import cells, clock, placement, refinery_fields
+from ucla_agent.games.redalert import (
+    cells,
+    clock,
+    defense_cap,
+    defense_line,
+    expansion,
+    new_yard_refinery,
+    placement,
+    refinery_fields,
+    safe_staging,
+    truck_shares,
+)
 from ucla_agent.games.redalert.anti_air import ANTI_AIR_DEFENSES, anti_air_defenses_wanted
 from ucla_agent.games.redalert.bank_spending import (
     BANK_FACTORY,
     IDLE_BANK,
+    NO_FLOAT,
     STORAGE_NEAR_CAP,
     BankWatch,
     StorageWatch,
     log_orders,
 )
 from ucla_agent.games.redalert.batch import Intent, Limits, Priority, validated
+from ucla_agent.games.redalert.canary_alarm import held as held_by_alarm
 from ucla_agent.games.redalert.composition import FLAMETHROWER, OPENING, Composition
+from ucla_agent.games.redalert.counter_units import CounterFill, FlameTowerForCounters
 from ucla_agent.games.redalert.creep import NearestFarField, NextPatch
 from ucla_agent.games.redalert.economy_hold import EconomyHold, EconomyItem, FullHold
 from ucla_agent.games.redalert.expansion import (
@@ -421,11 +458,18 @@ from ucla_agent.games.redalert.family import (
 )
 from ucla_agent.games.redalert.fresh_ore import FreshOre
 from ucla_agent.games.redalert.groups import GUARD, MAIN
-from ucla_agent.games.redalert.harvester_room import FieldRoom, harvester_target, harvesters_counted
+from ucla_agent.games.redalert.harvester_room import (
+    FieldRoom,
+    field_share,
+    harvester_target,
+    harvesters_counted,
+    serving_counts,
+)
 from ucla_agent.games.redalert.items import SOVIET, TICKS_PER_SECOND
 from ucla_agent.games.redalert.ledger import LOST, REJECTED, OrderLedger
 from ucla_agent.games.redalert.managers import MAJOR_THREAT, MatchContext
 from ucla_agent.games.redalert.opening import build_steps, first_missing, is_build_complete
+from ucla_agent.games.redalert.new_yard_refinery import NEW_YARD_RETRY_REASON, NEW_YARD_RULE, ClaimedSpots
 from ucla_agent.games.redalert.parking import Parking
 from ucla_agent.games.redalert.placement import Box, FieldChoice
 from ucla_agent.games.redalert.production import BUILDING_QUEUE, DEFENSE_QUEUE, INFANTRY_QUEUE, VEHICLE_QUEUE
@@ -434,6 +478,7 @@ from ucla_agent.games.redalert.remote_air import RemoteBaseAntiAir
 from ucla_agent.games.redalert.route_walk import RouteWalks
 from ucla_agent.games.redalert.rush_counter import warning_reserve
 from ucla_agent.games.redalert.soviet_tech import SovietTechCenter
+from ucla_agent.games.redalert.spending_focus import FocusDefenses, SpendingFocus, artillery_first, is_military
 from ucla_agent.games.redalert.support import SupportTraining
 from ucla_agent.games.redalert.tank_factories import VEHICLE_FLOOR_SHARE, VehicleFill, keeps_vehicle_floor
 from ucla_agent.games.redalert.terrain import OrePatch
@@ -453,6 +498,11 @@ from ucla_agent.games.redalert.world import DEFENSE_TYPES, Building, Cell, Unit,
 
 # The buildings that make units, which walk to the building's rally point when they are made.
 _PRODUCERS = BARRACKS_TYPES | {WAR_FACTORY}
+# Why the new yard's claimed refinery waits, written at most this often (see `MoreRefineries._log_claim_waiting`).
+NEW_YARD_WAITING = "new_yard_waiting"
+CLAIM_WAITING_TICKS = 30 * TICKS_PER_SECOND
+# The rule a lost defense is ordered again by, as a `defense_capped` event names it (see `defense_cap`).
+REPLACE_RULE = "replace_defense"
 _POWER_PLANTS = (POWER_PLANT, ADVANCED_POWER_PLANT)
 # The queues the unit queue rule feeds, in the order their next items are chosen.
 _UNIT_QUEUES = (INFANTRY_QUEUE, VEHICLE_QUEUE)
@@ -484,8 +534,6 @@ _DISPENSABLE_FIRST = (SERVICE_DEPOT, RADAR)
 # entries about the field, null when there is no field to serve.
 REFINERY_FIELD_EVENT = "refinery_field"
 _FIELD_REASONS = ("rule", "field_center", "field_cells", "served_by", "ore_distance_cells")
-# The rule, and the reason, of the refinery claimed for the field a new expansion yard deployed by.
-NEW_YARD_RULE = "new_yard"
 # The match record's event for a building placed toward the ore field of a refinery that is due, and the decimal
 # places its distances are written with.
 CREEP_PLACEMENT_EVENT = "creep_placement"
@@ -586,27 +634,89 @@ class Placement:
         self._held: dict[str, int] = {}
         # Item -> the tick a finished building of that item was first seen waiting to be placed.
         self._ready_since: dict[str, int] = {}
+        # The field the refinery a new yard claims was last asked onto a place against, while the claim lasts; and the
+        # tick own units were first seen on its place, while they are moved off it.
+        self._claim_asked: OrePatch | None = None
+        self._clearing_since: int | None = None
+        # The lanes threats came to our base by, which a ground defense ordered toward no cell is lined up across.
+        self._lanes = defense_line.LaneMemory()
 
     def intents(self, world: World, ctx: MatchContext) -> list[Intent]:
         """A `place` for each building that waits and was not asked onto the map a moment ago, or held back a moment
         ago, or its cancel once it has waited too long (`_order_for`); with `refused_detection` on, the places refused
         noticed first, so that none of them is asked for again."""
         tuning = ctx.tuning.placement
+        self._lanes.note(world, ctx)
+        ctx.exact_defense_goals &= set(ctx.defense_goals)
         if tuning.refused_detection:
             self._refused.notice(world, ctx)
+            ctx.refused_places = self._refused.places
         self._waiting = {item: asked for item, asked in self._waiting.items() if item in world.ready_to_place}
         self._held = {item: tick for item, tick in self._held.items() if item in world.ready_to_place}
         self._ready_since = {item: self._ready_since.get(item, world.tick) for item in world.ready_to_place}
         self._forget_old_promises(world, tuning)
+        if ctx.new_yard_field is None:
+            self._claim_asked = None
         due = (self._order_for(item, world, ctx) for item in world.ready_to_place if self._is_due(item, world, tuning))
-        return [order for order in due if order is not None]
+        return [order for orders in due for order in orders]
 
-    def _order_for(self, item: str, world: World, ctx: MatchContext) -> Intent | None:
-        """The order for a waiting building that is due: once it has waited `held_cancel_ticks` since it was first
-        seen ready, its cancel or its placement anywhere (`_unfreeze`); else its place order (`_place`)."""
+    def _order_for(self, item: str, world: World, ctx: MatchContext) -> list[Intent]:
+        """The orders for a waiting building that is due: once it has waited `held_cancel_ticks` since it was first
+        seen ready, its cancel or its placement anywhere (`_unfreeze`); the refinery a new yard claims, on order for
+        its field, by `_place_claimed`; else its place order (`_place`), none when it is held back."""
         if world.tick - self._ready_since[item] >= ctx.tuning.placement.held_cancel_ticks:
-            return self._unfreeze(item, world, ctx)
-        return self._place(item, world, ctx)
+            return [self._unfreeze(item, world, ctx)]
+        if item == REFINERY and self._is_claimed(ctx):
+            return self._place_claimed(world, ctx)
+        order = self._place(item, world, ctx)
+        return [] if order is None else [order]
+
+    def _is_claimed(self, ctx: MatchContext) -> bool:
+        """Whether the refinery waiting to be placed is the one a new yard claims while the claim lasts until its
+        refinery stands: it was ordered for the claim (`MoreRefineries.on_order`)."""
+        on_order = self._refineries.on_order
+        is_for_claim = on_order is not None and on_order.rule == NEW_YARD_RULE
+        return new_yard_refinery.is_on(ctx) and ctx.new_yard_field is not None and is_for_claim
+
+    def _place_claimed(self, world: World, ctx: MatchContext) -> list[Intent]:
+        """The orders for the refinery a new yard claims: none while no place against its field is free (held back);
+        a move off the place for each own unit on it or next to it, for `UNITS_CLEAR_TICKS` at the most; else its place
+        order, written as a `refinery_field` event of the reason `new_yard`, or `new_yard_retry` for a later placement
+        of the same claim."""
+        promised = self._promised_boxes(world)
+        choice = self._refineries.claimed_spot(world, ctx, promised, self._refused.places)
+        if choice is None:
+            self._held[REFINERY] = world.tick
+            return []
+        moves = self._moves_off(choice.cell, world, ctx)
+        if moves:
+            return moves
+        is_retry = self._claim_asked == ctx.new_yard_field
+        _log_refinery_field(choice, world, NEW_YARD_RETRY_REASON if is_retry else NEW_YARD_RULE)
+        self._claim_asked = ctx.new_yard_field
+        box = placement.box_at(REFINERY, choice.cell)
+        asked = _Asked(world.tick, box, False, *_asked_refinery(REFINERY, box, ctx))
+        self._waiting[REFINERY] = asked
+        self._promised.append(asked)
+        self._refineries.note_claim_asked(world.tick)
+        if ctx.tuning.placement.refused_detection:
+            self._refused.asked(REFINERY, box, world.tick, None)
+        return [_placing(REFINERY, choice.cell)]
+
+    def _moves_off(self, cell: Cell, world: World, ctx: MatchContext) -> list[Intent]:
+        """A move off the claimed refinery's place for each own unit on it or next to it (`new_yard_refinery.units_on`),
+        toward the new yard's side, from the first cycle one stands there until `UNITS_CLEAR_TICKS` later; none once the
+        place is clear or the time is up."""
+        units = new_yard_refinery.units_on(cell, world)
+        if not units:
+            self._clearing_since = None
+            return []
+        self._clearing_since = world.tick if self._clearing_since is None else self._clearing_since
+        if world.tick - self._clearing_since > new_yard_refinery.UNITS_CLEAR_TICKS:
+            self._clearing_since = None
+            return []
+        area = placement.box_at(REFINERY, cell).grown(new_yard_refinery.UNITS_CLEAR_CELLS)
+        return expansion.moves_off(area, units, ctx.new_yard_cell or cell, world, ctx.terrain)
 
     def _unfreeze(self, item: str, world: World, ctx: MatchContext) -> Intent:
         """Free the queue a finished building has held too long: cancel it with the `cancel` order, or where that
@@ -637,8 +747,10 @@ class Placement:
     def publish_asked_fields(self, world: World, ctx: MatchContext) -> None:
         """Publish the fields the refineries asked onto the map within `promise_ticks` stand against, with the field
         a claim or growth refinery on order is for, as `ctx.asked_refinery_fields`, and the middle cells of those
-        refineries' places as `ctx.asked_refinery_cells`; none while they are not kept."""
+        refineries' places as `ctx.asked_refinery_cells`; none while they are not kept. The places refused and those
+        asked for lately are published too (`ctx.refused_places`, `ctx.promised_places`)."""
         self._forget_old_promises(world, ctx.tuning.placement)
+        ctx.refused_places, ctx.promised_places = self._refused.places, tuple(self._promised_boxes(world))
         # Looked at in every cycle, so that a refinery on order for a field is forgotten once placed.
         on_order = self._refineries.on_order_fields(ctx)
         if not _keeps_asked_fields(ctx):
@@ -754,6 +866,10 @@ class Placement:
         if remote is not None:
             return remote
         attack = (self._coils.goal if item == _TESLA_COIL else None) or ctx.defense_goals.get(item)
+        if defense_line.is_on(item, ctx) and item not in ctx.exact_defense_goals:
+            # On the main base's edge, in the line across the lane toward the goal (see `defense_line`).
+            lane = defense_line.lane_goal(attack, world, ctx, self._lanes)
+            attack = attack if lane is None else defense_line.line_slot(lane, world, ctx)
         if attack is not None:
             return _toward_attack(item, attack, world, ctx, promised, refused)
         claim = (
@@ -947,14 +1063,15 @@ def _log_creep(item: str, cell: Cell, creep: placement.Creep, world: World) -> N
     records.log(CREEP_PLACEMENT_EVENT, data)
 
 
-def _log_refinery_field(choice: placement.PlacementChoice, world: World) -> None:
+def _log_refinery_field(choice: placement.PlacementChoice, world: World, reason: str = NEW_YARD_RULE) -> None:
     """Write one `refinery_field` event: where a refinery is asked onto the map, and the field it is to serve, with
     the rule that chose it, how many refineries served it before and how many cells the refinery's footprint lies
-    from its ore. Without a field to serve, the field's entries are null."""
+    from its ore. Without a field to serve, the field's entries are null. The refinery a new yard claims gives the
+    `reason` too."""
     cell, field = choice.cell, choice.field
     reasons = dict.fromkeys(_FIELD_REASONS) if field is None or cell is None else _field_reasons(field, cell)
     if field is not None and field.rule == NEW_YARD_RULE:
-        reasons["reason"] = NEW_YARD_RULE
+        reasons["reason"] = reason
     records.log(REFINERY_FIELD_EVENT, {"tick": world.tick, "cell": None if cell is None else list(cell), **reasons})
 
 
@@ -1021,9 +1138,12 @@ class NewYardRefinery:
 
     def intents(self, world: World, ctx: MatchContext) -> list[Intent]:
         """The order for the claimed refinery, or for the power plant it cannot do without, when it is due; the claim
-        ends once the refinery is ordered."""
+        ends once the refinery is ordered, or with `new_yard_refinery_until_standing` on once one stands against the
+        field (see `expansion`)."""
         if ctx.new_yard_field is None:
             return []
+        if new_yard_refinery.is_on(ctx):
+            return self._refineries.for_claimed_field(world, ctx)
         orders = self._refineries.for_new_yard(world, ctx)
         if any(proposal.item == REFINERY for proposal in ctx.production.proposed()):
             self._forward.end_new_yard_claim()
@@ -1221,6 +1341,8 @@ class Defenses:
 
     def _replace(self, item: str, world: World, ctx: MatchContext) -> list[Intent]:
         """The order for a defense, or the power plant that has to come first when there is no power for it."""
+        if not defense_cap.allows(item, REPLACE_RULE, world, ctx):
+            return []
         if not _can_power(item, world, ctx):
             return power_plant_when_free(world, ctx)
         self._replaced_at = world.tick
@@ -1282,6 +1404,11 @@ class Harvesters:
         self._parking = Parking()
         self._fresh_ore = FreshOre()
         self._room = FieldRoom()
+        # With `truck_shares_by_mines` on, the field each truck is assigned to and the shares of the active fields,
+        # in place of the room.
+        self._shares = truck_shares.TruckShares()
+        # With `truck_cap_by_shares` on, the free trucks the new refineries still bring.
+        self._free_trucks = truck_shares.FreeTrucks()
         # With `harvesters_first` on, whose turn the Vehicle queue's next item is (see `vehicle_turn`).
         self._turn = VehicleTurn()
         self._harvesters: list[Unit] = []
@@ -1299,14 +1426,16 @@ class Harvesters:
         harvesters = [unit for unit in world.units.values() if unit.type == HARVESTER]
         self._harvesters = harvesters
         new = self._room.note_cycle(harvesters, world)
+        self._free_trucks.note_cycle(harvesters, world)
+        if truck_shares.is_on(ctx):
+            new = self._shares.note_cycle(harvesters, world, ctx)
         parked = self._parking.orders(harvesters, world, ctx)
         # A harvester parking has just sent back to work is not told again while it gets going.
         self._sent_back_at.update(dict.fromkeys(parked.released, world.tick))
         moved, left_to_fresh_ore = self._to_fresh_ore(harvesters, parked.held | parked.released, world, ctx)
         self._room.pin(moved, ctx)
         busy = ctx.fleeing_harvesters | parked.held | left_to_fresh_ore
-        placed = self._room.send_new(harvesters, new, busy, world, ctx)
-        rebalanced = self._room.rebalance(harvesters, busy | parked.released | new, world, ctx)
+        placed, rebalanced = self._spread(harvesters, new, busy, parked.released, moved, world, ctx)
         sent = frozenset(unit for intent in (*placed, *rebalanced) for unit in intent.order["units"])
         self._sent_back_at.update(dict.fromkeys(sent, world.tick))
         back = self._back_to_work(harvesters, parked.held | left_to_fresh_ore | sent, world, ctx)
@@ -1314,15 +1443,73 @@ class Harvesters:
             self._fresh_ore.note_reorders((unit for intent in back for unit in intent.order["units"]), world, ctx)
         return [*self._one_more(world, ctx), *parked.intents, *moved, *placed, *rebalanced, *back]
 
+    def _spread(
+        self,
+        harvesters: list[Unit],
+        new: frozenset[int],
+        busy: frozenset[int],
+        released: frozenset[int],
+        moved: list[Intent],
+        world: World,
+        ctx: MatchContext,
+    ) -> tuple[list[Intent], list[Intent]]:
+        """The orders that send the new harvesters to a field and move one off a field over its share: by the truck
+        shares with `truck_shares_by_mines` on (`TruckShares`), the trucks the move to fresh ore sent assigned to
+        their new field, and those of a harvester crush run left alone as well; else by the room (`FieldRoom`)."""
+        if not truck_shares.is_on(ctx):
+            placed = self._room.send_new(harvesters, new, busy, world, ctx)
+            return placed, self._room.rebalance(harvesters, busy | released | new, world, ctx)
+        self._shares.pin(moved, ctx)
+        placed = self._shares.send_new(harvesters, new, busy, world, ctx)
+        kept = busy | released | new | frozenset(ctx.harvester_crush)
+        return placed, self._shares.rebalance(harvesters, kept, world, ctx)
+
     def is_due(self, world: World, ctx: MatchContext) -> bool:
         """Whether one more harvester is due: those standing or on their way are fewer than the target, a refinery and
         a war factory stand, the harvester is on offer and a served field has room for it (`FieldRoom.has_room`)."""
         production = ctx.production
         is_held = ctx.full_hold or _waits_for_scout_vehicle(ctx)
+        can_train = production.standing(WAR_FACTORY) > 0 and HARVESTER in world.available_production
+        if ctx.tuning.upkeep.truck_cap_by_shares and self._field_shares(world, ctx) is not None:
+            return can_train and self._is_short_of_shares(is_held, world, ctx)
         per_refinery = _HELD_HARVESTERS_PER_REFINERY if is_held else ctx.tuning.upkeep.harvesters_per_refinery
         is_below = harvesters_counted(ctx) < harvester_target(per_refinery, ctx)
-        can_train = production.standing(WAR_FACTORY) > 0 and HARVESTER in world.available_production
         return is_below and can_train and self._room.has_room(self._harvesters, world, ctx)
+
+    def _is_short_of_shares(self, is_held: bool, world: World, ctx: MatchContext) -> bool:
+        """With `truck_cap_by_shares` on, whether the trucks fall short of the active fields' shares: those standing,
+        in production and due free from a new refinery (`FreeTrucks`) are fewer than the shares together,
+        `harvesters_max` at the most (one a refinery under a full hold, when that is fewer), and a field, not dry, has
+        fewer trucks than its share, counting those assigned to it (or working it, by the room) and its refineries'
+        free ones. No field active, none is due."""
+        shares, counts = self._field_shares(world, ctx), self._field_counts(world, ctx)
+        pending = self._free_trucks.pending(world, ctx)
+        cap = truck_shares.cap(shares, ctx)
+        if is_held:
+            cap = min(cap, _HELD_HARVESTERS_PER_REFINERY * ctx.production.standing(REFINERY))
+        is_below = harvesters_counted(ctx) + sum(pending.values()) < cap
+        open_fields = [field for field in shares if field not in ctx.dry_fields]
+        return is_below and any(counts[field] + pending[field] < shares[field] for field in open_fields)
+
+    def _field_shares(self, world: World, ctx: MatchContext) -> Mapping[OrePatch, int] | None:
+        """The trucks each active field takes: its truck share with `truck_shares_by_mines` on; else its share of the
+        room (`harvester_room.field_share`) while the room is on; None with both off, when the harvester target
+        applies."""
+        if truck_shares.is_on(ctx):
+            return self._shares.field_shares
+        tuning = ctx.tuning.upkeep
+        if not tuning.harvester_cells_per:
+            return None
+        return {field: field_share(field, serving, tuning) for field, serving in serving_counts(world, ctx).items()}
+
+    def _field_counts(self, world: World, ctx: MatchContext) -> Counter[OrePatch]:
+        """The trucks each field has: those assigned to it with `truck_shares_by_mines` on; else those working it, as
+        the room counts them (its share less its room)."""
+        if truck_shares.is_on(ctx):
+            return self._shares.assigned_counts()
+        rooms = self._room.rooms(self._harvesters, world, ctx)
+        shares = self._field_shares(world, ctx)
+        return Counter({field: shares[field] - room for field, room in rooms.items()})
 
     def _to_fresh_ore(
         self, harvesters: list[Unit], parked: frozenset[int], world: World, ctx: MatchContext
@@ -1332,8 +1519,11 @@ class Harvesters:
         dry field that wait by their refinery. Nothing and none with it off."""
         if not ctx.tuning.upkeep.harvesters_to_fresh_ore:
             return [], frozenset()
-        room = self._room if ctx.tuning.upkeep.harvester_cells_per else None
-        moved = self._fresh_ore.orders(harvesters, ctx.fleeing_harvesters | parked, world, ctx, room)
+        if truck_shares.is_on(ctx):
+            shares, room = self._shares.field_shares, None
+        else:
+            shares, room = None, self._room if ctx.tuning.upkeep.harvester_cells_per else None
+        moved = self._fresh_ore.orders(harvesters, ctx.fleeing_harvesters | parked, world, ctx, room, shares)
         sent = frozenset(unit for intent in moved for unit in intent.order["units"])
         # A harvester sent to fresh ore is not told to harvest again while it drives there.
         self._sent_back_at.update(dict.fromkeys(sent, world.tick))
@@ -1388,8 +1578,9 @@ class Harvesters:
         if not to_send:
             return []
         self._sent_back_at.update(dict.fromkeys(to_send, world.tick))
-        # Without a cell: the harvester goes back to harvesting wherever it finds ore.
-        return [Intent(Priority.PRODUCTION, {"cmd": "harvest", "units": to_send})]
+        # Without a cell the harvester goes back to harvesting wherever it finds ore; one that works a field of its
+        # truck share is sent to that field's ore.
+        return truck_shares.harvest_orders(to_send, world, ctx, Priority.PRODUCTION)
 
     def _is_due(self, harvester_id: int, tick: int, tuning: UpkeepTuning) -> bool:
         """Whether a harvester has idled long enough to be sent back, and was not sent back a moment ago."""
@@ -1426,14 +1617,39 @@ class ProducerScaling:
         the money banked calls for (`_on_bank`). None while a full hold is in force."""
         self._is_opening_complete = self._is_opening_complete or _is_opening_over(ctx)
         self._bank.note(world, ctx.tuning)
-        if ctx.full_hold or not self._may_add(world, ctx):
+        if ctx.full_hold:
             return []
+        floating = self._on_float(world, ctx)
+        if floating or not self._may_add(world, ctx):
+            return floating
         if self._is_storage_factory_due(world, ctx) and self._load.allows(STORAGE_NEAR_CAP, world, ctx):
             return self._storage.orders(_build_within_power(WAR_FACTORY, world, ctx), world)
         producer = self._due(world, ctx)
         if producer is not None:
             return _producer_orders(producer, world, ctx)
         return self._on_bank(world, ctx)
+
+    def _on_float(self, world: World, ctx: MatchContext) -> list[Intent]:
+        """With no_float on, the producer floating cash calls for (see `bank_spending`), or the power plant it waits
+        for: once the money has floated, a refinery stands, the plan is past OPENING, no lost core building is saved
+        for, the Building queue is free and no producer is on its way; whatever the threat, the focus or the
+        recovery."""
+        production = ctx.production
+        if not self._bank.is_floating(world, ctx.tuning) or ctx.plan == OPENING or not production.standing(REFINERY):
+            return []
+        is_producer_on_its_way = any(production.pending(item) for item in _PRODUCERS)
+        if is_producer_on_its_way or not production.is_queue_free(BUILDING_QUEUE):
+            return []
+        producer = float_producer(world, ctx)
+        if producer is None or self._core.saved_for(world, ctx) is not None:
+            return []
+        if is_new_yard_claim(ctx) and not production.pending(REFINERY):
+            # The money floats toward the new yard's refinery, which comes first.
+            return []
+        if ctx.tuning.placement.refinery_small_fields and self._refineries.has_unserved_place(world, ctx):
+            # And toward a refinery for an unserved field our base reaches.
+            return []
+        return self._bank.float_orders(_build_within_power(producer, world, ctx), world)
 
     def _is_storage_factory_due(self, world: World, ctx: MatchContext) -> bool:
         """Whether one more war factory is due on the ore near the storage cap: one is on offer, fewer than
@@ -1510,6 +1726,23 @@ class ProducerScaling:
         is_quiet = self._is_opening_complete and ctx.plan != OPENING and not ctx.threat_active
         is_saving = self._core.saved_for(world, ctx) is not None
         return is_quiet and not is_saving and not is_producer_on_its_way and production.is_queue_free(BUILDING_QUEUE)
+
+
+def float_producer(world: World, ctx: MatchContext) -> str | None:
+    """The producer floating cash buys: a barracks or a war factory, the one whose unit queue was the busier (the
+    barracks on a tie), up to max_infantry_producers and max_war_factories, on offer; the other when that one is at its
+    most; None when both are."""
+    tuning, production, income = ctx.tuning.producers, ctx.production, ctx.income
+    barracks = FAMILIES[world.family].barracks
+    planned_barracks = sum(production.planned(item) for item in BARRACKS_TYPES)
+    can_barracks = barracks in world.available_production and planned_barracks < tuning.max_infantry_producers
+    can_factory = _has_war_factory_room(world, ctx)
+    is_vehicle_busier = income.utilization(VEHICLE_QUEUE) > income.utilization(INFANTRY_QUEUE)
+    ranked = [(WAR_FACTORY, can_factory), (barracks, can_barracks)]
+    for item, can in ranked if is_vehicle_busier else ranked[::-1]:
+        if can:
+            return item
+    return None
 
 
 def _producer_orders(producer: str, world: World, ctx: MatchContext) -> list[Intent]:
@@ -1657,11 +1890,16 @@ class UnitQueues:
         self._full_hold = full_hold
         # Whether the ore is near the storage cap, which lifts these holds; upkeep notes it at the start of every cycle.
         self._storage = storage
+        # With `counter_quota` on, the counter units filled first on each unit queue (see `counter_units`).
+        self._counters = CounterFill()
 
     def intents(self, world: World, ctx: MatchContext) -> list[Intent]:
         """The training orders for the next item of each unit queue that has room and is not claimed; then, with the
         Vehicle queue still free, the harvester a combat vehicle's turn held back (`Harvesters.after_combat`)."""
-        orders = self._unit_orders(world, ctx)
+        # While the canary alarm is in force the money goes to defenses: no unit is trained here (see `canary_alarm`),
+        # but once the defense cap is full, when it goes to the army (see `defense_cap`).
+        is_held = ctx.canary_alarm and not defense_cap.is_full(world, ctx)
+        orders = [] if is_held else self._unit_orders(world, ctx)
         return [*orders, *self._harvesters.after_combat(world, ctx)]
 
     def _unit_orders(self, world: World, ctx: MatchContext) -> list[Intent]:
@@ -1669,12 +1907,13 @@ class UnitQueues:
         is_saving = self._core.saved_for(world, ctx) is not None or self._refineries.is_saving(world, ctx)
         is_saving = is_saving or self._depot.is_saving(world, ctx)
         if ctx.plan == OPENING:
-            return []
+            return self._counters.on_approach(world, ctx, UpkeepManager.name)
         # The hold is looked after in every cycle, so that it ends on time whatever else keeps the queues waiting.
         is_held = self._is_held_for_economy(world, ctx)
         if is_saving or is_held or ctx.full_hold:
-            return []
-        made = _unit_production(world, ctx)
+            # An enemy army marching on the base is answered before what the money was held for (see `counter_units`).
+            return self._counters.on_approach(world, ctx, UpkeepManager.name)
+        made = _unit_production(world, ctx, self._counters)
         vehicle_room = self._fill.room(world, ctx)
         wanted = self._wanted_after_harvester(made.composition, vehicle_room, world, ctx)
         budget = _unit_budget(world, ctx) - self._refineries.growth_set_aside(world, ctx)
@@ -1725,7 +1964,9 @@ class UnitQueues:
 
         has_place = self._refineries.has_place(world, ctx)
         due = _economy_items_due(world, ctx, self._refineries.is_growth_due, has_place)
-        return self._hold.holds(due, is_on_its_way, world.tick, ctx.tuning.upkeep)
+        # A hold for the new yard's refinery lasts until it is ordered: at a low income 20 s never covered it.
+        untimed = frozenset({REFINERY}) if is_new_yard_claim(ctx) and has_place else frozenset()
+        return self._hold.holds(due, is_on_its_way, world.tick, ctx.tuning.upkeep, untimed=untimed)
 
 
 def _economy_items_due(
@@ -1747,12 +1988,21 @@ def _economy_items_due(
 
 
 def _claim_refinery_due(world: World, ctx: MatchContext, has_place: bool) -> EconomyItem | None:
-    """The refinery a refinery claim calls for, while one is due, it `has_place` to go and no refinery is on its way."""
+    """The refinery a refinery claim calls for, while one is due, it `has_place` to go, no refinery is on its way and
+    the spending focus is not military."""
     production = ctx.production
-    is_due = ctx.refinery_claim_due and has_place
+    # The new yard's refinery is the expansion's own, not a new investment: the military focus holds it back no more.
+    is_due = ctx.refinery_claim_due and has_place and (not is_military(ctx) or is_new_yard_claim(ctx))
     if not is_due or REFINERY not in world.available_production or production.pending(REFINERY):
         return None
     return EconomyItem(REFINERY, _is_money_for(REFINERY, world, ctx))
+
+
+def is_new_yard_claim(ctx: MatchContext) -> bool:
+    """Whether the refinery a new yard claims comes first (`new_yard_refinery_first` of [expansion]): a claim that
+    lasts until its refinery stands is in force."""
+    tuning = ctx.tuning.expansion
+    return tuning.new_yard_refinery_first and new_yard_refinery.is_on(ctx) and ctx.new_yard_field is not None
 
 
 def _war_factory_due_but_money(world: World, ctx: MatchContext) -> EconomyItem | None:
@@ -1782,9 +2032,24 @@ class _UnitProduction(NamedTuple):
     vehicles_first: bool
 
 
-def _unit_production(world: World, ctx: MatchContext) -> _UnitProduction:
-    """What the unit queues make under the plan in force: the plan's composition, infantry `infantry_at_a_time` at a
-    time, and the queue behind on spending first.
+def _unit_production(world: World, ctx: MatchContext, counters: CounterFill) -> _UnitProduction:
+    """What the unit queues make under the plan in force (`_mix_production`), with the counter quota's shortfall first
+    on each queue the plan feeds (see `counter_units`): a counter infantry item as many at a time as the army is short
+    of, `infantry_at_a_time` at the most."""
+    produces = ctx.composition(ctx.plan, world.family, world)
+    made = _mix_production(produces, world, ctx)
+    first = counters.first(produces, made.composition, world, ctx, _holds_army_infantry(produces, ctx))
+    # The military focus's artillery goes ahead of the counter quota's vehicle as of the mix's (see `spending_focus`).
+    composition = artillery_first(first.composition, world, ctx)
+    if first.infantry_short is None:
+        return made._replace(composition=composition)
+    most = min(ctx.tuning.upkeep.infantry_at_a_time, first.infantry_short)
+    return made._replace(composition=composition, infantry_most=most)
+
+
+def _mix_production(produces: Composition, world: World, ctx: MatchContext) -> _UnitProduction:
+    """What the unit queues make of the plan's composition `produces`: infantry `infantry_at_a_time` at a time, and
+    the queue behind on spending first.
 
     While `no_army_infantry` holds the army's infantry back, the Infantry
     queue makes no rifles: rocket soldiers up to `rockets_kept` in main, the
@@ -1793,7 +2058,6 @@ def _unit_production(world: World, ctx: MatchContext) -> _UnitProduction:
     first, so that the vehicles never have less of the budget than without the
     switch.
     """
-    produces = ctx.composition(ctx.plan, world.family, world)
     at_a_time = ctx.tuning.upkeep.infantry_at_a_time
     if not _holds_army_infantry(produces, ctx):
         return _UnitProduction(produces, at_a_time, vehicles_first=False)
@@ -1911,7 +2175,8 @@ def _unit_budget(world: World, ctx: MatchContext) -> int:
     Set aside is what the cycle's orders for power plants, for the base's
     emergency, for new barracks and war factories and for the second yard's
     MCV will cost. In the last
-    minutes of a match no building is saved for, and the reserve is waived.
+    minutes of a match no building is saved for, and the reserve is waived. While the endgame lead is kept, the price
+    of its next defense is left over as well (`clock.lead_reserve`).
     """
     production = ctx.production
     reserve = 0 if clock.is_spending(world, ctx) else ctx.tuning.upkeep.production_cash_reserve
@@ -1920,7 +2185,7 @@ def _unit_budget(world: World, ctx: MatchContext) -> int:
         for proposal in production.proposed()
         if proposal.item in _SET_ASIDE or proposal.priority == Priority.EMERGENCY
     )
-    return world.economy.spendable - reserve - set_aside
+    return world.economy.spendable - reserve - set_aside - clock.lead_reserve(world, ctx)
 
 
 def _first_to_feed(made: _UnitProduction, infantry: str, budget: int, ctx: MatchContext) -> str:
@@ -2120,12 +2385,21 @@ class MoreRefineries:
         # (`waits_unserved`); None while none may.
         self._unserved = refinery_fields.UnservedPlaces()
         self._unserved_field: OrePatch | None = None
+        # With `new_yard_refinery_until_standing` on: the place of the refinery a new yard claims, and the tick it was
+        # last asked onto a place (None before), until which it may not show yet.
+        self._claimed = ClaimedSpots()
+        self._claim_asked_at: int | None = None
+        # The tick it was last written why the new yard's refinery waits; None before.
+        self._claim_waiting_logged_at: int | None = None
 
     def intents(self, world: World, ctx: MatchContext) -> list[Intent]:
-        """The order for one more refinery, or for the power plant it cannot do without, when one is due."""
+        """The order for one more refinery, or for the power plant it cannot do without, when one is due; none under the
+        military focus."""
         production = ctx.production
         is_free = production.is_queue_free(BUILDING_QUEUE) and not _is_power_plant_needed(world, ctx)
         if not self._is_past_opening(ctx) or not is_free or REFINERY not in world.available_production:
+            return []
+        if is_military(ctx):
             return []
         if self.waits_unserved(world, ctx):
             return []
@@ -2149,7 +2423,8 @@ class MoreRefineries:
         refinery can stand against now) and for which field, and whether the unit queues save for it (`_GrowthSaving`):
         never in the last minutes of the match (`_is_last_minutes`), when a saving in force ends without a word.
         """
-        self._growth_field = self._field_now(world, ctx) if _may_grow(world, ctx) else None
+        may_grow = _may_grow(world, ctx) and not is_military(ctx)
+        self._growth_field = self._field_now(world, ctx) if may_grow else None
         is_covered = _is_money_for(REFINERY, world, ctx)
         # The saving is looked at as if no refinery were due, so that one in force ends and none starts.
         saved_for = None if _is_last_minutes(world, ctx) else self._growth_field
@@ -2171,8 +2446,49 @@ class MoreRefineries:
     def has_place(self, world: World, ctx: MatchContext) -> bool:
         """Whether one more refinery has a place to go: always with `refinery_unserved_only` off and for an opening
         refinery; with it on, while `refinery_fields` gives one, an unserved field's or a second refinery's
-        (`waits_unserved`)."""
+        (`waits_unserved`). While a new yard's claim lasts until its refinery stands, whether its field has a place
+        (`claimed_spot`)."""
+        if new_yard_refinery.is_on(ctx) and ctx.new_yard_field is not None:
+            return self.claimed_spot(world, ctx, ctx.promised_places, ctx.refused_places) is not None
         return not self.waits_unserved(world, ctx)
+
+    def has_unserved_place(self, world: World, ctx: MatchContext) -> bool:
+        """Whether a refinery would go against an unserved field now (`refinery_fields`), none being on its way and
+        the refinery caps leaving room for it."""
+        if not refinery_fields.is_on(ctx) or ctx.production.pending(REFINERY) or not _has_refinery_room(world, ctx):
+            return False
+        choice = self._unserved.placed(world, ctx)
+        return choice is not None and choice.field is not None and choice.field.rule == refinery_fields.FIELD_UNSERVED
+
+    def claimed_spot(
+        self, world: World, ctx: MatchContext, promised: Iterable[Box], refused: Sequence[placement.RefusedPlace]
+    ) -> placement.PlacementChoice | None:
+        """The place of the refinery a new yard claims, off the `promised` and `refused` places (see
+        `new_yard_refinery`); None without one."""
+        return self._claimed.spot(world, ctx, promised, refused)
+
+    def note_claim_asked(self, tick: int) -> None:
+        """Note that the refinery a new yard claims was asked onto its place at a tick."""
+        self._claim_asked_at = tick
+
+    def for_claimed_field(self, world: World, ctx: MatchContext) -> list[Intent]:
+        """With `new_yard_refinery_until_standing` on, the order for the refinery a new yard claims, or for the power
+        plant it cannot do without, as `for_new_yard` gives it, but only while its field has a place placement would
+        use (`claimed_spot`) and no refinery is on its way, nor was asked onto a place within `promise_ticks` and may
+        not show yet. A refinery so ordered is on order for the claimed field, with the rule `new_yard`."""
+        production = ctx.production
+        is_free = production.is_queue_free(BUILDING_QUEUE) and not _is_power_plant_needed(world, ctx)
+        if not is_free or REFINERY not in world.available_production or not _is_money_for(REFINERY, world, ctx):
+            self._log_claim_waiting(is_free, world, ctx)
+            return []
+        asked_at, promise = self._claim_asked_at, ctx.tuning.placement.promise_ticks
+        is_showing_soon = asked_at is not None and world.tick - asked_at < promise
+        if production.pending(REFINERY) or is_showing_soon or not self.has_place(world, ctx):
+            return []
+        orders = _build_within_power(REFINERY, world, ctx)
+        if any(proposal.item == REFINERY for proposal in production.proposed()):
+            self._on_order = _OnOrder(ctx.new_yard_field, NEW_YARD_RULE)
+        return orders
 
     def _field_now(self, world: World, ctx: MatchContext) -> OrePatch | None:
         """The field one more refinery would be for now: with `refinery_unserved_only` on the one `refinery_fields`
@@ -2190,8 +2506,8 @@ class MoreRefineries:
         """The order for a refinery for the untaken field nearest a yard that one can stand against now
         (`_UntakenField`), or for the power plant it cannot do without, when the refinery rules' caps leave room for
         one more (`_has_refinery_room`); none else. While the asked fields are kept, the refinery ordered has its
-        field remembered as on order, so that it is placed against that field."""
-        if not _has_refinery_room(world, ctx):
+        field remembered as on order, so that it is placed against that field. None under the military focus."""
+        if not _has_refinery_room(world, ctx) or is_military(ctx):
             return []
         field = self._field_now(world, ctx)
         if field is None:
@@ -2202,14 +2518,34 @@ class MoreRefineries:
             self._on_order = _OnOrder(field, placement.FIELD_SPREAD)
         return orders
 
+    def _log_claim_waiting(self, is_free: bool, world: World, ctx: MatchContext) -> None:
+        """With new_yard_refinery_first on, write why the new yard's refinery is not ordered in this cycle, as a
+        `refinery_field` event of reason `new_yard_waiting`, at most once every CLAIM_WAITING_SECONDS."""
+        last = self._claim_waiting_logged_at
+        if not is_new_yard_claim(ctx) or (last is not None and world.tick - last < CLAIM_WAITING_TICKS):
+            return
+        self._claim_waiting_logged_at = world.tick
+        data = {
+            "tick": world.tick,
+            "reason": NEW_YARD_WAITING,
+            "queue_free": is_free,
+            "on_offer": REFINERY in world.available_production,
+            "money": world.economy.spendable,
+            "needed": ctx.production.cost(REFINERY) + ctx.tuning.upkeep.production_cash_reserve,
+            "field_center": list(ctx.new_yard_field.center),
+        }
+        records.log(REFINERY_FIELD_EVENT, data)
+
     def for_new_yard(self, world: World, ctx: MatchContext) -> list[Intent]:
         """The order for the refinery claimed for a new yard's field (`ctx.new_yard_field`), or for the power plant it
         cannot do without, once the Building queue is free, no power plant is needed first and the money covers it and
         the production reserve; none else. A refinery so ordered is on order for that field, with the rule
-        `new_yard`."""
+        `new_yard`. None under the military focus, while the claim waits."""
         production = ctx.production
         is_free = production.is_queue_free(BUILDING_QUEUE) and not _is_power_plant_needed(world, ctx)
         if not is_free or REFINERY not in world.available_production or not _is_money_for(REFINERY, world, ctx):
+            return []
+        if is_military(ctx):
             return []
         if self.waits_unserved(world, ctx):
             return []
@@ -2313,7 +2649,8 @@ class MoreRefineries:
         is_in_time = world.game_seconds >= tuning.refinery_saving_from_seconds and not clock.is_spending(world, ctx)
         if not self._is_past_opening(ctx) or not is_third_missing or not is_in_time:
             return False
-        is_called_for = REFINERY in world.available_production and _is_income_short(world, ctx)
+        is_offered = REFINERY in world.available_production and not is_military(ctx)
+        is_called_for = is_offered and _is_income_short(world, ctx)
         return (production.pending(REFINERY) > 0 or is_called_for) and not _is_money_for(REFINERY, world, ctx)
 
     def is_called_for(self, world: World, ctx: MatchContext) -> bool:
@@ -2733,8 +3070,17 @@ def _repair_wanted(building: Building, money: int, tuning: UpkeepTuning) -> bool
     if building.repairing:
         is_done = building.hp > tuning.repair_stop_above_hp or money < tuning.repair_stop_below_cash
         return False if is_done else None
-    is_needed = building.hp < tuning.repair_below_hp and money >= tuning.repair_min_cash
+    is_needed = building.hp < _repair_on_below(building, tuning) and money >= tuning.repair_min_cash
     return True if is_needed else None
+
+
+def _repair_on_below(building: Building, tuning: UpkeepTuning) -> int:
+    """The hp below which a building's repair is switched on: with repair_defenses_early on, a defense's below
+    repair_stop_above_hp, where its repair stops; repair_below_hp for any other. A defense takes its damage a little at
+    a time on the front of the base, and one kept above repair_below_hp was never repaired."""
+    if tuning.repair_defenses_early and building.type in DEFENSE_TYPES:
+        return tuning.repair_stop_above_hp
+    return tuning.repair_below_hp
 
 
 class Rally:
@@ -2747,7 +3093,7 @@ class Rally:
 
     def intents(self, world: World, ctx: MatchContext) -> list[Intent]:
         """A `rally` for each producing building whose rally point is not yet where main gathers."""
-        point = ctx.gather_point or cells.staging_point(world, ctx.tuning.upkeep.staging_distance_cells)
+        point = ctx.gather_point or safe_staging.staging_point(world, ctx.tuning, ctx)
         if point is None:
             return []
         due = [
@@ -2874,6 +3220,8 @@ class UpkeepManager:
         # Whether the ore has stayed near the storage cap (see `bank_spending`), noted once a cycle before any rule.
         self._storage = StorageWatch()
         self._harvesters = Harvesters()
+        # The spending focus, decided at the start of every cycle before any rule reads it (see `spending_focus`).
+        self._focus = SpendingFocus()
         # An air attack on a remote base is answered ahead of every other rule (see `remote_air`).
         remote_air = RemoteBaseAntiAir(_build_within_power, defense_within_power)
         self._placement = Placement(refineries, coils, self._far_field, self._walks, self._forward, remote_air)
@@ -2890,8 +3238,14 @@ class UpkeepManager:
             PowerPlants(),
             NewYardRefinery(refineries, self._forward),
             core,
+            # The endgame lead's defenses go before every other spending (see `clock`).
+            clock.EndgameLeadDefense(defense_within_power),
             clock.EndgameSpend(),
             Defenses(),
+            # The flame tower the Soviet counter quota's flamethrowers wait for (see `counter_units`).
+            _HeldByFullHold(FlameTowerForCounters()),
+            # The military focus's defenses toward the enemy (see `spending_focus`).
+            _HeldByFullHold(FocusDefenses(defense_within_power)),
             _HeldByFullHold(clock.PreserveDefense(defense_within_power)),
             _HeldByFullHold(AntiAirDefenses(core, remote_air)),
             _HeldByFullHold(coils),
@@ -2929,11 +3283,12 @@ class UpkeepManager:
         }
 
     def intents(self, world: World, ctx: MatchContext) -> list[Intent]:
-        """The field reserved for the MCV's site and that site, the fields refineries were asked against, the creep
-        target, the claim fields, a new yard's field, the fields own harvesters last harvested and the dry ones, a
-        further MCV's site and the full hold published for this cycle, and whether a growth refinery is due and whether
-        the ore is near the storage cap decided, then the orders of all the rules, in the order of the rules.
+        """The spending focus decided; the field reserved for the MCV's site and that site, the fields refineries were
+        asked against, the creep target, the claim fields, a new yard's field, the fields own harvesters last harvested
+        and the dry ones, a further MCV's site and the full hold published for this cycle, and whether a growth refinery
+        is due and whether the ore is near the storage cap decided, then the orders of all the rules, in their order.
         """
+        self._focus.decide(world, ctx)
         self._storage.note(world, ctx.tuning)
         self._forward.note_deploys(world, ctx)
         ctx.reserved_field = self._forward.reserved_field(world, ctx)
@@ -2947,7 +3302,15 @@ class UpkeepManager:
         self._refineries.decide_growth(world, ctx)
         is_mcv_ahead = is_mcv_first(ctx) or is_due_by_time
         rules = self._orders[(is_mcv_ahead, self._refineries.is_growth_due)]
-        orders = [intent for rule in rules for intent in rule.intents(world, ctx)]
+        # While the canary alarm is in force no unit but a harvester owed and no optional building is ordered; with
+        # the defense cap full its money goes to the army (see `defense_cap`): the units are not held.
+        proposed = [intent for rule in rules for intent in rule.intents(world, ctx)]
+        if ctx.canary_alarm and defense_cap.is_full(world, ctx):
+            trains = [intent for intent in proposed if intent.order.get("cmd") == "train"]
+            others = [intent for intent in proposed if intent.order.get("cmd") != "train"]
+            orders = [*trains, *held_by_alarm(others, ctx)]
+        else:
+            orders = held_by_alarm(proposed, ctx)
         if is_mcv_ahead:
             self._full_hold.settle(ctx.production.pending(MCV) > 0, world.tick)
         return orders
@@ -2972,9 +3335,14 @@ class UpkeepManager:
             self._far_field.drop(placement.taken_fields(world, ctx.terrain, tuning, ctx.asked_refinery_fields))
         # The field reserved for the MCV's site is no claim field while it is reserved, and one again after.
         ctx.claim_fields = [field for field in self._far_field.claim_fields if field != ctx.reserved_field]
+        # A claim that lasts until its refinery stands is due whatever the refinery caps say.
+        until_standing = new_yard_refinery.is_on(ctx)
         has_claim_room = ctx.production.planned(REFINERY) < ctx.tuning.upkeep.claim_refineries_max
-        ctx.new_yard_field = self._forward.new_yard_field(world, ctx) if has_claim_room else None
-        ctx.refinery_claim_due = _is_claim_due(ctx) and not self._refineries.waits_unserved(world, ctx)
+        ctx.new_yard_field = self._forward.new_yard_field(world, ctx) if has_claim_room or until_standing else None
+        ctx.new_yard_cell = self._forward.new_yard_cell(world) if until_standing else None
+        is_claim_held = until_standing and ctx.new_yard_field is not None
+        is_other_claim_due = _is_claim_due(ctx) and not self._refineries.waits_unserved(world, ctx)
+        ctx.refinery_claim_due = is_claim_held or is_other_claim_due
 
     def _decide_full_hold(self, world: World, ctx: MatchContext, is_due_by_time: bool) -> None:
         """With `mcv_first` on, or while the second MCV `is_due_by_time` (see `expansion`), publish whether the second

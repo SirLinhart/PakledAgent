@@ -76,6 +76,27 @@ the same, so light tanks come only through it.
 forward under each plan: more than any army is worth under the plans that do
 not attack, so that it never does.
 
+With `counter_quota` on, a fixed table turns the enemy army seen into
+counter-unit quotas (`counter_quota`), which the unit queues fill before the
+mix's pick (see `counter_units`). It counts the remembered enemy units that
+fight, last seen within `counter_seen_seconds` and not known destroyed, by
+unit: R rocket soldiers, N other infantry and T tanks, aircraft left out
+(they are anti_air's). While the enemy is infantry-heavy, R + N at least
+`anti_infantry_min_infantry` and at least `anti_infantry_enemy_share` of the
+units counted (`is_enemy_infantry_heavy`), ceil(R / `anti_infantry_per_rockets`)
++ ceil(N / `anti_infantry_per_infantry`) anti-infantry units are wanted: the
+family's artillery while it is on offer and the row in force gives it points;
+else for the Soviets flamethrowers, never grenadiers, which wait for a flame
+tower while none puts them on offer; else for the Allies riflemen and, once a
+war factory stands and the jeep is on offer, half of them, rounded down, as
+Ranger jeeps (with `counter_prefer_jeeps` on, half rounded up). And while T is
+4 or more, ceil(T / `anti_armor_per_tanks`) rocket soldiers are wanted against
+the armor. Counting from the last two minutes alone lets the quota drift back
+as the enemy army changes. With `counter_on_approach` on, while the approach
+alarm is in force (see `approach_alarm`), approach_min_infantry of
+`[base_defense]` infantry is enough, when fewer than
+`anti_infantry_min_infantry`, for the enemy to count as infantry-heavy.
+
 Which plan is in force is the plan selector's to say (see `plans`).
 """
 
@@ -84,7 +105,7 @@ from __future__ import annotations
 import math
 from collections import Counter
 from dataclasses import dataclass, field
-from typing import Callable, Mapping
+from typing import TYPE_CHECKING, Callable, Mapping
 
 from ucla_agent.games.redalert.anti_air import AirWatch, is_air_threat, rocket_squads_wanted
 from ucla_agent.games.redalert.family import (
@@ -114,6 +135,10 @@ from ucla_agent.games.redalert.tuning import (
     PlanRulesTuning,
 )
 from ucla_agent.games.redalert.world import World
+
+if TYPE_CHECKING:
+    # The match context holds the composition table, so the table's module names its type only for the annotation.
+    from ucla_agent.games.redalert.managers import MatchContext
 
 OPENING = "OPENING"
 HOLD = "HOLD"
@@ -173,6 +198,22 @@ _RAID_INFANTRY = frozenset({_GRENADIER, ROCKET_INFANTRY})
 FLAMETHROWER = "e4"
 # How far back the enemy units seen count toward the infantry counter: the army the enemy fields now, not the opening's.
 _INFANTRY_SEEN_SECONDS = 120
+# The production queue of the aircraft, which the enemy units weighed on the ground leave out.
+AIRCRAFT_QUEUE = "Aircraft"
+# The counter quota's table. The enemy tanks it counts, and the infantry it counts that the item table may not know.
+COUNTED_TANKS = frozenset({"1tnk", "2tnk", "3tnk", "4tnk", "ttnk", "ctnk"})
+_NAMED_INFANTRY = frozenset({RIFLE_INFANTRY, _GRENADIER, FLAMETHROWER, "shok", "dog"})
+# The fewest enemy tanks that call for the anti-armor quota: a tank or two is the army's to fight.
+COUNTER_MIN_TANKS = 4
+# The Allied anti-infantry counter: riflemen, and once a war factory stands one jeep for every two wanted.
+COUNTER_JEEP = "jeep"
+_WANTED_PER_JEEP = 2
+# With anti_artillery_quota on: the enemy artillery counted, and the fast units each family hunts it with, the first on
+# offer, so many for each piece seen: artillery shells defenses and slow infantry from beyond their reach, and dies to
+# a tank that closes on it.
+ENEMY_ARTILLERY = frozenset({"arty", "v2rl"})
+ARTILLERY_HUNTERS = {ALLIES: ("1tnk", COUNTER_JEEP), SOVIET: ("3tnk",)}
+HUNTERS_PER_ARTILLERY = 2
 
 # How many units of a type count toward the raid quota: called as `raid_units(world, unit_type)`.
 RaidUnits = Callable[[World, str], int]
@@ -322,6 +363,116 @@ def is_infantry_heavy(world: World, share: float) -> bool:
         seen += 1
         infantry += facts.queue == INFANTRY_QUEUE
     return seen > 0 and infantry >= share * seen
+
+
+@dataclass(frozen=True)
+class EnemyCounted:
+    """The enemy units the counter quota counts, seen within `counter_seen_seconds`: rocket soldiers, other infantry
+    and tanks, and every unit that fights on the ground counted."""
+
+    rockets: int = 0
+    infantry: int = 0
+    tanks: int = 0
+    units: int = 0
+
+
+def enemy_counted(world: World, tuning: CompositionTuning) -> EnemyCounted:
+    """The remembered enemy units that fight on the ground, last seen within `counter_seen_seconds`, by count."""
+    since = world.tick - tuning.counter_seen_seconds * TICKS_PER_SECOND
+    rockets = infantry = tanks = units = 0
+    for record in world.enemy_memory.values():
+        if not is_combat_unit(record) or record.last_seen_tick < since:
+            continue
+        facts = world.items.get(record.type)
+        is_infantry = record.type in _NAMED_INFANTRY or (facts is not None and facts.queue == INFANTRY_QUEUE)
+        if not is_infantry and (facts is None or facts.queue == AIRCRAFT_QUEUE):
+            continue
+        units += 1
+        rockets += record.type == ROCKET_INFANTRY
+        infantry += is_infantry and record.type != ROCKET_INFANTRY
+        tanks += record.type in COUNTED_TANKS
+    return EnemyCounted(rockets, infantry, tanks, units)
+
+
+def is_enemy_infantry_heavy(world: World, tuning: CompositionTuning) -> bool:
+    """Whether the enemy army counted (`enemy_counted`) is infantry-heavy: its infantry at least
+    `anti_infantry_min_infantry` and at least `anti_infantry_enemy_share` of the units counted."""
+    return _is_heavy(enemy_counted(world, tuning), tuning)
+
+
+def _is_heavy(counted: EnemyCounted, tuning: CompositionTuning, min_infantry: int | None = None) -> bool:
+    """Whether the enemy counted is infantry-heavy: at least `min_infantry` infantry, anti_infantry_min_infantry when
+    none is given, and at least anti_infantry_enemy_share of the units counted."""
+    all_infantry = counted.rockets + counted.infantry
+    is_many = all_infantry >= (tuning.anti_infantry_min_infantry if min_infantry is None else min_infantry)
+    return is_many and all_infantry >= tuning.anti_infantry_enemy_share * counted.units
+
+
+@dataclass(frozen=True)
+class CounterQuota:
+    """The counter units wanted against the enemy counted, by item, the anti-infantry ones first."""
+
+    counted: EnemyCounted
+    wanted: Mapping[str, int]
+
+
+def counter_quota(family: str, world: World, ctx: MatchContext) -> CounterQuota:
+    """The counter units a family wants against the enemy units seen lately (see the module's note); none with
+    `counter_quota` off."""
+    tuning = ctx.tuning.composition
+    if not tuning.counter_quota:
+        return CounterQuota(EnemyCounted(), {})
+    counted = enemy_counted(world, tuning)
+    wanted: dict[str, int] = {}
+    if _is_heavy(counted, tuning, _min_infantry(ctx)):
+        anti_infantry = math.ceil(counted.rockets / tuning.anti_infantry_per_rockets)
+        anti_infantry += math.ceil(counted.infantry / tuning.anti_infantry_per_infantry)
+        wanted.update(_anti_infantry(anti_infantry, family, world, ctx))
+    if counted.tanks >= COUNTER_MIN_TANKS:
+        wanted[ROCKET_INFANTRY] = math.ceil(counted.tanks / tuning.anti_armor_per_tanks)
+    if tuning.anti_artillery_quota:
+        wanted.update(_artillery_hunters(family, world, tuning))
+    return CounterQuota(counted, wanted)
+
+
+def _artillery_hunters(family: str, world: World, tuning: CompositionTuning) -> dict[str, int]:
+    """HUNTERS_PER_ARTILLERY of the family's first artillery hunter on offer (ARTILLERY_HUNTERS) for each enemy
+    artillery piece or V2 remembered and seen within counter_seen_seconds; none while none was, or none is on offer."""
+    since = world.tick - tuning.counter_seen_seconds * TICKS_PER_SECOND
+    pieces = sum(
+        1
+        for record in world.enemy_memory.values()
+        if record.type in ENEMY_ARTILLERY and not record.is_building and record.last_seen_tick >= since
+    )
+    hunter = next((item for item in ARTILLERY_HUNTERS[family] if item in world.available_production), None)
+    return {hunter: HUNTERS_PER_ARTILLERY * pieces} if pieces and hunter is not None else {}
+
+
+def _min_infantry(ctx: MatchContext) -> int:
+    """The least enemy infantry the quota counts as infantry-heavy: anti_infantry_min_infantry, and with
+    counter_on_approach on, while the approach alarm is in force, approach_min_infantry of [base_defense] when fewer:
+    the group marching on the base is answered before it is a horde."""
+    tuning = ctx.tuning
+    least = tuning.composition.anti_infantry_min_infantry
+    if tuning.composition.counter_on_approach and ctx.approach_alarm:
+        return min(least, tuning.base_defense.approach_min_infantry)
+    return least
+
+
+def _anti_infantry(wanted: int, family: str, world: World, ctx: MatchContext) -> dict[str, int]:
+    """The anti-infantry units of a family, `wanted` of them: its artillery while it is in production, else the
+    Soviet flamethrowers, else the Allied jeeps (once a war factory stands) and riflemen."""
+    artillery = _COUNTERS[family].artillery
+    is_in_row = ctx.army_mix.points(family, world)[VEHICLE_QUEUE].get(artillery, 0) > 0
+    if artillery in world.available_production and is_in_row:
+        return {artillery: wanted}
+    if family == SOVIET:
+        return {FLAMETHROWER: wanted}
+    has_jeeps = _stands(world, WAR_FACTORY) and COUNTER_JEEP in world.available_production
+    # With counter_prefer_jeeps on the jeeps take the larger half: a jeep outruns and outguns rifles.
+    halved = wanted // _WANTED_PER_JEEP
+    jeeps = (wanted - halved if ctx.tuning.composition.counter_prefer_jeeps else halved) if has_jeeps else 0
+    return {COUNTER_JEEP: jeeps, RIFLE_INFANTRY: wanted - jeeps} if jeeps else {RIFLE_INFANTRY: wanted}
 
 
 def _counter_infantry(points: _Points, world: World, tuning: CompositionTuning, max_share: int) -> None:

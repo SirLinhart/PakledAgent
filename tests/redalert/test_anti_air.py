@@ -9,6 +9,7 @@ import pytest
 
 import situations
 from situations import REPO_ROOT, OpeningThen, ask, base_state, job, new_agent, own_agent, tracked_items, with_command
+from switches_off import UPKEEP_OFF
 from ucla_agent.core import records
 from ucla_agent.games.redalert import cells
 from ucla_agent.games.redalert.agent import RedAlertAgent
@@ -263,10 +264,16 @@ def remote_base(
     return state
 
 
+# The truck cap by field shares off (see `switches_off.UPKEEP_OFF`): the remote base's scene shows no ore field, so with
+# the cap on no truck is ever due, the Vehicle queue is not kept for one (`harvesters_first`) and main's tanks fill it,
+# where the squad's tests were worked out with a truck due and the rockets alone trained.
+REMOTE_UPKEEP = replace(Tuning().upkeep, truck_cap_by_shares=UPKEEP_OFF["truck_cap_by_shares"])
+
+
 def remote_agent(**anti_air) -> RedAlertAgent:
     """An agent that plays with the upkeep manager alone, the remote base answer as the tuning file ships it unless
-    told otherwise."""
-    tuning = Tuning(anti_air=replace(AntiAirTuning(), **anti_air))
+    told otherwise, and the truck cap by field shares off."""
+    tuning = Tuning(anti_air=replace(AntiAirTuning(), **anti_air), upkeep=REMOTE_UPKEEP)
     return new_agent(UpkeepManager(), plan_selector=OpeningThen(HOLD), tuning=tuning)
 
 

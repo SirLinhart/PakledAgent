@@ -746,7 +746,8 @@ def test_no_army_infantry_a_key_that_is_missing_or_of_the_wrong_kind_is_named(tu
 def test_economy_first_and_lean_power_ship_on_with_their_built_in_values_and_false_in_the_file_switches_them_off(
     tuning_root,
 ):
-    rewrite(tuning_root, "economy_first = true", "economy_first = false")
+    # From the start of its line, apart from large_map_economy_first of [opening].
+    rewrite(tuning_root, "\neconomy_first = true", "\neconomy_first = false")
     rewrite(tuning_root, "lean_power = true", "lean_power = false")
 
     for shipped in (Tuning().upkeep, Tuning.from_file(REPO_ROOT).upkeep):
@@ -759,8 +760,8 @@ def test_economy_first_and_lean_power_ship_on_with_their_built_in_values_and_fal
 @pytest.mark.parametrize(
     "old, new, message",
     [
-        ("economy_first = true\n", "", r"economy_first in \[upkeep\] must be true or false"),
-        ("economy_first = true", "economy_first = 0", r"economy_first in \[upkeep\] must be true or false"),
+        ("\neconomy_first = true\n", "\n", r"economy_first in \[upkeep\] must be true or false"),
+        ("\neconomy_first = true", "\neconomy_first = 0", r"economy_first in \[upkeep\] must be true or false"),
         ("economy_wait_seconds = 20\n", "", r"economy_wait_seconds in \[upkeep\] must be a whole number"),
         (
             "economy_wait_seconds = 20",
@@ -975,6 +976,411 @@ def test_second_mcv_waits_ships_on_with_90_s_and_false_in_the_file_switches_it_o
     ids=["switch missing", "seconds missing", "fraction of seconds"],
 )
 def test_second_mcv_waits_a_key_that_is_missing_or_of_the_wrong_kind_is_named(tuning_root, old, new, message):
+    rewrite(tuning_root, old, new)
+
+    with pytest.raises(ConfigError, match=message):
+        Tuning.from_file(tuning_root)
+
+
+def test_new_yard_refinery_until_standing_ships_on_with_60_s_and_false_in_the_file_switches_it_off(tuning_root):
+    rewrite(tuning_root, "new_yard_refinery_until_standing = true", "new_yard_refinery_until_standing = false")
+
+    for shipped in (Tuning().expansion, Tuning.from_file(REPO_ROOT).expansion):
+        assert (shipped.new_yard_refinery_until_standing, shipped.new_yard_refused_retry_seconds) == (True, 60)
+    off = dataclasses.replace(ExpansionTuning(), new_yard_refinery_until_standing=False)
+    assert Tuning.from_file(tuning_root).expansion == off
+
+
+@pytest.mark.parametrize(
+    "old, new, message",
+    [
+        (
+            "new_yard_refinery_until_standing = true\n",
+            "",
+            r"new_yard_refinery_until_standing in \[expansion\] must be true or false",
+        ),
+        ("new_yard_refused_retry_seconds = 60\n", "", r"new_yard_refused_retry_seconds in \[expansion\]"),
+        (
+            "new_yard_refused_retry_seconds = 60",
+            "new_yard_refused_retry_seconds = 6.5",
+            r"new_yard_refused_retry_seconds in \[expansion\]",
+        ),
+    ],
+    ids=["switch missing", "seconds missing", "fraction of seconds"],
+)
+def test_new_yard_refinery_until_standing_a_key_that_is_missing_or_of_the_wrong_kind_is_named(
+    tuning_root, old, new, message
+):
+    rewrite(tuning_root, old, new)
+
+    with pytest.raises(ConfigError, match=message):
+        Tuning.from_file(tuning_root)
+
+
+def test_mcv_refinery_fit_ships_on_with_4_and_8_cells_and_false_in_the_file_switches_it_off(tuning_root):
+    rewrite(tuning_root, "mcv_refinery_fit = true", "mcv_refinery_fit = false")
+
+    for shipped in (Tuning().expansion, Tuning.from_file(REPO_ROOT).expansion):
+        assert (shipped.mcv_refinery_fit, shipped.mcv_refinery_fit_cells, shipped.mcv_fit_search_cells) == (True, 4, 8)
+    off = dataclasses.replace(ExpansionTuning(), mcv_refinery_fit=False)
+    assert Tuning.from_file(tuning_root).expansion == off
+
+
+@pytest.mark.parametrize(
+    "old, new, message",
+    [
+        ("mcv_refinery_fit = true\n", "", r"mcv_refinery_fit in \[expansion\] must be true or false"),
+        ("mcv_refinery_fit_cells = 4\n", "", r"mcv_refinery_fit_cells in \[expansion\]"),
+        ("mcv_fit_search_cells = 8", "mcv_fit_search_cells = 8.5", r"mcv_fit_search_cells in \[expansion\]"),
+    ],
+    ids=["switch missing", "fit cells missing", "fraction of search cells"],
+)
+def test_mcv_refinery_fit_a_key_that_is_missing_or_of_the_wrong_kind_is_named(tuning_root, old, new, message):
+    rewrite(tuning_root, old, new)
+
+    with pytest.raises(ConfigError, match=message):
+        Tuning.from_file(tuning_root)
+
+
+def test_truck_shares_by_mines_ships_on_with_2_2_and_10_s_and_false_in_the_file_switches_it_off(tuning_root):
+    rewrite(tuning_root, "truck_shares_by_mines = true", "truck_shares_by_mines = false")
+
+    for shipped in (Tuning().upkeep, Tuning.from_file(REPO_ROOT).upkeep):
+        keys = (shipped.trucks_per_mine, shipped.trucks_mineless_field, shipped.truck_rebalance_seconds)
+        assert shipped.truck_shares_by_mines is True and keys == (2, 2, 10)
+    off = dataclasses.replace(UpkeepTuning(), truck_shares_by_mines=False)
+    assert Tuning.from_file(tuning_root).upkeep == off
+
+
+@pytest.mark.parametrize(
+    "old, new, message",
+    [
+        ("truck_shares_by_mines = true\n", "", r"truck_shares_by_mines in \[upkeep\] must be true or false"),
+        ("trucks_per_mine = 2\n", "", r"trucks_per_mine in \[upkeep\]"),
+        ("trucks_mineless_field = 2", "trucks_mineless_field = 1.5", r"trucks_mineless_field in \[upkeep\]"),
+        ("truck_rebalance_seconds = 10\n", "", r"truck_rebalance_seconds in \[upkeep\]"),
+    ],
+    ids=["switch missing", "per mine missing", "fraction without a mine", "rebalance missing"],
+)
+def test_truck_shares_by_mines_a_key_that_is_missing_or_of_the_wrong_kind_is_named(tuning_root, old, new, message):
+    rewrite(tuning_root, old, new)
+
+    with pytest.raises(ConfigError, match=message):
+        Tuning.from_file(tuning_root)
+
+
+def test_truck_cap_by_shares_ships_on_with_20_s_and_false_in_the_file_switches_it_off(tuning_root):
+    rewrite(tuning_root, "truck_cap_by_shares = true", "truck_cap_by_shares = false")
+
+    for shipped in (Tuning().upkeep, Tuning.from_file(REPO_ROOT).upkeep):
+        assert (shipped.truck_cap_by_shares, shipped.free_truck_wait_seconds) == (True, 20)
+    off = dataclasses.replace(UpkeepTuning(), truck_cap_by_shares=False)
+    assert Tuning.from_file(tuning_root).upkeep == off
+
+
+@pytest.mark.parametrize(
+    "old, new, message",
+    [
+        ("truck_cap_by_shares = true\n", "", r"truck_cap_by_shares in \[upkeep\] must be true or false"),
+        ("free_truck_wait_seconds = 20\n", "", r"free_truck_wait_seconds in \[upkeep\]"),
+        ("free_truck_wait_seconds = 20", "free_truck_wait_seconds = 2.5", r"free_truck_wait_seconds in \[upkeep\]"),
+    ],
+    ids=["switch missing", "wait missing", "fraction of seconds"],
+)
+def test_truck_cap_by_shares_a_key_that_is_missing_or_of_the_wrong_kind_is_named(tuning_root, old, new, message):
+    rewrite(tuning_root, old, new)
+
+    with pytest.raises(ConfigError, match=message):
+        Tuning.from_file(tuning_root)
+
+
+def test_override_counts_detachments_ships_on_built_in_and_in_the_tracked_file_and_false_in_the_file_switches_it_off(
+    tuning_root,
+):
+    rewrite(tuning_root, "override_counts_detachments = true", "override_counts_detachments = false")
+
+    assert Tuning().commander.override_counts_detachments is True
+    assert Tuning.from_file(REPO_ROOT).commander.override_counts_detachments is True
+    assert Tuning.from_file(tuning_root).commander.override_counts_detachments is False
+
+
+@pytest.mark.parametrize("new", ["", "override_counts_detachments = 1"], ids=["missing", "a number"])
+def test_override_counts_detachments_missing_or_not_a_switch_is_named(tuning_root, new):
+    rewrite(tuning_root, "override_counts_detachments = true", new)
+
+    with pytest.raises(ConfigError, match=r"override_counts_detachments in \[commander\] must be true or false"):
+        Tuning.from_file(tuning_root)
+
+
+def test_home_defenses_in_reach_ships_on_built_in_and_in_the_tracked_file_and_false_in_the_file_switches_it_off(
+    tuning_root,
+):
+    rewrite(tuning_root, "home_defenses_in_reach = true", "home_defenses_in_reach = false")
+
+    assert BaseDefenseTuning().home_defenses_in_reach is True
+    assert Tuning.from_file(REPO_ROOT).base_defense.home_defenses_in_reach is True
+    assert Tuning.from_file(tuning_root).base_defense.home_defenses_in_reach is False
+
+
+@pytest.mark.parametrize("new", ["", "home_defenses_in_reach = 1"], ids=["missing", "a number"])
+def test_home_defenses_in_reach_missing_or_not_a_switch_is_named(tuning_root, new):
+    rewrite(tuning_root, "home_defenses_in_reach = true", new)
+
+    with pytest.raises(ConfigError, match=r"home_defenses_in_reach in \[base_defense\] must be true or false"):
+        Tuning.from_file(tuning_root)
+
+
+def test_repair_defenses_early_ships_on_built_in_and_in_the_tracked_file_and_false_in_the_file_switches_it_off(
+    tuning_root,
+):
+    rewrite(tuning_root, "repair_defenses_early = true", "repair_defenses_early = false")
+
+    assert Tuning().upkeep.repair_defenses_early is True
+    assert Tuning.from_file(REPO_ROOT).upkeep.repair_defenses_early is True
+    assert Tuning.from_file(tuning_root).upkeep.repair_defenses_early is False
+
+
+@pytest.mark.parametrize("new", ["", "repair_defenses_early = 1"], ids=["missing", "a number"])
+def test_repair_defenses_early_missing_or_not_a_switch_is_named(tuning_root, new):
+    rewrite(tuning_root, "repair_defenses_early = true", new)
+
+    with pytest.raises(ConfigError, match=r"repair_defenses_early in \[upkeep\] must be true or false"):
+        Tuning.from_file(tuning_root)
+
+
+FAILED_ATTACK_KEYS = {
+    "failed_attack_near_cells": 20,
+    "failed_attack_loss_share": 0.5,
+    "failed_attack_block_cells": 15,
+    "failed_attack_force_ratio": 1.5,
+    "failed_attack_enemy_ratio": 1.3,
+    "failed_attack_memory_seconds": 240,
+    "attack_min_objective_ratio": 1.2,
+    "attack_leg_cells": 10,
+}
+
+
+def test_failed_attack_memory_ships_on_with_its_values_built_in_and_in_the_tracked_file_and_false_switches_it_off(
+    tuning_root,
+):
+    rewrite(tuning_root, "failed_attack_memory = true", "failed_attack_memory = false")
+
+    for shipped in (Tuning().combat, Tuning.from_file(REPO_ROOT).combat):
+        assert shipped.failed_attack_memory is True
+        assert {key: getattr(shipped, key) for key in FAILED_ATTACK_KEYS} == FAILED_ATTACK_KEYS
+    assert Tuning.from_file(tuning_root).combat.failed_attack_memory is False
+
+
+@pytest.mark.parametrize(
+    "old, new, message",
+    [
+        ("failed_attack_memory = true\n", "", r"failed_attack_memory in \[combat\] must be true or false"),
+        ("failed_attack_block_cells = 15\n", "", r"failed_attack_block_cells in \[combat\]"),
+        ("failed_attack_memory_seconds = 240", "failed_attack_memory_seconds = 2.5", r"failed_attack_memory_seconds"),
+    ],
+    ids=["switch missing", "cells missing", "seconds a fraction"],
+)
+def test_failed_attack_memory_a_key_missing_or_of_the_wrong_kind_is_named(tuning_root, old, new, message):
+    rewrite(tuning_root, old, new)
+
+    with pytest.raises(ConfigError, match=message):
+        Tuning.from_file(tuning_root)
+
+
+def test_met_fight_group_reach_ships_on_built_in_and_in_the_tracked_file_and_false_in_the_file_switches_it_off(
+    tuning_root,
+):
+    rewrite(tuning_root, "met_fight_group_reach = true", "met_fight_group_reach = false")
+
+    assert Tuning().combat.met_fight_group_reach is True
+    assert Tuning.from_file(REPO_ROOT).combat.met_fight_group_reach is True
+    assert Tuning.from_file(tuning_root).combat.met_fight_group_reach is False
+
+
+@pytest.mark.parametrize("new", ["", "met_fight_group_reach = 1"], ids=["missing", "a number"])
+def test_met_fight_group_reach_missing_or_not_a_switch_is_named(tuning_root, new):
+    rewrite(tuning_root, "met_fight_group_reach = true", new)
+
+    with pytest.raises(ConfigError, match=r"met_fight_group_reach in \[combat\] must be true or false"):
+        Tuning.from_file(tuning_root)
+
+
+REINFORCE_WINNING_KEYS = {
+    "reinforce_winning_cells": 35,
+    "reinforce_winning_local_cells": 10,
+    "reinforce_winning_ratio": 1.3,
+    "reinforce_winning_min_value": 1500,
+    "reinforce_winning_share": 0.5,
+    "reinforce_winning_stop_ratio": 1.0,
+    "reinforce_winning_max_seconds": 60,
+}
+
+
+def test_reinforce_winning_ships_on_with_its_values_built_in_and_in_the_tracked_file_and_false_switches_it_off(
+    tuning_root,
+):
+    rewrite(tuning_root, "reinforce_winning = true", "reinforce_winning = false")
+
+    for shipped in (Tuning().combat, Tuning.from_file(REPO_ROOT).combat):
+        assert shipped.reinforce_winning is True
+        assert {key: getattr(shipped, key) for key in REINFORCE_WINNING_KEYS} == REINFORCE_WINNING_KEYS
+    assert Tuning.from_file(tuning_root).combat.reinforce_winning is False
+
+
+@pytest.mark.parametrize("new", ["", "reinforce_winning = 1"], ids=["missing", "a number"])
+def test_reinforce_winning_missing_or_not_a_switch_is_named(tuning_root, new):
+    rewrite(tuning_root, "reinforce_winning = true", new)
+
+    with pytest.raises(ConfigError, match=r"reinforce_winning in \[combat\] must be true or false"):
+        Tuning.from_file(tuning_root)
+
+
+def test_nuke_follow_up_ships_on_at_3000_built_in_and_in_the_tracked_file_and_false_in_the_file_switches_it_off(
+    tuning_root,
+):
+    rewrite(tuning_root, "nuke_follow_up = true", "nuke_follow_up = false")
+
+    for shipped in (Tuning().combat, Tuning.from_file(REPO_ROOT).combat):
+        assert (shipped.nuke_follow_up, shipped.nuke_impact_lost_value) == (True, 3000)
+    assert Tuning.from_file(tuning_root).combat.nuke_follow_up is False
+
+
+@pytest.mark.parametrize(
+    "old, new, message",
+    [
+        ("nuke_follow_up = true", "", r"nuke_follow_up in \[combat\] must be true or false"),
+        ("nuke_impact_lost_value = 3000", "nuke_impact_lost_value = 2.5", r"nuke_impact_lost_value in \[combat\]"),
+    ],
+    ids=["switch missing", "value a fraction"],
+)
+def test_nuke_follow_up_a_key_missing_or_of_the_wrong_kind_is_named(tuning_root, old, new, message):
+    rewrite(tuning_root, old, new)
+
+    with pytest.raises(ConfigError, match=message):
+        Tuning.from_file(tuning_root)
+
+
+def test_artillery_answer_ships_on_with_6_and_2_cells_built_in_and_in_the_tracked_file_and_false_switches_it_off(
+    tuning_root,
+):
+    rewrite(tuning_root, "artillery_answer = true", "artillery_answer = false")
+
+    for shipped in (Tuning().combat, Tuning.from_file(REPO_ROOT).combat):
+        keys = (shipped.artillery_answer, shipped.artillery_escort_cells, shipped.artillery_leave_margin_cells)
+        assert keys == (True, 6, 2)
+    assert Tuning.from_file(tuning_root).combat.artillery_answer is False
+
+
+@pytest.mark.parametrize(
+    "old, new, message",
+    [
+        ("artillery_answer = true", "", r"artillery_answer in \[combat\] must be true or false"),
+        ("artillery_escort_cells = 6", "artillery_escort_cells = 6.5", r"artillery_escort_cells in \[combat\]"),
+    ],
+    ids=["switch missing", "cells a fraction"],
+)
+def test_artillery_answer_a_key_missing_or_of_the_wrong_kind_is_named(tuning_root, old, new, message):
+    rewrite(tuning_root, old, new)
+
+    with pytest.raises(ConfigError, match=message):
+        Tuning.from_file(tuning_root)
+
+
+ARTILLERY_UNSEEN_KEYS = {
+    "artillery_memory_seconds": 30,
+    "artillery_memory_cells": 15,
+    "artillery_unseen_step_cells": 6,
+    "artillery_unseen_hold_seconds": 10,
+}
+
+
+def test_artillery_unseen_answer_ships_on_with_its_values_built_in_and_in_the_tracked_file_and_false_switches_it_off(
+    tuning_root,
+):
+    rewrite(tuning_root, "artillery_unseen_answer = true", "artillery_unseen_answer = false")
+
+    for shipped in (Tuning().combat, Tuning.from_file(REPO_ROOT).combat):
+        assert shipped.artillery_unseen_answer is True
+        assert {key: getattr(shipped, key) for key in ARTILLERY_UNSEEN_KEYS} == ARTILLERY_UNSEEN_KEYS
+    assert Tuning.from_file(tuning_root).combat.artillery_unseen_answer is False
+
+
+def test_artillery_unseen_answer_missing_is_named(tuning_root):
+    rewrite(tuning_root, "artillery_unseen_answer = true", "")
+
+    with pytest.raises(ConfigError, match=r"artillery_unseen_answer in \[combat\] must be true or false"):
+        Tuning.from_file(tuning_root)
+
+
+def test_step_plan_continuity_ships_on_with_5_s_15_units_and_2_cells_built_in_and_in_the_file_and_false_switches_it_off(
+    tuning_root,
+):
+    rewrite(tuning_root, "step_plan_continuity = true", "step_plan_continuity = false")
+
+    for shipped in (Tuning().combat, Tuning.from_file(REPO_ROOT).combat):
+        keys = (shipped.step_replan_seconds, shipped.step_large_group_units, shipped.step_large_arrive_extra_cells)
+        assert shipped.step_plan_continuity is True and keys == (5, 15, 2)
+    assert Tuning.from_file(tuning_root).combat.step_plan_continuity is False
+
+
+def test_step_plan_continuity_missing_is_named(tuning_root):
+    rewrite(tuning_root, "step_plan_continuity = true", "")
+
+    with pytest.raises(ConfigError, match=r"step_plan_continuity in \[combat\] must be true or false"):
+        Tuning.from_file(tuning_root)
+
+
+def test_keep_attack_in_sight_ships_on_built_in_and_in_the_tracked_file_and_false_in_the_file_switches_it_off(
+    tuning_root,
+):
+    rewrite(tuning_root, "keep_attack_in_sight = true", "keep_attack_in_sight = false")
+
+    assert BaseDefenseTuning().keep_attack_in_sight is True
+    assert Tuning.from_file(REPO_ROOT).base_defense.keep_attack_in_sight is True
+    assert Tuning.from_file(tuning_root).base_defense.keep_attack_in_sight is False
+
+
+@pytest.mark.parametrize("new", ["", "keep_attack_in_sight = 1"], ids=["missing", "a number"])
+def test_keep_attack_in_sight_missing_or_not_a_switch_is_named(tuning_root, new):
+    rewrite(tuning_root, "keep_attack_in_sight = true", new)
+
+    with pytest.raises(ConfigError, match=r"keep_attack_in_sight in \[base_defense\] must be true or false"):
+        Tuning.from_file(tuning_root)
+
+
+def test_truck_retreat_ships_on_with_10_cells_3_infantry_400_and_8_s_and_false_in_the_file_switches_it_off(
+    tuning_root,
+):
+    rewrite(tuning_root, "truck_retreat = true", "truck_retreat = false")
+
+    for shipped in (Tuning().base_defense, Tuning.from_file(REPO_ROOT).base_defense):
+        keys = (
+            shipped.truck_threat_cells,
+            shipped.truck_crushable_infantry_max,
+            shipped.truck_harasser_max_value,
+            shipped.truck_retreat_clear_seconds,
+        )
+        assert shipped.truck_retreat is True and keys == (10, 3, 400, 8)
+    off = dataclasses.replace(BaseDefenseTuning(), truck_retreat=False)
+    assert Tuning.from_file(tuning_root).base_defense == off
+
+
+@pytest.mark.parametrize(
+    "old, new, message",
+    [
+        ("truck_retreat = true\n", "", r"truck_retreat in \[base_defense\] must be true or false"),
+        ("truck_threat_cells = 10\n", "", r"truck_threat_cells in \[base_defense\]"),
+        ("truck_crushable_infantry_max = 3\n", "", r"truck_crushable_infantry_max in \[base_defense\]"),
+        (
+            "truck_harasser_max_value = 400",
+            "truck_harasser_max_value = 4.5",
+            r"truck_harasser_max_value in \[base_defense\]",
+        ),
+        ("truck_retreat_clear_seconds = 8\n", "", r"truck_retreat_clear_seconds in \[base_defense\]"),
+    ],
+    ids=["switch missing", "cells missing", "infantry missing", "fraction of value", "clear missing"],
+)
+def test_truck_retreat_a_key_that_is_missing_or_of_the_wrong_kind_is_named(tuning_root, old, new, message):
     rewrite(tuning_root, old, new)
 
     with pytest.raises(ConfigError, match=message):
@@ -1744,7 +2150,7 @@ def test_rush_detection_ships_on_with_its_values_and_false_in_the_file_switches_
         180,
     )
     assert (scouting.rush_infantry, scouting.rush_vehicles, scouting.rush_near_base_cells) == (6, 2, 20)
-    assert (scouting.rush_approach_value, scouting.rush_approach_cells, scouting.watcher_share) == (1000, 30, 0.4)
+    assert (scouting.rush_approach_value, scouting.rush_approach_cells, scouting.watcher_share) == (300, 30, 0.4)
     assert Tuning.from_file(tuning_root).scouting == ScoutingTuning(rush_detection=False)
 
 
@@ -1761,7 +2167,7 @@ def test_rush_detection_ships_on_with_its_values_and_false_in_the_file_switches_
         ("rush_infantry = 6", "", r"rush_infantry in \[scouting\]"),
         ("rush_vehicles = 2", "rush_vehicles = true", r"rush_vehicles in \[scouting\]"),
         ("rush_near_base_cells = 20", "", r"rush_near_base_cells in \[scouting\]"),
-        ("rush_approach_value = 1000", "rush_approach_value = -1", r"rush_approach_value in \[scouting\]"),
+        ("rush_approach_value = 300", "rush_approach_value = -1", r"rush_approach_value in \[scouting\]"),
         ("rush_approach_cells = 30", "", r"rush_approach_cells in \[scouting\]"),
         ("watcher_share = 0.4", 'watcher_share = "most"', r"watcher_share in \[scouting\]"),
         ("watcher_share = 0.4", "watcher_share = -0.4", "a number of at least 0"),
@@ -2202,6 +2608,55 @@ def test_an_opening_order_that_is_not_one_of_the_four_raises_naming_the_key(tuni
         Tuning.from_file(tuning_root)
 
 
+def test_defense_front_ships_on_with_3_and_6_cells_and_false_in_the_file_switches_it_off(tuning_root):
+    rewrite(tuning_root, "defense_front = true", "defense_front = false")
+
+    for shipped in (Tuning().placement, Tuning.from_file(REPO_ROOT).placement):
+        assert (shipped.defense_front, shipped.defense_front_cells, shipped.defense_cluster_cells) == (True, 3, 6)
+    assert Tuning.from_file(tuning_root).placement == dataclasses.replace(PlacementTuning(), defense_front=False)
+
+
+@pytest.mark.parametrize(
+    "old, new, message",
+    [
+        ("defense_front = true\n", "", r"defense_front in \[placement\] must be true or false"),
+        ("defense_front_cells = 3\n", "", r"defense_front_cells in \[placement\]"),
+        ("defense_cluster_cells = 6", "defense_cluster_cells = 6.5", r"defense_cluster_cells in \[placement\]"),
+    ],
+    ids=["switch missing", "front cells missing", "fraction of cluster cells"],
+)
+def test_defense_front_a_key_that_is_missing_or_of_the_wrong_kind_is_named(tuning_root, old, new, message):
+    rewrite(tuning_root, old, new)
+
+    with pytest.raises(ConfigError, match=message):
+        Tuning.from_file(tuning_root)
+
+
+def test_large_map_economy_first_ships_on_with_70_cells_and_false_in_the_file_switches_it_off(tuning_root):
+    rewrite(tuning_root, "large_map_economy_first = true", "large_map_economy_first = false")
+
+    for shipped in (Tuning().opening, Tuning.from_file(REPO_ROOT).opening):
+        assert (shipped.large_map_economy_first, shipped.large_map_base_cells) == (True, 70)
+    off = dataclasses.replace(OpeningTuning(), large_map_economy_first=False)
+    assert Tuning.from_file(tuning_root).opening == off
+
+
+@pytest.mark.parametrize(
+    "old, new, message",
+    [
+        ("large_map_economy_first = true\n", "", r"large_map_economy_first in \[opening\] must be true or false"),
+        ("large_map_base_cells = 70\n", "", r"large_map_base_cells in \[opening\]"),
+        ("large_map_base_cells = 70", "large_map_base_cells = 70.5", r"large_map_base_cells in \[opening\]"),
+    ],
+    ids=["switch missing", "cells missing", "fraction of cells"],
+)
+def test_large_map_economy_first_a_key_that_is_missing_or_of_the_wrong_kind_is_named(tuning_root, old, new, message):
+    rewrite(tuning_root, old, new)
+
+    with pytest.raises(ConfigError, match=message):
+        Tuning.from_file(tuning_root)
+
+
 def test_defense_on_threat_ships_on_with_18_cells_and_false_in_the_file_switches_it_off(tuning_root):
     rewrite(tuning_root, "defense_on_threat = true", "defense_on_threat = false")
 
@@ -2234,12 +2689,12 @@ def test_defense_on_threat_a_key_that_is_missing_or_of_the_wrong_kind_is_named(t
         Tuning.from_file(tuning_root)
 
 
-def test_lean_the_lean_opening_ships_on_with_3_guard_rifles_and_false_in_the_file_switches_it_off(tuning_root):
+def test_lean_the_lean_opening_ships_on_with_1_guard_rifle_and_false_in_the_file_switches_it_off(tuning_root):
     rewrite(tuning_root, "lean_infantry = true", "lean_infantry = false")
-    rewrite(tuning_root, "lean_guard_rifles = 3", "lean_guard_rifles = 2")
+    rewrite(tuning_root, "lean_guard_rifles = 1", "lean_guard_rifles = 2")
 
     for shipped in (Tuning().opening, Tuning.from_file(REPO_ROOT).opening):
-        assert (shipped.lean_infantry, shipped.lean_guard_rifles) == (True, 3)
+        assert (shipped.lean_infantry, shipped.lean_guard_rifles) == (True, 1)
     switched = dataclasses.replace(OpeningTuning(), lean_infantry=False, lean_guard_rifles=2)
     assert Tuning.from_file(tuning_root).opening == switched
 
@@ -2249,10 +2704,10 @@ def test_lean_the_lean_opening_ships_on_with_3_guard_rifles_and_false_in_the_fil
     [
         ("lean_infantry = true\n", "", r"lean_infantry in \[opening\] must be true or false"),
         ("lean_infantry = true", "lean_infantry = 0", r"lean_infantry in \[opening\] must be true or false"),
-        ("lean_guard_rifles = 3\n", "", r"lean_guard_rifles in \[opening\] must be a whole number"),
-        ("lean_guard_rifles = 3", "lean_guard_rifles = -3", r"lean_guard_rifles in \[opening\] must be a whole number"),
+        ("lean_guard_rifles = 1\n", "", r"lean_guard_rifles in \[opening\] must be a whole number"),
+        ("lean_guard_rifles = 1", "lean_guard_rifles = -3", r"lean_guard_rifles in \[opening\] must be a whole number"),
         (
-            "lean_guard_rifles = 3",
+            "lean_guard_rifles = 1",
             "lean_guard_rifles = 2.5",
             r"lean_guard_rifles in \[opening\] must be a whole number",
         ),
@@ -3825,4 +4280,147 @@ def test_own_field_cells_missing_or_not_a_whole_number_is_named(tuning_root, new
     rewrite(tuning_root, "own_field_cells = 12", new)
 
     with pytest.raises(ConfigError, match=r"own_field_cells in \[scouting\]"):
+        Tuning.from_file(tuning_root)
+
+
+def test_tuning_enemy_estimate_shipped_on(tuning_root):
+    rewrite(tuning_root, "enemy_army_estimate = true", "enemy_army_estimate = false")
+
+    for shipped in (Tuning().plan_rules, Tuning.from_file(REPO_ROOT).plan_rules):
+        assert shipped.enemy_army_estimate is True
+        assert (shipped.estimate_income_per_harvester, shipped.estimate_army_spend_share) == (8.0, 0.5)
+        assert shipped.estimate_growth_max_seconds == 240
+    assert Tuning.from_file(tuning_root).plan_rules.enemy_army_estimate is False
+
+
+def test_tuning_spending_focus_shipped_on(tuning_root):
+    rewrite(tuning_root, "spending_focus = true", "spending_focus = false")
+
+    for shipped in (Tuning().upkeep, Tuning.from_file(REPO_ROOT).upkeep):
+        assert (shipped.spending_focus, shipped.focus_every_ticks, shipped.focus_hold_seconds) == (True, 250, 30)
+        ratios = (shipped.military_focus_ratio, shipped.military_focus_end_ratio, shipped.economy_focus_ratio)
+        assert ratios == (1.2, 1.0, 1.5)
+        assert shipped.military_focus_first_artillery == 2
+        assert (shipped.military_focus_defense_seconds, shipped.military_focus_defenses_max) == (60, 2)
+    assert Tuning.from_file(tuning_root).upkeep == dataclasses.replace(UpkeepTuning(), spending_focus=False)
+
+
+def test_tuning_counter_quota_shipped_on(tuning_root):
+    rewrite(tuning_root, "counter_quota = true", "counter_quota = false")
+
+    for shipped in (Tuning().composition, Tuning.from_file(REPO_ROOT).composition):
+        assert (shipped.counter_quota, shipped.counter_seen_seconds) == (True, 120)
+        assert (shipped.anti_infantry_per_rockets, shipped.anti_infantry_per_infantry) == (2, 4)
+        assert (shipped.anti_infantry_min_infantry, shipped.anti_infantry_enemy_share) == (6, 0.4)
+        assert (shipped.anti_armor_per_tanks, shipped.counter_max_share) == (2, 0.35)
+    assert Tuning.from_file(tuning_root).composition == dataclasses.replace(CompositionTuning(), counter_quota=False)
+
+
+def test_tuning_infantry_counter_lift_shipped_on(tuning_root):
+    rewrite(tuning_root, "infantry_counter_lift = true", "infantry_counter_lift = false")
+
+    assert Tuning().composition.infantry_counter_lift is True
+    assert Tuning.from_file(REPO_ROOT).composition.infantry_counter_lift is True
+    lifted_off = dataclasses.replace(CompositionTuning(), infantry_counter_lift=False)
+    assert Tuning.from_file(tuning_root).composition == lifted_off
+
+
+@pytest.mark.parametrize(
+    "old, new, message",
+    [
+        ("enemy_army_estimate = true\n", "", r"enemy_army_estimate in \[plan_rules\] must be true or false"),
+        ("estimate_army_spend_share = 0.5", 'estimate_army_spend_share = "half"', r"estimate_army_spend_share"),
+        ("spending_focus = true", "spending_focus = 1", r"spending_focus in \[upkeep\] must be true or false"),
+        ("focus_hold_seconds = 30", "focus_hold_seconds = 2.5", r"focus_hold_seconds in \[upkeep\] must be a whole"),
+        ("counter_quota = true\n", "", r"counter_quota in \[composition\] must be true or false"),
+        ("anti_infantry_per_rockets = 2", "anti_infantry_per_rockets = 0", r"anti_infantry_per_rockets"),
+        ("anti_armor_per_tanks = 2\n", "", r"anti_armor_per_tanks in \[composition\]"),
+        ("infantry_counter_lift = true", 'infantry_counter_lift = "on"', r"infantry_counter_lift in \[composition\]"),
+    ],
+    ids=[
+        "estimate switch missing",
+        "spend share text",
+        "focus switch a number",
+        "hold a fraction",
+        "quota switch missing",
+        "rockets per unit zero",
+        "tanks per unit missing",
+        "lift switch text",
+    ],
+)
+def test_tuning_focus_and_counter_keys_missing_or_of_the_wrong_kind_are_named(tuning_root, old, new, message):
+    rewrite(tuning_root, old, new)
+
+    with pytest.raises(ConfigError, match=message):
+        Tuning.from_file(tuning_root)
+
+
+def test_tuning_endgame_lead_shipped_on(tuning_root):
+    rewrite(tuning_root, "endgame_lead_defenses = true", "endgame_lead_defenses = false")
+
+    for shipped in (Tuning().clock, Tuning.from_file(REPO_ROOT).clock):
+        assert shipped.endgame_lead_defenses is True
+        assert (shipped.endgame_lead_seconds, shipped.endgame_lead_margin) == (300, 1000)
+        assert (shipped.endgame_heavy_army_value, shipped.endgame_lead_defenses_max) == (5000, 15)
+        assert (shipped.endgame_defense_forward_cells, shipped.endgame_defense_cluster_cells) == (10, 7)
+        assert shipped.endgame_army_leash_cells == 8
+    assert Tuning.from_file(tuning_root).clock == dataclasses.replace(Tuning().clock, endgame_lead_defenses=False)
+
+
+def test_tuning_line_penalty_shipped_on(tuning_root):
+    rewrite(tuning_root, "mcv_line_penalty = true", "mcv_line_penalty = false")
+
+    for shipped in (Tuning().expansion, Tuning.from_file(REPO_ROOT).expansion):
+        assert shipped.mcv_line_penalty is True
+        assert (shipped.mcv_line_penalty_cells, shipped.mcv_line_clear_cells) == (20, 15)
+    assert Tuning.from_file(tuning_root).expansion == dataclasses.replace(ExpansionTuning(), mcv_line_penalty=False)
+
+
+def test_tuning_escort_reliance_shipped_on(tuning_root):
+    rewrite(tuning_root, "mcv_escort_reliance = true", "mcv_escort_reliance = false")
+
+    for shipped in (Tuning().expansion, Tuning.from_file(REPO_ROOT).expansion):
+        assert (shipped.mcv_escort_reliance, shipped.mcv_route_threat_cells) == (True, 10)
+        assert (shipped.mcv_escort_win_ratio, shipped.mcv_resite_max_cells) == (1.0, 25)
+        assert shipped.mcv_site_army_value == 600
+    relied_off = dataclasses.replace(ExpansionTuning(), mcv_escort_reliance=False)
+    assert Tuning.from_file(tuning_root).expansion == relied_off
+
+
+def test_tuning_cover_rally_shipped_on(tuning_root):
+    rewrite(tuning_root, "expansion_cover_rally = true", "expansion_cover_rally = false")
+
+    for shipped in (Tuning().combat, Tuning.from_file(REPO_ROOT).combat):
+        assert (shipped.expansion_cover_rally, shipped.expansion_cover_forward_cells) == (True, 6)
+        assert shipped.expansion_cover_reach_cells == 18
+    assert Tuning.from_file(tuning_root).combat == dataclasses.replace(CombatTuning(), expansion_cover_rally=False)
+
+
+@pytest.mark.parametrize(
+    "old, new, message",
+    [
+        ("endgame_lead_defenses = true\n", "", r"endgame_lead_defenses in \[clock\] must be true or false"),
+        ("endgame_lead_margin = 1000", "endgame_lead_margin = 1e3", r"endgame_lead_margin in \[clock\]"),
+        ("mcv_line_penalty = true", "mcv_line_penalty = 1", r"mcv_line_penalty in \[expansion\] must be true or false"),
+        ("mcv_line_clear_cells = 15\n", "", r"mcv_line_clear_cells in \[expansion\]"),
+        ("mcv_escort_win_ratio = 1.0", 'mcv_escort_win_ratio = "even"', r"mcv_escort_win_ratio"),
+        ("mcv_resite_max_cells = 25", "mcv_resite_max_cells = -1", r"mcv_resite_max_cells"),
+        ("expansion_cover_rally = true", 'expansion_cover_rally = "on"', r"expansion_cover_rally in \[combat\]"),
+        ("expansion_cover_reach_cells = 18\n", "", r"expansion_cover_reach_cells in \[combat\]"),
+    ],
+    ids=[
+        "lead switch missing",
+        "lead margin a fraction",
+        "penalty switch a number",
+        "clear cells missing",
+        "win ratio text",
+        "resite cap negative",
+        "cover switch text",
+        "cover reach missing",
+    ],
+)
+def test_tuning_endgame_and_expansion_keys_missing_or_of_the_wrong_kind_are_named(tuning_root, old, new, message):
+    rewrite(tuning_root, old, new)
+
+    with pytest.raises(ConfigError, match=message):
         Tuning.from_file(tuning_root)

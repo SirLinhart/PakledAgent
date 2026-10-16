@@ -82,7 +82,19 @@ field (`new_yard_field`), which upkeep orders ahead of every other building
 but power (see `upkeep`): while the yard stands, until the refinery is
 ordered (`end_new_yard_claim`) or the field has `max_refineries_per_field`
 refineries serving it or asked against it, when the claim ends with nothing
-done. A yard deployed at home claims none.
+done. A yard deployed at home claims none. With
+`new_yard_refinery_until_standing` on, the claim lasts while the yard stands
+until a refinery of ours stands counted against the field, whatever was
+ordered or placed (see `new_yard_refinery`).
+
+With `mcv_refinery_fit` on, an MCV deploys by a field only where its yard
+leaves a place for that refinery: a place serving the field within
+`mcv_refinery_fit_cells` of the yard box, on ground placement would take, off
+the places refused and out of enemy ground defenses' reach (`refinery_fit`),
+looked for up to `mcv_fit_search_cells` steps from the ore when none within
+`mcv_deploy_cells` has one; a field with none is passed over. The check runs
+again as the MCV is to deploy: it moves on to the next such place, or drops
+the site (`mcv_site_no_refinery_fit`) and is sited again.
 
 With `mcv_safe_site` switched on, the site is chosen otherwise, because a
 field far off or one behind enemy ground costs the MCV its life before it
@@ -265,27 +277,77 @@ the MCV from being ordered, an `expansion` event of phase and reason
 `second_mcv_blocked` names it (`blocked_by`), once in
 `SECOND_MCV_BLOCKED_EVERY_TICKS` at most; the far field is named `own_side`
 when one would qualify but for the own-side rule.
+
+Under the military focus of upkeep's spending (see `spending_focus`) no new
+MCV is wanted and the second MCV is not due by its time: the money goes to
+the army while the enemy's is ahead, and `second_mcv_blocked` names
+`military_focus`. An MCV ordered, out or on its way goes on as it would.
+Under the economy focus the yards the income allows are one more,
+`max_yards` at the most.
+
+A yard on the line from the base to the enemy's start is the first thing an
+attack meets, and the army has to hold it in the open. So with
+`mcv_line_penalty` switched on, a field ahead of the base pays a penalty in
+cells (`line_penalty`): `mcv_line_penalty_cells` for one on that line,
+falling evenly to none at `mcv_line_clear_cells` off it, none for one behind
+the base (at no positive depth along the line) or while the enemy's start is
+unknown. `far_site` takes the field with the least route length plus
+penalty, `safe_site` tries each group of fields by distance from the main
+yard plus penalty. It only ranks: a field on the line is still chosen when
+no other qualifies. The `site` event gives the field's `line_penalty`.
+
+An MCV kept home by every threat on the base, or turned back by any group
+worth 600, never expands while the enemy is active; its escort is there to
+fight what it meets. So with `mcv_escort_reliance` switched on, the enemies
+it heeds are its route threat (`route_threat`): the ground units that fight
+seen in the last `SITE_ARMY_SEEN_SECONDS` within `mcv_route_threat_cells` of
+its remaining route (the way through the graph of waypoints it goes, else
+the straight line to its site) or `SITE_ARMY_CLEAR_CELLS` of its site, and
+only when the escort cannot beat them (`is_outmatched`: worth more than
+`mcv_escort_win_ratio` times the escort; while waiting the escort it would
+take, while travelling the escort's units within `ESCORT_ALONG_CELLS` of
+it). A major threat on the base no longer keeps it waiting by itself; such a
+group does, with the reason `route_threat`. A travelling MCV holds short of
+such a group as of an army by its site (`mcv_hold` with the reason
+`escort_outmatched`, the group's value and the escort's), is sited again
+after `mcv_site_hold_seconds` with that reason, and never deploys beside it;
+a group the escort beats does not stop it, and hurt or near unsafe ground it
+is sited again only for a group it cannot beat. Every site chosen again on
+the way or while waiting lies within `mcv_resite_max_cells` of route from the
+MCV; with none it goes home (`home_fallback`) or waits (`repeat_no_site`).
 """
 
 from __future__ import annotations
 
 import math
-from typing import Callable, NamedTuple
+from typing import Callable, Iterable, NamedTuple
 
 from ucla_agent.core import records
-from ucla_agent.games.redalert import cells, coverage, creep, placement, raid_routes, refinery_fields, waypoints
+from ucla_agent.games.redalert import (
+    cells,
+    coverage,
+    creep,
+    new_yard_refinery,
+    placement,
+    raid_routes,
+    refinery_fields,
+    waypoints,
+)
 from ucla_agent.games.redalert.batch import Intent, Priority
+from ucla_agent.games.redalert.composition import AIRCRAFT_QUEUE
 from ucla_agent.games.redalert.family import CONSTRUCTION_YARD, HARVESTER, MCV, REFINERY, SERVICE_DEPOT
 from ucla_agent.games.redalert.fight import is_counted, strength, worth
 from ucla_agent.games.redalert.groups import MAIN
 from ucla_agent.games.redalert.items import TICKS_PER_SECOND, is_air_only
 from ucla_agent.games.redalert.ledger import REJECTED
-from ucla_agent.games.redalert.managers import MAJOR_THREAT, MatchContext
+from ucla_agent.games.redalert.managers import ECONOMY_FOCUS, MAJOR_THREAT, MatchContext
 from ucla_agent.games.redalert.opening import is_build_complete
 from ucla_agent.games.redalert.production import BUILDING_QUEUE, VEHICLE_QUEUE
 from ucla_agent.games.redalert.scout_report import is_combat_unit
+from ucla_agent.games.redalert.scout_route import distance_to_segment
 from ucla_agent.games.redalert.tank_factories import vehicle_queue_takes_one
 from ucla_agent.games.redalert.terrain import OrePatch, Terrain
+from ucla_agent.games.redalert.tuning import ExpansionTuning
 from ucla_agent.games.redalert.world import Building, Cell, EnemyRecord, Unit, World
 
 EXPANSION_EVENT = "expansion"
@@ -304,6 +366,9 @@ LOST = "lost"
 SITE = "site"
 # With `mcv_new_area` on, a site chosen for want of a field it lasts by.
 SITE_CHECK = "site_check"
+# With `mcv_refinery_fit` on, the phase and reason of a site dropped as the MCV is to deploy because no refinery fits
+# against its field from any place by it, and the reason of the `site` event of the MCV sited again after it.
+NO_REFINERY_FIT = "mcv_site_no_refinery_fit"
 # The group the main units that go with the MCV belong to while they do: the combat manager leaves them alone.
 ESCORT = "escort"
 # A remembered enemy defense this close to the site, or an enemy army stronger than the escort this close, keeps the
@@ -318,6 +383,12 @@ SITE_ARMY_HOLD_CELLS = 15
 # which a `site` event of the MCV sited again after the hold gives as well.
 MCV_HOLD = "mcv_hold"
 REASON_SITE_ARMY = "site_army"
+# With mcv_escort_reliance on: why an MCV holds short or is sited again (the escort cannot beat the group on its route
+# or by its site), and why one waits at home for that group.
+REASON_ESCORT_OUTMATCHED = "escort_outmatched"
+_REASON_ROUTE_THREAT = "route_threat"
+# The escort a travelling MCV has with it are the escort's units within this many cells of it.
+ESCORT_ALONG_CELLS = 15
 # The MCV counts as at a place this close to it.
 ARRIVED_CELLS = 1
 # Where the top-left corner of the yard an MCV unfolds lies from the MCV's cell: the engine's Offset -1,-1.
@@ -406,11 +477,18 @@ BLOCKED_BY_SITE = "site"
 BLOCKED_BY_OWN_SIDE = "own_side"
 BLOCKED_BY_MONEY = "money"
 BLOCKED_BY_QUEUE = "queue"
+BLOCKED_BY_MILITARY_FOCUS = "military_focus"
 
 
 def yards(world: World) -> list[Cell]:
     """The cells of the own construction yards that stand."""
     return [(building.x, building.y) for building in world.buildings.values() if building.type == CONSTRUCTION_YARD]
+
+
+def expansion_yards(world: World) -> list[Cell]:
+    """The middle cells of the own construction yards that stand other than the main yard (`main_yard`)."""
+    main = main_yard(world)
+    return [middle for middle in _yard_middles(world) if middle != main]
 
 
 def log_expansion(
@@ -493,7 +571,7 @@ class ExpansionMcv:
         """While the second MCV is due by its time, write an `expansion` event of phase and reason
         `second_mcv_blocked` naming what keeps it from its order (`_blocked_by`), unless one was written within
         `SECOND_MCV_BLOCKED_EVERY_TICKS`."""
-        if not is_second_mcv_due(world, ctx):
+        if not _is_second_mcv_due_by_time(world, ctx):
             return
         if self._blocked_at is not None and world.tick - self._blocked_at < SECOND_MCV_BLOCKED_EVERY_TICKS:
             return
@@ -503,10 +581,12 @@ class ExpansionMcv:
 
 
 def _blocked_by(saved_for: str | None, world: World, ctx: MatchContext) -> str:
-    """What keeps a second MCV due by its time from its order, the first that holds: no depot or no MCV on offer, a
-    major threat, a lost core building saved for, no site (the own side, when the own-side rule alone leaves none), the
-    money, else the Vehicle queue."""
+    """What keeps a second MCV due by its time from its order, the first that holds: the military focus, no depot or no
+    MCV on offer, a major threat, a lost core building saved for, no site (the own side, when the own-side rule alone
+    leaves none), the money, else the Vehicle queue."""
     production = ctx.production
+    if ctx.mcv_held_by_focus:
+        return BLOCKED_BY_MILITARY_FOCUS
     if not production.standing(SERVICE_DEPOT) or MCV not in world.available_production:
         return BLOCKED_BY_DEPOT
     if ctx.threat_level == MAJOR_THREAT:
@@ -548,9 +628,10 @@ def is_mcv_wanted(world: World, ctx: MatchContext) -> bool:
 
 def _may_want_more(world: World, ctx: MatchContext) -> bool:
     """Whether one more MCV may be wanted, the yards, an MCV out, the money and the Vehicle queue aside: a depot stands,
-    no MCV is on its way from the factory, the MCV is on offer and there is no major threat."""
+    no MCV is on its way from the factory, the MCV is on offer, there is no major threat and the spending focus is not
+    military."""
     production = ctx.production
-    is_quiet = ctx.threat_level != MAJOR_THREAT
+    is_quiet = ctx.threat_level != MAJOR_THREAT and not ctx.mcv_held_by_focus
     is_on_offer = MCV in world.available_production and not production.pending(MCV)
     return production.standing(SERVICE_DEPOT) > 0 and is_on_offer and is_quiet
 
@@ -566,7 +647,13 @@ def has_mcv_money(world: World, ctx: MatchContext) -> bool:
 
 
 def is_second_mcv_due(world: World, ctx: MatchContext) -> bool:
-    """Whether the second MCV is due by its time: with `second_yard` and `mcv_repeat` on, from
+    """Whether the second MCV is due by its time (`_is_second_mcv_due_by_time`), under a spending focus other than
+    military."""
+    return _is_second_mcv_due_by_time(world, ctx) and not ctx.mcv_held_by_focus
+
+
+def _is_second_mcv_due_by_time(world: World, ctx: MatchContext) -> bool:
+    """Whether the time calls for the second MCV: with `second_yard` and `mcv_repeat` on, from
     `second_mcv_due_seconds` on, one own yard stands and no MCV is out or on order."""
     production = ctx.production
     is_alone = len(yards(world)) == 1 and not production.units(MCV) and not production.pending(MCV)
@@ -582,10 +669,12 @@ def yards_allowed_now(world: World, ctx: MatchContext) -> int:
 
 def yards_allowed(ctx: MatchContext) -> int:
     """With `mcv_repeat` on, how many yards the income allows: one, and one more for each `yards_income_per_yard` of
-    income a second as the income estimate reports it (none while it is unknown), `max_yards` at the most."""
+    income a second as the income estimate reports it (none while it is unknown), and one more again under the economy
+    focus; `max_yards` at the most."""
     expansion = ctx.tuning.expansion
     income = ctx.income.income_per_s or 0.0
-    return min(expansion.max_yards, 1 + math.floor(income / expansion.yards_income_per_yard))
+    by_focus = 1 if ctx.spending_focus == ECONOMY_FOCUS else 0
+    return min(expansion.max_yards, 1 + by_focus + math.floor(income / expansion.yards_income_per_yard))
 
 
 def _yards_and_mcvs(world: World, ctx: MatchContext) -> int:
@@ -731,13 +820,32 @@ class ForwardMcv:
     def new_yard_field(self, world: World, ctx: MatchContext) -> OrePatch | None:
         """The field a refinery is claimed for by the yard that last deployed by it (see the module's note): None once
         that yard is lost or the field has `max_refineries_per_field` refineries serving it or asked against it, which
-        ends the claim, and while there is none."""
+        ends the claim, and while there is none. With `new_yard_refinery_until_standing` on, the claim ends only with
+        the yard or once a refinery of ours stands counted against the field, which a `new_yard_standing` event says.
+        """
         if self._new_yard is None:
             return None
         yard, field = self._new_yard
-        if yard not in _yard_ids(world) or _has_its_refineries(field, world, ctx):
+        if yard not in _yard_ids(world):
+            self._new_yard = None
+        elif new_yard_refinery.is_on(ctx):
+            self._end_when_standing(field, world, ctx)
+        elif _has_its_refineries(field, world, ctx):
             self._new_yard = None
         return None if self._new_yard is None else field
+
+    def _end_when_standing(self, field: OrePatch, world: World, ctx: MatchContext) -> None:
+        """End the claim, and write it, once a refinery of ours stands counted against its field."""
+        if new_yard_refinery.has_standing_refinery(field, world, ctx):
+            self._new_yard = None
+            new_yard_refinery.log_standing(field, world)
+
+    def new_yard_cell(self, world: World) -> Cell | None:
+        """The cell of the yard that claims a refinery for its field (`new_yard_field`); None while there is none."""
+        if self._new_yard is None or self._new_yard[0] not in world.buildings:
+            return None
+        yard = world.buildings[self._new_yard[0]]
+        return yard.x, yard.y
 
     def skip_crawl_target(self, world: World, ctx: MatchContext) -> None:
         """With `mcv_repeat` on, put the crawl target's field (`ctx.creep_target`, as the last cycle named it) among the
@@ -963,8 +1071,7 @@ class ForwardMcv:
         if reason is None:
             return
         self._resited_at = world.tick
-        start = (mcv.x, mcv.y)
-        choice = (repeat_site(world, ctx, start) or _NO_SITE) if self._is_further else safe_site(world, ctx, start)
+        choice = self._resite_choice((mcv.x, mcv.y), world, ctx)
         if choice.field is None:
             _log_site(choice, _REASON_REPEAT_NO_SITE if self._is_further else _REASON_HOME_FALLBACK, world, ctx)
             self._go_home(world, ctx, _REASON_HOME_FALLBACK)
@@ -980,9 +1087,18 @@ class ForwardMcv:
             is_reserved = self._field == ctx.reserved_field
             if ctx.tuning.expansion.mcv_new_area and not is_reserved and self._field in _taken(world, ctx):
                 return _REASON_TAKEN
-            if was_hurt or McvDangers(world, ctx).is_near((mcv.x, mcv.y), RESITE_DANGER_CELLS):
+            is_endangered = was_hurt or McvDangers(world, ctx).is_near((mcv.x, mcv.y), RESITE_DANGER_CELLS)
+            if is_endangered and self._is_rerouted_for(mcv, world, ctx):
                 return _REASON_REROUTED
         return None if self._field is None else _unfit_site_reason(self._site, world, ctx)
+
+    def _is_rerouted_for(self, mcv: Unit, world: World, ctx: MatchContext) -> bool:
+        """Whether an MCV hurt or near unsafe ground on its way is sited again for it: always, but with
+        `mcv_escort_reliance` on only while the escort with it cannot beat the enemy group on its route or by its site
+        (`_outmatching`); one it beats is fought, and the MCV keeps its site and route."""
+        if not ctx.tuning.expansion.mcv_escort_reliance:
+            return True
+        return bool(self._outmatching(mcv, self._escort_along(mcv, world, ctx), world, ctx))
 
     def _may_resite(self, tick: int) -> bool:
         """Whether the MCV may be sited again: never yet, or `RESITE_EVERY_TICKS` ago or more."""
@@ -998,49 +1114,96 @@ class ForwardMcv:
         (`_hold_short`); the hold's start drops a deploy out and is written as an `mcv_hold` event. Once the army has
         stood there `mcv_site_hold_seconds`, the MCV is sited again (`_resite_for_army`) and goes on as any MCV in this
         cycle: None. None as well while it does not travel or no such army stands there, which ends a hold."""
-        army = site_army(self._site, world, ctx) if self.travelling() else []
+        army = self._held_by(mcv, world, ctx) if self.travelling() else []
         if not army:
             self._army_held_at = None
             return None
         if self._army_held_at is None:
             self._army_held_at, self._deploy_sent = world.tick, None
-            value = round(sum(_worth(record, world) for record in army))
-            log_expansion(world, MCV_HOLD, self._site, self._field, REASON_SITE_ARMY, value=value, units=len(army))
+            self._log_hold(mcv, army, world, ctx)
         elif world.tick - self._army_held_at >= ctx.tuning.expansion.mcv_site_hold_seconds * TICKS_PER_SECOND:
             self._army_held_at = None
             self._resite_for_army(mcv, world, ctx)
             return None
         return _hold_short(mcv, army, world)
 
+    def _held_by(self, mcv: Unit, world: World, ctx: MatchContext) -> list[EnemyRecord]:
+        """The enemy group a travelling MCV holds short of: with `mcv_escort_reliance` on, the one on its route or by
+        its site that the escort with it cannot beat (`_outmatching`); else the army by its site (`site_army`)."""
+        if ctx.tuning.expansion.mcv_escort_reliance:
+            return self._outmatching(mcv, self._escort_along(mcv, world, ctx), world, ctx)
+        return site_army(self._site, world, ctx)
+
+    def _log_hold(self, mcv: Unit, army: list[EnemyRecord], world: World, ctx: MatchContext) -> None:
+        """Write the start of a hold short as an `mcv_hold` event: what the group is worth and how many it is, with
+        `mcv_escort_reliance` on with the reason `escort_outmatched` and the escort's power, else `site_army`."""
+        value = round(sum(_worth(record, world) for record in army))
+        if not ctx.tuning.expansion.mcv_escort_reliance:
+            log_expansion(world, MCV_HOLD, self._site, self._field, REASON_SITE_ARMY, value=value, units=len(army))
+            return
+        escort = round(strength(self._escort_along(mcv, world, ctx), world))
+        reason = REASON_ESCORT_OUTMATCHED
+        log_expansion(world, MCV_HOLD, self._site, self._field, reason, value=value, escort=escort, units=len(army))
+
     def _resite_for_army(self, mcv: Unit, world: World, ctx: MatchContext) -> None:
         """Site the MCV again from its cell, by the same rules, passing over the field of its site and every other it
-        held short of an enemy army by: a `site` event of the reason `site_army`; without a site it goes home as a
-        choice made again for danger does (`home_fallback`)."""
+        held short of an enemy army by (`_resite_choice`): a `site` event of the reason `site_army`, `escort_outmatched`
+        with `mcv_escort_reliance` on; without a site it goes home as a choice made again for danger does
+        (`home_fallback`)."""
         self._army_fields.add(self._field)
         self._resited_at, start, skip = world.tick, (mcv.x, mcv.y), frozenset(self._army_fields)
-        if self._is_further:
-            choice = repeat_site(world, ctx, start, skip=skip) or _NO_SITE
-        else:
-            choice = safe_site(world, ctx, start, skip=skip)
+        choice = self._resite_choice(start, world, ctx, skip)
         if choice.field is None:
             _log_site(choice, _REASON_REPEAT_NO_SITE if self._is_further else _REASON_HOME_FALLBACK, world, ctx)
             self._go_home(world, ctx, _REASON_HOME_FALLBACK)
             return
-        _log_site(choice, REASON_SITE_ARMY, world, ctx)
+        reason = REASON_ESCORT_OUTMATCHED if ctx.tuning.expansion.mcv_escort_reliance else REASON_SITE_ARMY
+        _log_site(choice, reason, world, ctx)
         self._site, self._field = choice.site, choice.field
 
+    def _resite_choice(
+        self, start: Cell, world: World, ctx: MatchContext, skip: frozenset[OrePatch] = frozenset()
+    ) -> SiteChoice:
+        """The site chosen again for the MCV from `start`, the fields to `skip` passed over: a further MCV's by
+        `repeat_site`, any other's by `safe_site`; with `mcv_escort_reliance` on only a site whose route from `start`
+        is at most `mcv_resite_max_cells` long."""
+        expansion = ctx.tuning.expansion
+        cap = expansion.mcv_resite_max_cells if expansion.mcv_escort_reliance else None
+        if self._is_further:
+            return repeat_site(world, ctx, start, skip=skip, max_route=cap) or _NO_SITE
+        return safe_site(world, ctx, start, skip=skip, max_route=cap)
+
     def _reason_to_wait(self, mcv: Unit, world: World, ctx: MatchContext) -> str | None:
-        """Why the MCV waits at home now; None when it may go to its site with its escort."""
-        if ctx.threat_level == MAJOR_THREAT:
+        """Why the MCV waits at home now; None when it may go to its site with its escort. With `mcv_escort_reliance`
+        on, a major threat on the base is no reason by itself, and an enemy group is one only on its route or by its
+        site and when its escort cannot beat it (`route_threat`)."""
+        is_relying = ctx.tuning.expansion.mcv_escort_reliance
+        if ctx.threat_level == MAJOR_THREAT and not is_relying:
             return _REASON_THREAT
         if _is_defense_near(self._site, world):
             return _REASON_DEFENSE
         escort = self._escort(mcv, world, ctx)
         if strength(escort, world) < ctx.tuning.expansion.mcv_escort_strength:
             return _REASON_ESCORT_SHORT
+        if is_relying:
+            return _REASON_ROUTE_THREAT if self._outmatching(mcv, escort, world, ctx) else None
         if _enemy_army_near(self._site, world) > strength(escort, world):
             return _REASON_ARMY
         return None
+
+    def _outmatching(self, mcv: Unit, escort: list[Unit], world: World, ctx: MatchContext) -> list[EnemyRecord]:
+        """The enemy group on the MCV's remaining route or by its site (`route_threat`), by the way through the graph
+        of waypoints it goes while it has one to its site, when the `escort` given cannot beat it (`is_outmatched`);
+        none when it can."""
+        legs = self._legs if self._legs_to == self._site else []
+        group = route_threat((mcv.x, mcv.y), legs, self._site, world, ctx)
+        return group if is_outmatched(group, escort, world, ctx.tuning.expansion) else []
+
+    def _escort_along(self, mcv: Unit, world: World, ctx: MatchContext) -> list[Unit]:
+        """The escort a travelling MCV has with it: the units of the escort within `ESCORT_ALONG_CELLS` of it."""
+        here = (mcv.x, mcv.y)
+        escort = [world.combat_units[unit_id] for unit_id in ctx.groups.members(ESCORT)]
+        return [unit for unit in escort if cells.is_within((unit.x, unit.y), here, ESCORT_ALONG_CELLS)]
 
     def _escort(self, mcv: Unit, world: World, ctx: MatchContext) -> list[Unit]:
         """The units of the escort: those in it, then main's that it has not sent forward, the nearest the MCV first,
@@ -1124,7 +1287,7 @@ class ForwardMcv:
             and not (unit.idle and cells.is_within((unit.x, unit.y), hold, _AT_SITE_CELLS))
         ]
         guard = [Intent(Priority.MOVE, {"cmd": "attack_move", "units": going, "to": list(hold)})] if going else []
-        return [*guard, *clearing, *self._go_and_deploy(mcv, world, cell)]
+        return [*guard, *clearing, *self._go_and_deploy(mcv, world, cell, ctx)]
 
     def _note_approach(self, mcv: Unit) -> None:
         """Keep the MCV's cell as the side it comes from while it stands outside the ground its escort keeps clear
@@ -1151,14 +1314,7 @@ class ForwardMcv:
         inside = [unit for unit in escort if _holds(area, (unit.x, unit.y))]
         if not inside:
             return []
-        ground, approach, moves = _Ground(world, ctx.terrain, with_units=True), self._approach_cell(world), []
-        for unit in inside:
-            free = _free_cells_around(area, approach, ground)
-            out = min(free, key=lambda free_cell: cells.distance(free_cell, (unit.x, unit.y)), default=None)
-            if out is not None:
-                ground.take(out)
-                moves.append(Intent(Priority.MOVE, {"cmd": "move", "units": [unit.id], "to": list(out)}))
-        return moves
+        return moves_off(area, inside, self._approach_cell(world), world, ctx.terrain)
 
     def _approach_cell(self, world: World) -> Cell:
         """The cell the MCV comes from: its last cell outside the ground kept clear, else the main yard's middle, else
@@ -1172,16 +1328,56 @@ class ForwardMcv:
             self._legs.pop(0)
         return self._legs[0] if self._legs else self._site
 
-    def _go_and_deploy(self, mcv: Unit, world: World, toward: Cell | None = None) -> list[Intent]:
+    def _go_and_deploy(
+        self, mcv: Unit, world: World, toward: Cell | None = None, ctx: MatchContext | None = None
+    ) -> list[Intent]:
         """The MCV sent to its site, by way of `toward` when that is given, or deployed once it is there; deployed where
-        it stands without a site. A deploy sent while one is out is a resend, counted with the cell it is sent from."""
+        it stands without a site. A deploy sent while one is out is a resend, counted with the cell it is sent from.
+        Given the match context, the first deploy at a site by a field waits for the check that a refinery still fits
+        there (`_keeps_refinery_fit`)."""
         if self._site is None:
             self._site = (mcv.x, mcv.y)
         if cells.is_within((mcv.x, mcv.y), self._site, ARRIVED_CELLS):
+            if ctx is not None and self._deploy_sent is None and not self._keeps_refinery_fit(mcv, world, ctx):
+                return []
             self._resends = 0 if self._deploy_sent is None else self._resends + 1
             self._deploy_sent, self._deploy_cell = world.tick, (mcv.x, mcv.y)
             return [Intent(Priority.PLACEMENT, {"cmd": "deploy", "units": [mcv.id]})]
         return [Intent(Priority.MOVE, {"cmd": "move", "units": [mcv.id], "to": list(toward or self._site)})]
+
+    def _keeps_refinery_fit(self, mcv: Unit, world: World, ctx: MatchContext) -> bool:
+        """With `mcv_refinery_fit` on, whether the MCV at its site by a field may deploy: a refinery still fits there
+        (`has_refinery_fit`). Else it is given the next place by the field that fits (`_place_by`), or with none the
+        site is dropped, written as an `expansion` event of phase and reason `mcv_site_no_refinery_fit`, and it is
+        sited again from where it stands as on its way (`_resite_after_no_fit`)."""
+        field = self._field
+        if not ctx.tuning.expansion.mcv_refinery_fit or field is None or self._is_home:
+            return True
+        if has_refinery_fit(self._site, field, world, ctx):
+            return True
+        site = _place_by(field, world, ctx)
+        if site is not None:
+            self._site = site
+            return False
+        log_expansion(world, NO_REFINERY_FIT, self._site, field, NO_REFINERY_FIT)
+        self._resite_after_no_fit(mcv, field, world, ctx)
+        return False
+
+    def _resite_after_no_fit(self, mcv: Unit, dropped: OrePatch, world: World, ctx: MatchContext) -> None:
+        """Site the MCV again from where it stands, its dropped field passed over: a further MCV by `repeat_site`, any
+        other by `safe_site`; a site by a field is its site from now on, written with the reason
+        `mcv_site_no_refinery_fit`, and without one it goes home (`_go_home`, `home_fallback`)."""
+        start, skip = (mcv.x, mcv.y), frozenset({dropped})
+        if self._is_further:
+            choice = repeat_site(world, ctx, start, skip=skip) or _NO_SITE
+        else:
+            choice = safe_site(world, ctx, start, skip=skip)
+        if choice.field is None:
+            _log_site(choice, _REASON_REPEAT_NO_SITE if self._is_further else _REASON_HOME_FALLBACK, world, ctx)
+            self._go_home(world, ctx, _REASON_HOME_FALLBACK)
+            return
+        _log_site(choice, NO_REFINERY_FIT, world, ctx)
+        self._site, self._field = choice.site, choice.field
 
     def _wait(self, mcv: Unit, reason: str, elapsed: int, world: World, ctx: MatchContext) -> list[Intent]:
         """The MCV kept at home, its escort back with main; once it has waited long enough, on to its site when it
@@ -1215,9 +1411,9 @@ class ForwardMcv:
             is_ignored = refusal == _REASON_IGNORED
             self._ignored += is_ignored
             self._next_site(world, ctx, _IGNORED_STEP_CELLS if is_ignored else 1)
-            if self.travelling() and site_army(self._site, world, ctx):
+            if self.travelling() and self._held_by(mcv, world, ctx):
                 return []
-            return self._go_and_deploy(mcv, world)
+            return self._go_and_deploy(mcv, world, ctx=ctx)
         if world.tick - self._deploy_sent >= _DEPLOY_RESEND_TICKS:
             return self._go_and_deploy(mcv, world)
         return []
@@ -1315,31 +1511,41 @@ _NO_SITE = SiteChoice(None, None, None)
 
 
 def safe_site(
-    world: World, ctx: MatchContext, start: Cell | None = None, *, skip: frozenset[OrePatch] = frozenset()
+    world: World,
+    ctx: MatchContext,
+    start: Cell | None = None,
+    *,
+    skip: frozenset[OrePatch] = frozenset(),
+    max_route: float | None = None,
 ) -> SiteChoice:
     """With `mcv_safe_site` on, the place for a yard by the nearest field the MCV may deploy by (`_site_fields`, nearest
     the main yard first) whose place is open (`_is_open_site`: clear of the enemy's start and buildings, on the base's
     own side) and is reached from `start` (the main yard without it) by a safe route (`safe_route`); `home_site`
     without one. With `mcv_new_area` on, the fields the site lasts by, then those of a new area, are tried before the
     rest (`_site_groups`). With `mcv_repeat` on, the place `far_site` gives from `start`, else `home_site`. The fields
-    to `skip` are passed over."""
+    to `skip` are passed over, and with `max_route` every place whose route from `start` is longer."""
     main = main_yard(world)
     if main is None:
         return SiteChoice(home_site(world, ctx), None, None)
     if is_far_fields(ctx):
-        choice = far_site(world, ctx, start or main, skip=skip)
+        choice = far_site(world, ctx, start or main, skip=skip, max_route=max_route)
     else:
         fields = [field for field in _site_fields(main, world, ctx) if field not in skip]
-        choice = _first_safe_by_area(fields, [main], start or main, world, ctx)
+        choice = _first_safe_by_area(fields, [main], start or main, world, ctx, max_route)
     return choice or SiteChoice(home_site(world, ctx), None, None)
 
 
 def repeat_site(
-    world: World, ctx: MatchContext, start: Cell, *, skip: frozenset[OrePatch] = frozenset()
+    world: World,
+    ctx: MatchContext,
+    start: Cell,
+    *,
+    skip: frozenset[OrePatch] = frozenset(),
+    max_route: float | None = None,
 ) -> SiteChoice | None:
     """With `mcv_repeat` on, where a further MCV deploys: the place `far_site` gives from `start`, the fields to `skip`
-    passed over; None without one."""
-    return far_site(world, ctx, start, skip=skip)
+    passed over, and with `max_route` every place whose route from `start` is longer; None without one."""
+    return far_site(world, ctx, start, skip=skip, max_route=max_route)
 
 
 def far_site(
@@ -1349,15 +1555,17 @@ def far_site(
     *,
     own_side_rule: bool = True,
     skip: frozenset[OrePatch] = frozenset(),
+    max_route: float | None = None,
 ) -> SiteChoice | None:
     """With `mcv_repeat` on, where an MCV deploys: the place for a yard by the field that qualifies (`_far_fields`)
     whose place the shortest safe route reaches from `start` (`_route_length`), with the distance of the field's center
     from its nearest own yard's middle. The crawl target's field qualifies as any other does; the fields to `skip` do
-    not. None without such a field. With `own_side_rule` off, a place off the base's own side is not passed over. See
-    the module's note."""
+    not, nor with `max_route` a place whose route from `start` is longer. None without such a field. With
+    `own_side_rule` off, a place off the base's own side is not passed over. See the module's note."""
     middles = _yard_middles(world) or ([] if world.base_center is None else [world.base_center])
     fields = [field for field in _far_fields(middles, world, ctx) if field not in skip]
-    return _nearest_by_route(fields, middles, start, McvDangers(world, ctx), world, ctx, own_side_rule)
+    dangers = McvDangers(world, ctx)
+    return _nearest_by_route(fields, middles, start, dangers, world, ctx, own_side_rule, max_route)
 
 
 def _far_fields(middles: list[Cell], world: World, ctx: MatchContext) -> list[OrePatch]:
@@ -1421,10 +1629,13 @@ def _nearest_by_route(
     world: World,
     ctx: MatchContext,
     own_side_rule: bool = True,
+    max_route: float | None = None,
 ) -> SiteChoice | None:
     """The place for a yard by the field of those given whose place, open (`_is_open_site`, the own-side rule waived
-    with `own_side_rule` off), the shortest safe route reaches from `start` (`_route_length`), the first of several as
-    short, with the distance of the field's center from the nearest of the `middles`; None when no route reaches any.
+    with `own_side_rule` off), the shortest safe route reaches from `start` (`_route_length`), its `line_penalty` added
+    to its length, the first of several as short, with the distance of the field's center from the nearest of the
+    `middles`; None when no route reaches any, or with `max_route` none at most that long. The penalty only adds, so
+    the early stop below holds with it.
 
     Finding a field's place is the costly part, and upkeep looks for the site in every cycle while an MCV is wanted;
     so the fields are tried nearest `start` first, and a field whose place cannot be nearer than the best route found
@@ -1435,14 +1646,18 @@ def _nearest_by_route(
         (cells.distance(start, field.nearest_cell(start)) - slack, index, field) for index, field in enumerate(fields)
     )
     best: tuple[float, int, SiteChoice] | None = None
+    bound = math.inf if max_route is None else max_route
     for least, index, field in tried:
-        if best is not None and least > best[0]:
+        if least > min(bound, math.inf if best is None else best[0]):
             break
         site = _place_by(field, world, ctx)
         is_open = _is_open_site(site, world, ctx, own_side_rule)
-        length = _route_length(start, site, dangers, world, ctx) if is_open else None
-        if length is not None and (best is None or (length, index) < best[:2]):
-            best = length, index, SiteChoice(site, field, _nearest_distance(field.center, middles))
+        length = _route_length_within(start, site, bound, dangers, world, ctx) if is_open else None
+        if length is None:
+            continue
+        score = length + line_penalty(field.center, world, ctx.tuning.expansion)
+        if best is None or (score, index) < best[:2]:
+            best = score, index, SiteChoice(site, field, _nearest_distance(field.center, middles))
     return None if best is None else best[2]
 
 
@@ -1500,6 +1715,7 @@ def _far_site_inputs(world: World, ctx: MatchContext, start: Cell) -> tuple[obje
         ctx.harvested_fields,
         ctx.dry_fields,
         ctx.walked_routes,
+        tuple(place.box for place in ctx.refused_places),
     )
 
 
@@ -1517,28 +1733,87 @@ def _route_length(start: Cell, end: Cell, dangers: McvDangers, world: World, ctx
 
 
 def _first_safe_by_area(
-    fields: list[OrePatch], origins: list[Cell], start: Cell, world: World, ctx: MatchContext
+    fields: list[OrePatch],
+    origins: list[Cell],
+    start: Cell,
+    world: World,
+    ctx: MatchContext,
+    max_route: float | None = None,
 ) -> SiteChoice | None:
-    """`_first_safe` of the fields given, in the groups `_site_groups` gives them in."""
+    """`_first_safe` of the fields given, in the groups `_site_groups` gives them in, each group ranked by its
+    `line_penalty` (`_by_line_penalty`)."""
     dangers, tried = McvDangers(world, ctx), set()
     for group in _site_groups(fields, world, ctx):
-        choice = _first_safe([field for field in group if field not in tried], origins, start, dangers, world, ctx)
+        untried = _by_line_penalty([field for field in group if field not in tried], origins, world, ctx)
+        choice = _first_safe(untried, origins, start, dangers, world, ctx, max_route)
         if choice is not None:
             return choice
         tried.update(group)
     return None
 
 
+def _by_line_penalty(fields: list[OrePatch], origins: list[Cell], world: World, ctx: MatchContext) -> list[OrePatch]:
+    """With `mcv_line_penalty` on, the fields given by their center's distance from the nearest of the `origins` plus
+    their `line_penalty`, in their order where that is the same; as given with it off."""
+    expansion = ctx.tuning.expansion
+    if not expansion.mcv_line_penalty:
+        return fields
+    return sorted(
+        fields,
+        key=lambda field: _nearest_distance(field.center, origins) + line_penalty(field.center, world, expansion),
+    )
+
+
+def line_penalty(center: Cell, world: World, tuning: ExpansionTuning) -> float:
+    """With `mcv_line_penalty` on, the cells a field whose center lies at `center` pays on the line from the base to the
+    enemy's start: `mcv_line_penalty_cells` on it, falling evenly to none `mcv_line_clear_cells` off it; none behind
+    the base (no positive depth along that line), with the switch off, or while the base's center or the enemy's start
+    is unknown or they coincide."""
+    base, enemy = world.base_center, world.enemy_base
+    if not tuning.mcv_line_penalty or base is None or enemy is None or base == enemy:
+        return 0.0
+    span_x, span_y = enemy[0] - base[0], enemy[1] - base[1]
+    rel_x, rel_y = center[0] - base[0], center[1] - base[1]
+    if rel_x * span_x + rel_y * span_y <= 0:
+        return 0.0
+    off = abs(rel_x * span_y - rel_y * span_x) / math.hypot(span_x, span_y)
+    return tuning.mcv_line_penalty_cells * max(0.0, 1 - off / tuning.mcv_line_clear_cells)
+
+
 def _first_safe(
-    fields: list[OrePatch], origins: list[Cell], start: Cell, dangers: McvDangers, world: World, ctx: MatchContext
+    fields: list[OrePatch],
+    origins: list[Cell],
+    start: Cell,
+    dangers: McvDangers,
+    world: World,
+    ctx: MatchContext,
+    max_route: float | None = None,
 ) -> SiteChoice | None:
     """The place for a yard by the first of the fields whose place a safe route reaches from `start` (`_is_safe_site`),
-    with the field and its center's distance from the nearest of the `origins`; None without one."""
+    with the field and its center's distance from the nearest of the `origins`; None without one. With `max_route`,
+    only a place whose safe route from `start` is at most that long (`_is_within_route`)."""
     for field in fields:
         site = _place_by(field, world, ctx)
-        if site is not None and _is_safe_site(start, site, dangers, world, ctx):
+        is_safe = site is not None and _is_safe_site(start, site, dangers, world, ctx)
+        if is_safe and _is_within_route(start, site, max_route, dangers, world, ctx):
             return SiteChoice(site, field, _nearest_distance(field.center, origins))
     return None
+
+
+def _is_within_route(
+    start: Cell, site: Cell, max_route: float | None, dangers: McvDangers, world: World, ctx: MatchContext
+) -> bool:
+    """Whether the safe route from `start` to a site (`_route_length`) is at most `max_route` long; always without one."""
+    return max_route is None or _route_length_within(start, site, max_route, dangers, world, ctx) is not None
+
+
+def _route_length_within(
+    start: Cell, site: Cell, bound: float, dangers: McvDangers, world: World, ctx: MatchContext
+) -> float | None:
+    """The length of the safe route from `start` to a site (`_route_length`) when it is at most `bound`; None
+    else."""
+    length = _route_length(start, site, dangers, world, ctx)
+    return None if length is None or length > bound else length
 
 
 def _nearest_distance(cell: Cell, others: list[Cell]) -> float:
@@ -1881,12 +2156,17 @@ def _second_yard(world: World) -> Cell | None:
 
 def _log_site(choice: SiteChoice, reason: str, world: World, ctx: MatchContext) -> None:
     """Write the `expansion` event of phase `site`: the place, the field and how far its center lies from the main
-    yard, and the reason; before it, with `mcv_new_area` on, a `site_check` event of the reason `site_fallback` with
-    the same when the field is not one the site lasts by (`_is_fallback`)."""
+    yard, and the reason, with `mcv_line_penalty` on the field's `line_penalty` too (None without a field); before it,
+    with `mcv_new_area` on, a `site_check` event of the reason `site_fallback` with the same when the field is not one
+    the site lasts by (`_is_fallback`)."""
     distance = None if choice.distance is None else round(choice.distance, _DISTANCE_DECIMALS)
     if _is_fallback(choice.field, world, ctx):
         log_expansion(world, SITE_CHECK, choice.site, choice.field, _REASON_SITE_FALLBACK, distance_cells=distance)
-    log_expansion(world, SITE, choice.site, choice.field, reason, distance_cells=distance)
+    penalty = {}
+    if ctx.tuning.expansion.mcv_line_penalty:
+        paid = None if choice.field is None else line_penalty(choice.field.center, world, ctx.tuning.expansion)
+        penalty["line_penalty"] = None if paid is None else round(paid, _DISTANCE_DECIMALS)
+    log_expansion(world, SITE, choice.site, choice.field, reason, distance_cells=distance, **penalty)
 
 
 def home_site(world: World, ctx: MatchContext, skip: int = 0, anchor: Cell | None = None) -> Cell | None:
@@ -1931,8 +2211,45 @@ def _place_by(field: OrePatch, world: World, ctx: MatchContext) -> Cell | None:
     `mcv_deploy_cells` of the field's ore by walking (`Terrain.walked_distance`), the fewest steps first, then the one
     whose top-left corner lies nearest the field's ore cell nearest the base; None when there is none. A place 2 cells
     from the ore across a cliff is as far as the walk round it, and a yard there would serve the field from the wrong
-    side of the cliff."""
-    reach = ctx.tuning.expansion.mcv_deploy_cells
+    side of the cliff. With `mcv_refinery_fit` on, only a place from which a refinery fits against the field
+    (`refinery_fit`) is taken, within `mcv_fit_search_cells` steps when none within `mcv_deploy_cells` has one: a yard
+    whose field has no place for its refinery earns nothing."""
+    expansion = ctx.tuning.expansion
+    if not expansion.mcv_refinery_fit:
+        return _nearest_place(field, expansion.mcv_deploy_cells, world, ctx)
+    if world.map_bounds is None:
+        return None
+    fit = refinery_fit(field, world, ctx)
+    near = _nearest_place(field, expansion.mcv_deploy_cells, world, ctx, fit)
+    return near or _nearest_place(field, expansion.mcv_fit_search_cells, world, ctx, fit)
+
+
+def refinery_fit(field: OrePatch, world: World, ctx: MatchContext) -> placement.RefineryFit:
+    """The places a refinery serving a field (`refinery_fields.field_served_from`) could take next to a yard yet to
+    stand, off the places the engine refused and the ground within reach of a known enemy ground defense
+    (`refinery_fields.defended_boxes`), clear of the places asked for lately."""
+    tuning = ctx.tuning.placement
+    kept_off = (*(place.box for place in ctx.refused_places), *refinery_fields.defended_boxes(world, ctx))
+    terrain = placement.with_refused(ctx.terrain, kept_off)
+
+    def serves(box: placement.Box) -> bool:
+        return refinery_fields.field_served_from(box, ctx.terrain, tuning.refinery_serves_cells) == field
+
+    return placement.RefineryFit(field, world, terrain, tuning, ctx.promised_places, serves)
+
+
+def has_refinery_fit(site: Cell, field: OrePatch, world: World, ctx: MatchContext) -> bool:
+    """Whether a refinery fits against a field from the yard an MCV deployed on `site` would stand on: one of the
+    places `refinery_fit` gives lies within `mcv_refinery_fit_cells` of the yard box, as a king moves."""
+    fit_cells = ctx.tuning.expansion.mcv_refinery_fit_cells
+    return world.map_bounds is not None and refinery_fit(field, world, ctx).fits(yard_box(site), fit_cells)
+
+
+def _nearest_place(
+    field: OrePatch, reach: int, world: World, ctx: MatchContext, fit: placement.RefineryFit | None = None
+) -> Cell | None:
+    """The cell `_place_by` gives within `reach` steps of the field's ore, of those whose yard box a refinery `fit`s
+    next to when one is given; None without one."""
     xs, ys = [x for x, _ in field.cells], [y for _, y in field.cells]
     width, height = placement.footprint(CONSTRUCTION_YARD)
     # The top-left corners of the yard boxes that may lie within `reach` of the field's ore: no walk is shorter than
@@ -1951,7 +2268,15 @@ def _place_by(field: OrePatch, world: World, ctx: MatchContext) -> Cell | None:
     if not near or world.base_center is None:
         return None
     ore, center = field.nearest_cell(world.base_center), world.base_center
-    return _site_of(min(near, key=lambda cell: (walked[cell], cells.distance(cell, ore), cells.distance(cell, center))))
+    ranked = sorted(near, key=lambda cell: (walked[cell], cells.distance(cell, ore), cells.distance(cell, center)))
+    fit_cells = ctx.tuning.expansion.mcv_refinery_fit_cells
+    fitting = (
+        corner
+        for corner in ranked
+        if fit is None or fit.fits(placement.box_at(CONSTRUCTION_YARD, corner), fit_cells)
+    )
+    corner = next(fitting, None)
+    return None if corner is None else _site_of(corner)
 
 
 def yard_box(site: Cell) -> placement.Box:
@@ -1977,6 +2302,21 @@ def escort_hold(site: Cell, approach: Cell, world: World, terrain: Terrain) -> C
     escort's own units do not take a cell from it: they gather there."""
     free = _free_cells_around(clear_area(site), approach, _Ground(world, terrain, with_units=False))
     return min(free, key=lambda cell: cells.distance(cell, approach), default=None)
+
+
+def moves_off(
+    area: placement.Box, units: Iterable[Unit], approach: Cell, world: World, terrain: Terrain
+) -> list[Intent]:
+    """A move for each of the units to the free cell just outside an area nearest it, on the side `approach` lies on
+    when one is free there (`_free_cells_around`); one unit to a cell, and none for a unit with no free cell."""
+    ground, moves = _Ground(world, terrain, with_units=True), []
+    for unit in units:
+        free = _free_cells_around(area, approach, ground)
+        out = min(free, key=lambda free_cell: cells.distance(free_cell, (unit.x, unit.y)), default=None)
+        if out is not None:
+            ground.take(out)
+            moves.append(Intent(Priority.MOVE, {"cmd": "move", "units": [unit.id], "to": list(out)}))
+    return moves
 
 
 def _holds(box: placement.Box, cell: Cell) -> bool:
@@ -2062,6 +2402,40 @@ def site_army(site: Cell, world: World, ctx: MatchContext) -> list[EnemyRecord]:
     ]
     is_army = sum(_worth(record, world) for record in near) >= ctx.tuning.expansion.mcv_site_army_value
     return near if is_army else []
+
+
+def route_threat(start: Cell, legs: list[Cell], site: Cell, world: World, ctx: MatchContext) -> list[EnemyRecord]:
+    """With `mcv_escort_reliance` on, the enemy group an MCV at `start` heeds on its way to `site` by the cells `legs`:
+    the enemy units that fight on the ground (no aircraft) seen within `SITE_ARMY_SEEN_SECONDS` that stand within
+    `mcv_route_threat_cells` of the remaining route or within `SITE_ARMY_CLEAR_CELLS` of the site."""
+    seen_since = world.tick - SITE_ARMY_SEEN_SECONDS * TICKS_PER_SECOND
+    reach = ctx.tuning.expansion.mcv_route_threat_cells
+    stops = [start, *legs, site]
+    legs_of_route = list(zip(stops, stops[1:]))
+
+    def is_on_the_way(cell: Cell) -> bool:
+        is_by_site = cells.is_within(cell, site, SITE_ARMY_CLEAR_CELLS)
+        return is_by_site or any(distance_to_segment(cell, first, second) <= reach for first, second in legs_of_route)
+
+    return [
+        record
+        for record in world.enemy_memory.values()
+        if is_combat_unit(record)
+        and not _is_aircraft(record, world)
+        and record.last_seen_tick >= seen_since
+        and is_on_the_way((record.x, record.y))
+    ]
+
+
+def is_outmatched(group: list[EnemyRecord], escort: list[Unit], world: World, tuning: ExpansionTuning) -> bool:
+    """Whether an MCV's escort cannot beat an enemy group: the group is worth more in a fight than
+    `mcv_escort_win_ratio` times the escort."""
+    return sum(_worth(record, world) for record in group) > tuning.mcv_escort_win_ratio * strength(escort, world)
+
+
+def _is_aircraft(record: EnemyRecord, world: World) -> bool:
+    facts = world.items.get(record.type)
+    return facts is not None and facts.queue == AIRCRAFT_QUEUE
 
 
 def _worth(record: EnemyRecord, world: World) -> float:

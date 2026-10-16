@@ -19,6 +19,21 @@ placed toward that field to bring the base closer to it, and the build goes
 on from there. One `opening_reach` event in the match record says how this
 was decided; the build is fixed from then on.
 
+On a large map a rush comes late if at all, and a barracks with its rifles
+early only holds the second refinery back. So with the tuning's
+`large_map_economy_first` on, the opening measures once, in the first cycle
+the base's center and the enemy's start are both known, the straight
+distance between them, and calls the map large when it is more than
+`large_map_base_cells`; one `opening_map_size` event says so. On a large map
+the barracks-first, refinery-first and reach-first orders all become one
+build: a power plant, two refineries, the barracks, a second power plant and
+the war factory. A rush seen before the barracks stands or is on its way
+(the rush watch's warning or its rush verdict, or a threat of ground units at
+the base) pulls the barracks forward for good: from then on the build is the
+barracks-first one, whose steps already standing are passed over, and a
+second `opening_map_size` event says it was pulled. The factory-first build
+is the same on every map.
+
 Or it may name the order that puts the war factory first: a power plant, the
 barracks, a refinery at the home field, the war factory, the second refinery
 and the service depot. The war factory comes early for the scout vehicle the
@@ -178,19 +193,28 @@ _ERROR_SOURCE = "redalert.opening"
 _STEPS_BEFORE_REACH = 2
 # The match record's event for the reach decision of the reach-first build.
 OPENING_REACH_EVENT = "opening_reach"
+# The match record's event for the map size decision, and for a rush pulling the barracks forward on a large map.
+OPENING_MAP_SIZE_EVENT = "opening_map_size"
+# The tenths of a cell the map size event gives the distance between the bases in.
+_DISTANCE_DECIMALS = 1
 
 
-def build_steps(names: Family, order: str = BARRACKS_FIRST, reaches: bool = True) -> tuple[str, ...]:
+def build_steps(
+    names: Family, order: str = BARRACKS_FIRST, reaches: bool = True, large_map: bool = False
+) -> tuple[str, ...]:
     """What the Building queue makes in the opening, in order, for a family and an order of the build.
 
     The barracks-first and refinery-first builds are made of the same six buildings; only the two after the first
     power plant change places. The reach-first build is the barracks-first one when the first refinery `reaches` its
     ore field, and holds one more power plant, right after the barracks, when it does not. The factory-first build
     makes the war factory before the second refinery, holds no second power plant (the power rules order one when
-    power is short) and ends with the service depot.
+    power is short) and ends with the service depot. On a `large_map` every order but factory-first makes both
+    refineries before the barracks.
     """
     if order == FACTORY_FIRST:
         return (POWER_PLANT, names.barracks, REFINERY, WAR_FACTORY, REFINERY, SERVICE_DEPOT)
+    if large_map:
+        return (POWER_PLANT, REFINERY, REFINERY, names.barracks, POWER_PLANT, WAR_FACTORY)
     if order == REACH_FIRST:
         toward_ore = () if reaches else (POWER_PLANT,)
         return (POWER_PLANT, names.barracks, *toward_ore, REFINERY, REFINERY, POWER_PLANT, WAR_FACTORY)
@@ -234,6 +258,10 @@ class OpeningManager:
         self._reaches: bool | None = None
         # With `lean_infantry` on: whether the rush watch has told a rush, which lifts the lean counts for good.
         self._is_rush_told = False
+        # With `large_map_economy_first` on: the distance between the bases once both are known, and whether a rush
+        # has pulled the barracks forward on a large map, for good.
+        self._base_distance: float | None = None
+        self._is_barracks_pulled = False
         # Under factory_first, or with `single_scout_rifle` on: whether a rifleman has shown, the scout the opening
         # trains first; and whether the hold on the other infantry has been released, for good.
         self._has_rifleman_shown = False
@@ -276,9 +304,13 @@ class OpeningManager:
         return steps
 
     def _steps(self, world: World, ctx: MatchContext, names: Family) -> tuple[str, ...]:
-        """The steps of the build in its order; under reach_first, the power plant and the barracks alone until both
-        stand or are on their way, and from then on the build the reach decision made once gives."""
+        """The steps of the build in its order; on a large map the large map's build (`_large_map_steps`) under every
+        order but factory_first; under reach_first, the power plant and the barracks alone until both stand or are on
+        their way, and from then on the build the reach decision made once gives."""
         order = ctx.tuning.opening.order
+        distance = None if order == FACTORY_FIRST else self._large_map_distance(world, ctx)
+        if distance is not None:
+            return self._large_map_steps(world, ctx, names, distance)
         if order != REACH_FIRST:
             return build_steps(names, order)
         if self._reaches is None:
@@ -287,6 +319,29 @@ class OpeningManager:
                 return head
             self._reaches = _decide_reach(world, ctx)
         return build_steps(names, REACH_FIRST, self._reaches)
+
+    def _large_map_distance(self, world: World, ctx: MatchContext) -> float | None:
+        """The distance between the bases when they stand more than `large_map_base_cells` apart, with
+        `large_map_economy_first` on; None otherwise. Decided in the first cycle the base's center and the enemy's
+        start are both known, and kept for the match; that cycle writes the one `opening_map_size` event of the
+        decision."""
+        tuning = ctx.tuning.opening
+        if not tuning.large_map_economy_first:
+            return None
+        if self._base_distance is None and world.base_center is not None and world.enemy_base is not None:
+            self._base_distance = cells.distance(world.base_center, world.enemy_base)
+            _log_map_size(world.tick, self._base_distance, self._base_distance > tuning.large_map_base_cells)
+        is_large = self._base_distance is not None and self._base_distance > tuning.large_map_base_cells
+        return self._base_distance if is_large else None
+
+    def _large_map_steps(self, world: World, ctx: MatchContext, names: Family, distance: float) -> tuple[str, ...]:
+        """The large map's build, or the barracks-first one once a rush has pulled the barracks forward: a rush seen
+        while the barracks neither stands nor is on its way pulls it, and writes the `opening_map_size` event that
+        says so."""
+        if not self._is_barracks_pulled and _is_rush_seen(ctx) and not ctx.production.planned(names.barracks):
+            self._is_barracks_pulled = True
+            _log_map_size(world.tick, distance, is_large=True, is_pulled=True)
+        return build_steps(names, BARRACKS_FIRST, large_map=not self._is_barracks_pulled)
 
     def _next_building(self, world: World, ctx: MatchContext, steps: tuple[str, ...]) -> list[Intent]:
         """The next step of the build, or the power plant that has to come before it."""
@@ -439,10 +494,16 @@ class OpeningManager:
     def _guard_post_orders(self, world: World, ctx: MatchContext) -> list[Intent]:
         """Send to the guard post every guard unit that is new, and every one that stands idle out of reach."""
         tuning = ctx.tuning.opening
-        post = _guard_post(world, tuning)
+        post = guard_post(world, tuning)
         if post is None:
             return []
-        to_send = [unit_id for unit_id in ctx.groups.members(GUARD) if self._belongs_at_post(unit_id, world, tuning)]
+        # While a nuke is expected the guard stands spread around the post (see `nuke`), not on it.
+        is_spread = ctx.tuning.combat.nuke_follow_up and ctx.nuke_spreading
+        to_send = [
+            unit_id
+            for unit_id in ctx.groups.members(GUARD)
+            if self._belongs_at_post(unit_id, world, tuning) and not (is_spread and unit_id in self._sent_to_post)
+        ]
         if not to_send:
             return []
         self._sent_to_post.update(dict.fromkeys(to_send, world.tick))
@@ -475,6 +536,20 @@ def _decide_reach(world: World, ctx: MatchContext) -> bool:
     return reaches
 
 
+def _is_rush_seen(ctx: MatchContext) -> bool:
+    """Whether a rush is seen in this cycle: the rush watch's warning or its rush verdict, or a threat at the base
+    that is not of aircraft alone."""
+    is_ground_threat = ctx.threat_active and not ctx.threat_aircraft_only
+    return ctx.rush_warning or ctx.rush_verdict == RUSH or is_ground_threat
+
+
+def _log_map_size(tick: int, distance: float, is_large: bool, is_pulled: bool = False) -> None:
+    """Write an `opening_map_size` event: the distance between the bases, whether the map is large, and once a rush
+    has pulled the barracks forward, that it was."""
+    data = {"tick": tick, "distance": round(distance, _DISTANCE_DECIMALS), "large": is_large}
+    records.log(OPENING_MAP_SIZE_EVENT, {**data, "pulled": True} if is_pulled else data)
+
+
 def _is_defense_called_for(world: World, ctx: MatchContext, is_build_complete: bool) -> bool:
     """Whether the defense against infantry is called for in this cycle: always with `defense_on_threat` off; with it
     on, by a rush the watch tells, by a verdict still unknown at its deadline, or by a threat while the build is under
@@ -489,7 +564,7 @@ def _is_defense_called_for(world: World, ctx: MatchContext, is_build_complete: b
     return verdict == RUSH or is_unknown_at_deadline or (ctx.threat_active and not is_build_complete)
 
 
-def _guard_post(world: World, tuning: OpeningTuning) -> Cell | None:
+def guard_post(world: World, tuning: OpeningTuning) -> Cell | None:
     """Where the home guard stands: in front of the base on the enemy's side. None while that side is not known."""
     if world.base_center is None or world.enemy_base is None or world.map_bounds is None:
         return None

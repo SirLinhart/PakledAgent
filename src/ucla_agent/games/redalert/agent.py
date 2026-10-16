@@ -370,6 +370,7 @@ class RedAlertAgent:
         self.ctx.seat = raw.get("your_seat")
         # The runtime names a tournament for a tournament game only.
         self.ctx.match_kind = TOURNAMENT_CONTEXT if context.tournament_id else TESTING_CONTEXT
+        self.ctx.session_id = context.session_id
 
     def _summary(self, orders: Iterable[Mapping[str, Any]]) -> str:
         """The plan in force and how many orders of each command a batch holds, as its reasoning summary."""

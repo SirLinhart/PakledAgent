@@ -39,7 +39,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Iterable
 
-from ucla_agent.games.redalert import cells
+from ucla_agent.games.redalert import cells, defense_cap
 from ucla_agent.games.redalert.batch import ACTIVITY_COMMANDS, Intent, Order, Priority
 from ucla_agent.games.redalert.family import BARRACKS_TYPES, RADAR, REFINERY, WAR_FACTORY
 from ucla_agent.games.redalert.groups import MAIN
@@ -47,6 +47,9 @@ from ucla_agent.games.redalert.managers import MatchContext
 from ucla_agent.games.redalert.production import DEFENSE_QUEUE
 from ucla_agent.games.redalert.rush_watch import RUSH
 from ucla_agent.games.redalert.world import Cell, World
+
+# The rule the counter's defenses are, as a `defense_capped` event names it (see `defense_cap`).
+RUSH_COUNTER = "rush_counter"
 
 # How far from base_center main is kept while it holds home.
 HOLD_CELLS = 20
@@ -86,7 +89,7 @@ class RushDefenses:
             ctx.rush_counter_ordered = True
             return None
         can_start = item in world.available_production and production.is_queue_free(DEFENSE_QUEUE)
-        if not can_start or not production.can_power(item):
+        if not can_start or not production.can_power(item) or not defense_cap.allows(item, RUSH_COUNTER, world, ctx):
             return []
         self._ordered += 1
         return [production.build(item)]

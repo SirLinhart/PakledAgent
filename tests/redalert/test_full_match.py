@@ -111,8 +111,9 @@ LANE_ORE = [(x, y) for y in (45, 46, 47) for x in (35, 36, 37)]
 MAIN_FORCE_MIXED, MAIN_FORCE_TANKS = 'main_force = "mixed"\n', 'main_force = "tanks"\n'
 HEAVIER_TANK = {"england": "2tnk", "russia": "3tnk"}
 SERVICE_DEPOT = "fix"
-# The standing raid group as the tracked tuning file ships it, and switched on.
-STANDING_SHIPPED, STANDING_ON = "standing = false\n", "standing = true\n"
+# The standing raid group as the tracked tuning file ships it, and switched on, each with the line break before it:
+# other keys end in "standing" too.
+STANDING_SHIPPED, STANDING_ON = "\nstanding = false\n", "\nstanding = true\n"
 # The plans the raid group raids under only when it is standing.
 ONLY_STANDING_PLANS = {"HOLD", "STRIKE", "FINISH"}
 # Scouting again whenever the picture of the enemy goes stale as the tracked tuning file ships it, on; the indirect
@@ -538,6 +539,21 @@ def test_shipped_army_build_the_depot_is_the_first_building_after_the_war_factor
     assert [item for item in after if item not in POWER_PLANTS][: len(expected)] == expected
 
 
+def canary_rifles_trained(played: PlayedMatch) -> int:
+    """How many riflemen the canary was posted with that were trained for it (see `canary`), over the army build's
+    span of `build_trained`."""
+    start = first_placed_at(played, "fix")
+    end = played.cycles[-1].tick - Tuning().plan_rules.clock_seconds * TICKS_PER_SECOND
+    return sum(
+        1
+        for event in played.data_of("scout_slot")
+        if event.get("kind") == "canary"
+        and event.get("phase") == "posted"
+        and event.get("source") == "trained"
+        and start <= event["tick"] < end
+    )
+
+
 def test_shipped_army_build_tanks_artillery_or_v2s_and_rockets_are_trained_12_4_8_within_25_percent(shipped_match):
     trained = build_trained(shipped_match)
     tank_types, support = BUILD_UNITS[shipped_match.faction]
@@ -547,8 +563,9 @@ def test_shipped_army_build_tanks_artillery_or_v2s_and_rockets_are_trained_12_4_
     assert tanks >= BUILD_TANKS
     for unit, wanted in BUILD_PER_12_TANKS.items():
         assert abs(per_12_tanks[unit] - wanted) <= BUILD_TOLERANCE * wanted, (unit, dict(trained))
-    # No rifle once the war factory stands, as no_army_infantry ships.
-    assert trained["e1"] == 0
+    # No rifle once the war factory stands, as no_army_infantry ships, but those the canary's posts were trained for:
+    # with the lean guard of one rifle the canary has no spare guard rifle to take (see `canary`).
+    assert trained["e1"] <= canary_rifles_trained(shipped_match)
 
 
 # The kinds of scout_slot event of a unit taking a slot.

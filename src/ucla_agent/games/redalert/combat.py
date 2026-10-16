@@ -118,7 +118,15 @@ staging point (see `forward_hold`); its retreats still go to the staging
 point. There it fights only the enemy units no remembered defense covers, and
 a unit that has chased one too far from the point is sent back to it. It
 falls back to the staging point, a retreat at once, below the retreat ratio
-or when an enemy army stronger than it comes at the point.
+or when an enemy army stronger than it comes at the point. With
+`expansion_cover_rally` on, while an expansion yard stands, main under
+OPENING, HOLD and RAID holds the same way at the cover point ahead of the
+expansions, whatever its strength (see `forward_hold`).
+
+While the endgame lead is kept (rule R2E, see `endgame_lead`), main under
+PRESERVE gathers at the lead point among the lead's defenses instead of the
+staging point, the producers rally there, and it engages only the enemies
+within `endgame_army_leash_cells` of that point.
 
 While the model commander commands main (see `commander`), its standing
 action (see `command_army`) is main's objective under every plan, in place
@@ -157,6 +165,14 @@ run is followed before main's recall is looked at, and the tanks on it take no
 other order of main's until it ends, but an emergency. The run's tanks are
 published in every cycle (`MatchContext.crush_run`), so that no other
 manager's order reaches them either.
+
+With `crush_wave` of `[combat]` on as well, an enemy infantry all-in (8 or
+more infantry within 6 cells of their centroid, near the base or our tanks)
+is met by one wave instead (see `crush_wave`): every fit crushing vehicle a
+run may take within 16 cells gathers 8 cells outside the mass, and all those
+there drive through it together on parallel lanes, the stragglers as one
+second wave of two or more. The wave is the one crush run while it forms,
+waits and runs: its tanks and their cells are published as the run's.
 
 With `nuke_spread` of `[combat]` on, the combat manager keeps the clock of
 every enemy missile silo it has seen, which tells when a nuke is to be
@@ -204,6 +220,42 @@ While the staging cell stands, the units joining main meet at it, the
 plan's reinforcements and the units joining main through the commander's
 forward gate alike, and go on together from there.
 
+With `stepped_advance` of `[combat]` on, main's way to a far objective, by
+its plan or under the commander's advance, flank, attack on a far group and
+siege until a long-range unit has the target in its band, goes in steps (see
+`stepping`); with `stepped_return` on so does its way home, under the
+commander's gather and retreat home and when the plan sends an army gone
+forward back to the staging point. A stepped move takes the place of the
+forward staging; while it is under way main goes into no fight, its units in
+contact on an advance firing at what is within their weapon range, and the
+units outside the group that set out go straight to the destination.
+With `met_enemy_decision` on, the group fights the enemies it meets on a
+stepped advance that it beats, within a few cells of the step's way, and
+steps back from those it does not (see `stepping`); main's plan RETREAT on a
+stepped advance is such a step back, to the step point main came from.
+With `moving_returns_fire` on, main caught by the enemy on a move home,
+stepped or not (the commander's gather, retreat home and pull back, the plan's
+way back to the staging point), on a step back or between step points stops
+and fights together whatever its ratio (see `stepping.CaughtWatch`); the
+retreat override's and the regroup's moves wait for the fight to end.
+
+With `artillery_screen_place` of `[siege]` on, main's artillery and V2 out of
+contact stand close behind the screen on its far side from the threat (see
+`screen_place`): at each step point of a stepped move, out and home and on a
+step back, in place of the slots behind the step point; wherever main gathers
+or holds (at the staging point, the forward point, its staging cell, the units
+waiting to reinforce it, the commander's hold and a gather that is no
+retreat); and in a fight with an enemy near main, in place of the siege's
+slots. A kite fall-back steps away from the enemy, not toward the base.
+
+With `reinforce_hold_home` of `[combat]` on, while main's army is more than
+30 cells from its home gather point (the forward hold's gather point, else
+the staging point), the units joining it (the plan's reinforcements, forward
+staging's joiners and the commander gate's joiners) wait and defend there, and
+go to main only as a group worth 3,000 or more, by steps with
+stepped_advance on (see `reinforce_hold`); main back near home, they join it
+by their own rules again.
+
 With `defended_redirect` of `[combat]` on, main does not fight under enemy
 defenses it cannot beat (see `defended`). While its objective, the cell of
 the commander's forward action or the plan's objective, lies in the coverage
@@ -213,6 +265,17 @@ sends no order into covered ground: it goes on an uncovered attack point
 instead, shells a lone defense, or sieges from beyond the coverage with its
 other units screening behind. A strike as a whole, base defense's override
 and recall, the retreats and the crush runs come first.
+
+With `flank_approach`, `commit_on_cross`, `canary_post` or `canary_alarm`
+on, the combat manager keeps whether main's attack is out (see
+`attack_approach`). With `flank_approach` on, the attack setting out is
+routed by its approach: main's forward move under its plan, its steps and
+its staging go by the approach's side cell until main has passed it, and so
+do the commander's advance, siege and attack on a far group. With
+`commit_on_cross` on, once the armies cross main commits to the base trade
+or goes home by its reverse route as `cross_commit` decides, ahead of every
+other order of main's; while committed it takes no retreat, no withdrawal
+and no repair, and closing intercepts leave it alone.
 """
 
 from __future__ import annotations
@@ -223,21 +286,35 @@ from functools import partial
 from typing import Callable
 
 from ucla_agent.games.redalert import (
+    artillery_answer,
+    attack_approach,
     cells,
+    chase_leash,
     closing_intercept,
+    command_gate,
     command_army,
     command_detachments,
     coverage,
     crush,
+    crush_wave,
+    cross_commit,
     defended,
+    endgame_lead,
+    failed_attack,
     finish_target,
     forward_hold,
     forward_staging,
     kite,
     marching,
     nuke,
+    opening,
+    reinforce_hold,
+    reinforce_winning,
     repair,
+    safe_staging,
+    screen_place,
     siege,
+    stepping,
     strike,
     targeting,
     waypoints,
@@ -249,6 +326,7 @@ from ucla_agent.games.redalert.command_army import (
     FLANK,
     FORWARD_KINDS,
     GATHER,
+    HOME_KINDS,
     PULL_BACK,
     RETREAT_HOME,
     SIEGE,
@@ -256,7 +334,7 @@ from ucla_agent.games.redalert.command_army import (
 from ucla_agent.games.redalert.command_army import HOLD as HOLD_ACTION
 from ucla_agent.games.redalert.command_prompt import Action
 from ucla_agent.games.redalert.commander import MAIN_ROLE, Commander
-from ucla_agent.games.redalert.composition import FINISH, PRESERVE
+from ucla_agent.games.redalert.composition import FINISH, PRESERVE, PRESS
 from ucla_agent.games.redalert.family import MCV
 from ucla_agent.games.redalert.fight import (
     Estimate,
@@ -269,7 +347,7 @@ from ucla_agent.games.redalert.fight import (
     strength,
     worth,
 )
-from ucla_agent.games.redalert.groups import GUARD, MAIN
+from ucla_agent.games.redalert.groups import GUARD, MAIN, SIEGE_TYPES
 from ucla_agent.games.redalert.managers import MatchContext
 from ucla_agent.games.redalert.tuning import SCREENED, CombatTuning, Tuning
 from ucla_agent.games.redalert.world import Cell, EnemyRecord, Unit, World
@@ -436,8 +514,27 @@ class CombatManager:
         self._march_watch = marching.MarchWatch()
         self._hold = forward_hold.ForwardHold()
         self._staging = forward_staging.ForwardStaging()
+        # main's move in steps to a far destination, out or home (see `stepping`), and whether it is caught on a move.
+        self._stepper = stepping.Stepper()
+        self._caught = stepping.CaughtWatch()
+        # Where main's long-range units out of contact stand behind the screen (see `screen_place`).
+        self._placer = screen_place.ScreenPlacer()
+        # The units joining main held home while it is away, and the group of their own on its way (see
+        # `reinforce_hold`).
+        self._home_hold = reinforce_hold.HomeHold()
         self._crush = crush.CrushRuns()
+        # The wave of tanks over an enemy infantry all-in, the one crush run while it is out (see `crush_wave`).
+        self._wave = crush_wave.CrushWave()
         self._nuke = nuke.NukeWatch()
+        # main's failed attacks, and whether PRESS's objective was blocked in the latest cycle (see `failed_attack`).
+        self._failed = failed_attack.AttackMemory()
+        self._blocks_logged: set[object] = set()
+        # main's idle units sent to a fight of ours going our way, which take no order of main's (see
+        # `reinforce_winning`).
+        self._winning = reinforce_winning.WinningReinforce()
+        # Our units closing in on, firing on or leaving the range of an enemy artillery piece or V2 (see
+        # `artillery_answer`), which take no order of main's or the commander's.
+        self._artillery = artillery_answer.ArtilleryAnswer()
         # The units of main sent after an enemy from the forward point in the latest cycle.
         self._chasing: set[int] = set()
         # The estimate of main's fight in the latest cycle; None when there was no enemy near or no main.
@@ -459,6 +556,13 @@ class CombatManager:
         # The one order the standing action stands for in the latest cycle, for main's units nearest its target
         # first; None while there is none to give.
         self.commanded_order: Order | None = None
+        # Whether main's attack is out and the approach it takes (see `attack_approach`); whether the commander's
+        # forward gate was open in the latest cycle and the key of main's standing action then.
+        self._attack = attack_approach.AttackWatch()
+        self._gate_was_open = False
+        self._standing_key: tuple | None = None
+        # main committed to the base trade, or on its way home, once the armies cross (see `cross_commit`).
+        self._cross = cross_commit.CrossCommit()
 
     @property
     def mode(self) -> str:
@@ -484,34 +588,70 @@ class CombatManager:
         groups = ctx.groups
         self.estimate, self._is_overridden, self.commanded_order = None, groups.has_defense_override(MAIN), None
         members = self._members(world, ctx)
+        answering = self._answer_artillery(members, world, ctx)
+        shelled = {unit_id: unit for unit_id, unit in members.items() if unit_id in self._artillery.units}
+        members = {unit_id: unit for unit_id, unit in members.items() if unit_id not in self._artillery.units}
+        # The attack out as the cycle starts, which a failure of this cycle is one of (see `failed_attack`).
+        attack_was_out = ctx.attack_objective if ctx.attack_out else None
         ctx.repairing, ctx.withdrawn = self._repair.units, self._withdrawals.units
         ctx.detachments = self._detached.out
         self._army &= members.keys()
         self._chasing = set()
         self._nuke.follow(world, ctx.tuning.combat)
+        ctx.nuke_spreading = self._nuke.is_spreading
         self._staging.begin_cycle()
-        point = cells.staging_point(world, ctx.tuning.upkeep.staging_distance_cells)
+        self._stepper.begin_cycle()
+        self._caught.begin_cycle()
+        self._placer.begin_cycle()
+        self._home_hold.begin_cycle()
+        # Out of a remembered enemy's reach with staging_clear_of_enemies on (see `safe_staging`).
+        point = safe_staging.staging_point(world, ctx.tuning, ctx)
         struck = self._follow_strike(members, point, world, ctx)
         if point is not None and members:
             self._ask_commander(members, world, ctx)
+        self._follow_cross(members, point, world, ctx)
         unstruck = {unit_id: unit for unit_id, unit in members.items() if unit_id not in self._strike.units}
         self._follow_detachments(unstruck, world, ctx)
         rest = self._without_joiners(self._without_detached(members), ctx)
+        helping = self._follow_winning(rest, world, ctx)
+        rest = {unit_id: unit for unit_id, unit in rest.items() if unit_id not in self._winning.units}
         closing_orders = self._follow_intercept(rest, point, world, ctx)
-        tanks = self._crush_tanks(rest, world, ctx)
-        runs = self._crush.follow(tanks, world, ctx.tuning, ctx.terrain, ctx.run_over_out)
+        # A crush run keeps its precedence over the answer to enemy artillery: the tanks answering may be taken.
+        tanks = self._crush_tanks({**rest, **shelled}, world, ctx)
+        runs = self._crush_follow(tanks, world, ctx)
+        answering = self._without_crushing(answering)
         orders = [] if point is None or not rest or groups.is_recalled(MAIN) else self._orders(rest, point, world, ctx)
         self._staging.end_cycle()
-        ctx.crush_run = self._crush.held(orders)
+        self._stepper.end_cycle()
+        self._caught.end_cycle()
+        self._placer.end_cycle()
+        self._home_hold.end_cycle()
+        ctx.crush_run = {**self._crush.held(orders), **self._wave.held(orders)}
         detached_orders = self._detached.orders(members, world, ctx)
         strike_orders = [*struck, *self._strike.orders(members, world, ctx), *closing_orders]
-        join_orders = [] if groups.is_recalled(MAIN) else self._join_orders(world, ctx)
+        # main's units but the strike force's chasing alone into the enemy's base are called back (see `chase_leash`).
+        unstruck_now = [unit for unit_id, unit in members.items() if unit_id not in self._strike.units]
+        strike_orders = [*chase_leash.leash(unstruck_now, world, ctx), *strike_orders]
+        join_orders = [] if groups.is_recalled(MAIN) else self._join_orders(world, ctx, point)
+        self._follow_attack(rest, world, ctx)
+        self._follow_failed(list(members.values()), attack_was_out, world, ctx)
         ctx.army = frozenset(self._army | self._chasing | self._away)
-        ctx.gather_point = self._hold.cell
+        gather = _lead_point(world, ctx) or self._hold.cell
+        # Held by our defenses while main is not on the attack (see `safe_staging`).
+        ctx.gather_point = None if gather is None else safe_staging.behind_defenses(gather, world, ctx)
         ctx.combat_held = self._strike.units | self._repair.units
         # The moves of the vehicles in repair mode and of the support units go after main's (see `repair`).
-        orders = [*orders, *self._repair.orders(list(members.values()), world, ctx)]
-        intents = [*self._commander_intent(world, ctx), *detached_orders, *strike_orders, *join_orders, *runs, *orders]
+        orders = [*orders, *self._repair.orders(list(members.values()), world, ctx), *self._guard_spread(world, ctx)]
+        intents = [
+            *self._commander_intent(world, ctx),
+            *detached_orders,
+            *strike_orders,
+            *join_orders,
+            *runs,
+            *answering,
+            *helping,
+            *orders,
+        ]
         # main's idle infantry standing on one cell with another of ours is moved apart, none while base defense has
         # called main home (see `spread`).
         stacked = {} if self._is_overridden else members
@@ -529,7 +669,10 @@ class CombatManager:
         }
         self._withdrawals.keep_up(main, world.tick, ctx.tuning.combat)
         main = {unit_id: unit for unit_id, unit in main.items() if unit_id not in self._withdrawals.units}
-        self._repair.follow(main, self._crush.units | self._away, world, ctx)
+        # A committed main is not taken apart for repairs (see `cross_commit`).
+        committed = frozenset(main) if self._cross.is_committed else frozenset()
+        # A tank of the run in force stays out of repair once it reached its cell too: the run is not over for it.
+        self._repair.follow(main, self._crushing | self._crush.sent | self._away | committed, world, ctx)
         return {unit_id: unit for unit_id, unit in main.items() if unit_id not in self._repair.units}
 
     def _crush_tanks(self, rest: dict[int, Unit], world: World, ctx: MatchContext) -> list[Unit]:
@@ -547,6 +690,21 @@ class CombatManager:
         ]
         return [*rest.values(), *others]
 
+    def _crush_follow(self, tanks: list[Unit], world: World, ctx: MatchContext) -> list[Intent]:
+        """The crush orders of the cycle: the wave's over an infantry all-in while one forms, waits or runs (see
+        `crush_wave`), none forming while a script run or the commander's run-over detachment is out, and no script run
+        starting in the cycle the wave ends; else the script run's (see `crush`)."""
+        blocked = ctx.run_over_out or bool(self._crush.units)
+        wave = self._wave.follow(tanks, world, ctx.tuning, ctx.terrain, blocked)
+        if self._wave.is_active or self._wave.ended_now:
+            return wave
+        return self._crush.follow(tanks, world, ctx.tuning, ctx.terrain, ctx.run_over_out)
+
+    @property
+    def _crushing(self) -> frozenset[int]:
+        """The tanks of the crush run in force and of the wave, which take no order of main's but an emergency."""
+        return self._crush.units | self._wave.units
+
     def _ask_commander(self, members: dict[int, Unit], world: World, ctx: MatchContext) -> None:
         """While the model commander commands main: main's question of the cycle put about its units but the
         detachments' (none of them offered while detachments_max are out, nor on an enemy a detachment is on), the
@@ -558,10 +716,112 @@ class CombatManager:
             return
         detached = self._detached
         may_detach = detached.count < ctx.tuning.commander.detachments_max
-        standing = commander.command_main(units, self._next_leg(), world, ctx, self._away, may_detach, detached.targets)
+        steps = self._stepper.status(units, world, ctx.tuning) if ctx.tuning.combat.stepped_advance else None
+        standing = commander.command_main(
+            units, self._next_leg(), world, ctx, self._away, may_detach, detached.targets, steps
+        )
+        if attack_approach.is_kept(ctx.tuning):
+            self._follow_commanded_attack(commander, standing, units, world, ctx)
+            standing = command_army.routed(standing, cells.nearest_cell(*centroid(units)), ctx)
         if standing is not None and standing.route is not None and self._is_new(standing):
             waypoints.log_route(standing.kind, standing.route, world.tick)
         self.command(standing)
+
+    def _follow_cross(self, members: dict[int, Unit], point: Cell | None, world: World, ctx: MatchContext) -> None:
+        """Bring the crossing of the armies up to date on main's attack out (see `cross_commit`), once the staging point
+        is known."""
+        if point is not None:
+            self._cross.follow(list(members.values()), self._attack, point, world, ctx)
+
+    def _follow_commanded_attack(
+        self, commander: Commander, standing: Action | None, units: list[Unit], world: World, ctx: MatchContext
+    ) -> None:
+        """While the commander commands main: the attack sets out the cycle the forward gate opens, on the standing
+        forward action's cell or else the plan's objective, and its objective follows that cell; it ends once the gate
+        closes, the retreat override pulls main back to the staging point, or the commander takes a gather, a retreat
+        home or a pull back. A commit or a way home of `cross_commit` holds it out. Published at once, so that the
+        standing action takes its approach in the same cycle."""
+        is_open = commander.gate.is_open
+        is_sent_home = self._is_sent_home(standing)
+        is_pulled = commander.retreat.is_active and not commander.steps_back
+        watch = self._attack
+        if not self._cross.holds and (not is_open or is_pulled or is_sent_home):
+            watch.end(attack_approach.SENT_HOME, world)
+        elif watch.is_out:
+            watch.aim(self._attack_objective(standing, units, world, ctx), units, world, ctx)
+        elif is_open and not self._gate_was_open:
+            watch.set_out(self._attack_objective(standing, units, world, ctx), units, world, ctx)
+        self._gate_was_open = is_open
+        watch.publish(ctx)
+
+    def _is_sent_home(self, standing: Action | None) -> bool:
+        """Whether the commander took a gather, a retreat home or a pull back for main in this cycle: a standing action
+        of another key than the latest cycle's, of a kind that brings main home."""
+        key = None if standing is None else standing.key
+        is_new, self._standing_key = key != self._standing_key, key
+        return is_new and standing is not None and standing.kind in HOME_KINDS
+
+    def _attack_objective(self, standing: Action | None, units: list[Unit], world: World, ctx: MatchContext) -> Cell:
+        """The objective of the commander's attack: the standing forward action's cell, else the plan's objective, else
+        the enemy's start."""
+        if standing is not None and standing.kind in FORWARD_KINDS and standing.cell is not None:
+            return standing.cell
+        return self._objective(units, world, ctx) or world.enemy_base
+
+    def _follow_attack(self, rest: dict[int, Unit], world: World, ctx: MatchContext) -> None:
+        """Bring main's attack out up to date at the end of the cycle (see `attack_approach`): over once base defense
+        takes main or calls it home, or, under the plan, once main is no longer gone forward; the side cell passed and
+        the attack over once main is home; published on the match context. A decision of `cross_commit` holds the
+        attack out until main is home; main home from its way back is main at the staging point again."""
+        if not attack_approach.is_kept(ctx.tuning):
+            return
+        watch = self._attack
+        commander = ctx.commander
+        is_commanded = commander is not None and commander.role == MAIN_ROLE
+        if self._is_attack_over(is_commanded, ctx):
+            watch.end(attack_approach.SENT_HOME, world)
+        was_home_bound = self._cross.decision == cross_commit.HOME
+        passed = self._flanked if is_commanded else self._stepper.has_passed_waypoints(watch.objective)
+        watch.follow(list(rest.values()), world, ctx, passed)
+        if was_home_bound and not watch.is_out:
+            self._army = set()
+        watch.publish(ctx)
+
+    def _is_attack_over(self, is_commanded: bool, ctx: MatchContext) -> bool:
+        """Whether main's attack is over at the end of the cycle: base defense took main or called it home, or under the
+        plan main is no longer gone forward; never while a decision of `cross_commit` holds it out."""
+        groups = ctx.groups
+        if self._cross.holds:
+            return False
+        is_taken = groups.is_recalled(MAIN) or groups.has_defense_override(MAIN)
+        return is_taken or (not is_commanded and not self._army)
+
+    def _follow_failed(self, units: list[Unit], objective: Cell | None, world: World, ctx: MatchContext) -> None:
+        """Bring main's failed attacks up to date (`objective` the attack out as the cycle started, None for none):
+        main is pulled back by the commander's retreat override or its plan retreat; and publish whether PRESS's
+        objective is blocked (see `failed_attack`)."""
+        commander = ctx.commander
+        is_overridden = commander is not None and commander.role == MAIN_ROLE and commander.retreat.is_active
+        is_pulled = is_overridden or self._main.mode == RETREAT
+        approach = self._attack.approach
+        side = failed_attack.DIRECT if approach is None else approach.chosen
+        self._failed.follow(units, objective, side, is_pulled, world, ctx)
+        cell = _objective(units, world, ctx) if units else None
+        blocked = None if cell is None else failed_attack.blocking(cell, units, failed_attack.DIRECT, world, ctx)
+        if blocked is not None:
+            failed_attack.note_blocked(blocked, world, PRESS, self._blocks_logged)
+        ctx.press_blocked = blocked is not None
+
+    def _set_out(self, objective: Cell, units: list[Unit], world: World, ctx: MatchContext) -> None:
+        """main sent forward as a whole by its plan: its attack sets out (see `attack_approach`), while it is kept."""
+        if attack_approach.is_kept(ctx.tuning):
+            self._attack.set_out(objective, units, world, ctx)
+
+    def _route_target(self, objective: Cell, army: list[Unit], ctx: MatchContext) -> Cell:
+        """Where main's forward move under its plan goes now: the side cell of the attack's approach until main has
+        passed it, else the objective."""
+        self._attack.pass_side(army)
+        return self._attack.via(objective, ctx.tuning) or objective
 
     def _next_leg(self) -> Cell | None:
         """The cell main is on its way to by the legs of its standing action while it has not passed them; None
@@ -603,8 +863,74 @@ class CombatManager:
 
     @property
     def _away(self) -> frozenset[int]:
-        """main's units out of it on a job of their own: the detachments' and the strike force's."""
-        return self._detached.units | self._strike.units
+        """main's units out of it on a job of their own: the detachments', the strike force's and the helpers sent to a
+        fight going our way."""
+        return self._detached.units | self._strike.units | self._winning.units | self._artillery.units
+
+    def _answer_artillery(self, members: dict[int, Unit], world: World, ctx: MatchContext) -> list[Intent]:
+        """The answer to the enemy artillery and V2 in sight (see `artillery_answer`) of main's units on no job of their
+        own (no detachment, strike, help, crush run or walk) and of the home guard base defense has not taken."""
+        groups = ctx.groups
+        busy = self._detached.units | self._strike.units | self._winning.units | self._crushing | set(ctx.crush_run)
+        guard = [
+            world.combat_units[unit_id]
+            for unit_id in groups.members(GUARD)
+            if unit_id in world.combat_units and not groups.is_overridden(unit_id)
+        ]
+        candidates = [
+            unit
+            for unit in [*members.values(), *guard]
+            if unit.id not in busy and not groups.is_walking(unit.id)
+        ]
+        # Every other own ground unit hit by a shooter out of sight answers it too, on whatever job, but a crush run's.
+        chosen = {unit.id for unit in candidates}
+        crushing = self._crushing | set(ctx.crush_run)
+        others = [
+            unit
+            for unit_id, unit in world.combat_units.items()
+            if unit_id not in chosen and unit_id not in crushing and not world.items.damage.get(unit.type).air
+        ]
+        # The units of main's met fight fight on there rather than leave a piece's range (see `stepping`).
+        move = self._stepper.move
+        fighting = frozenset(move.group) if move is not None and move.decision == stepping.FIGHT else frozenset()
+        return self._artillery.follow(candidates, world, ctx, others, fighting)
+
+    def _without_crushing(self, answering: list[Intent]) -> list[Intent]:
+        """The answer's orders but those of the tanks a crush run took in this cycle, which leave the answer."""
+        crushing = self._crushing
+        self._artillery.without(crushing)
+        return [intent for intent in answering if not set(intent.order["units"]) & crushing]
+
+    def _guard_spread(self, world: World, ctx: MatchContext) -> list[Intent]:
+        """With nuke_follow_up on, while a nuke is expected, the idle home guard's moves to its places spread around the
+        guard post (see `nuke`): the guard standing on its post beside the base is in the nuke's clump too."""
+        tuning = ctx.tuning
+        if not (tuning.combat.nuke_follow_up and self._nuke.is_spreading):
+            return []
+        post = opening.guard_post(world, tuning.opening)
+        groups = ctx.groups
+        guard = [
+            world.combat_units[unit_id]
+            for unit_id in groups.members(GUARD)
+            if unit_id in world.combat_units and not groups.is_overridden(unit_id) and not groups.is_walking(unit_id)
+        ]
+        if post is None or not guard:
+            return []
+        return self._nuke.gather(guard, post, world, ctx.terrain, tuning.combat)
+
+    def _follow_winning(self, rest: dict[int, Unit], world: World, ctx: MatchContext) -> list[Intent]:
+        """The orders of the helpers sent to a fight of ours going our way (see `reinforce_winning`): main's idle units
+        on no crush run or walk free to help while main is home, no attack out, none gone forward and base defense
+        neither taking nor calling it."""
+        groups = ctx.groups
+        is_home = not (ctx.attack_out or self._army or self._is_overridden or groups.is_recalled(MAIN))
+        crushing = self._crushing
+        idle = [
+            unit
+            for unit_id, unit in rest.items()
+            if unit.idle and unit_id not in crushing and not groups.is_walking(unit_id)
+        ]
+        return self._winning.follow(idle, is_home, world, ctx)
 
     def _follow_strike(
         self, members: dict[int, Unit], point: Cell | None, world: World, ctx: MatchContext
@@ -646,6 +972,7 @@ class CombatManager:
         commander = ctx.commander
         blocked = (
             self._is_overridden
+            or self._cross.holds
             or ctx.groups.is_recalled(MAIN)
             or self._strike.target_id is not None
             or (commander is not None and commander.role == MAIN_ROLE)
@@ -666,13 +993,29 @@ class CombatManager:
         joining = frozenset() if commander is None else commander.gate.joiners.ids
         return {unit_id: unit for unit_id, unit in members.items() if unit_id not in joining}
 
-    def _join_orders(self, world: World, ctx: MatchContext) -> list[Intent]:
+    def _join_orders(self, world: World, ctx: MatchContext, point: Cell | None) -> list[Intent]:
         """The moves of the units joining main while the commander's forward gate is open, but the detachments', to
-        main's staging cell while it has one (see `forward_staging`)."""
+        main's staging cell while it has one (see `forward_staging`); held home while main is away (see
+        `_held_joiners`)."""
         commander = ctx.commander
         if commander is None:
             return []
-        return commander.gate.joiners.orders(self._away, world, ctx, self._staging.cell)
+        joiners = commander.gate.joiners
+        held = None if point is None else self._held_joiners(joiners, point, world, ctx)
+        if held is not None:
+            return held
+        return joiners.orders(self._away, world, ctx, self._staging.cell)
+
+    def _held_joiners(
+        self, joiners: command_gate.Joiners, point: Cell, world: World, ctx: MatchContext
+    ) -> list[Intent] | None:
+        """With reinforce_hold_home on, the units joining main through the commander's forward gate while main is
+        away: held home, or on their way as a group of their own, those that reached main joining it (see
+        `reinforce_hold`); None while main is not away, or in a cycle the gate did not split main."""
+        if joiners.split_tick != world.tick or joiners.center is None:
+            return None
+        joining = [unit for unit in joiners.units if unit.id not in self._away]
+        return self._hold_home(joining, joiners.center, point, world, ctx, joiners.admit)
 
     def _commander_intent(self, world: World, ctx: MatchContext) -> list[Intent]:
         """The commander's order for main in its slot, when the standing action was carried out in this cycle and the
@@ -695,7 +1038,7 @@ class CombatManager:
         """main's orders by its mode, but for the tanks on the crush run, which take no other order of main's but an
         emergency, the model commander's included (see `crush`)."""
         orders = self._main_orders(members, point, world, ctx)
-        running = self._crush.units
+        running = self._crushing
         self.commanded_order = crush.order_without(self.commanded_order, running)
         return crush.without(running, orders)
 
@@ -704,6 +1047,8 @@ class CombatManager:
         tuning = ctx.tuning
         army, _ = self._split(members)
         self.estimate = estimate(army, world, tuning)
+        if self._cross.holds:
+            return self._cross_orders(list(members.values()), point, world, ctx)
         if self._is_overridden:
             return [] if self.estimate is None else self._focus_orders(army, self.estimate.centroid, world, ctx)
         if self._intercept.response is not None:
@@ -713,13 +1058,60 @@ class CombatManager:
         self._main.follow(self.estimate, world.tick, tuning.combat)
         gather = self._gather_point(members, point, world, ctx)
         if self._main.mode == RETREAT:
-            self._army = set()
-            return _to_staging(list(members.values()), point, tuning.combat)
+            return self._retreat(army, list(members.values()), point, world, ctx)
         withdrawals = self._withdrawals.send_back(army, self.estimate, point, world, tuning)
         gone = self._withdrawals.units
         self._army -= gone
         army, waiting = self._split({unit_id: unit for unit_id, unit in members.items() if unit_id not in gone})
         return [*withdrawals, *self._movement(army, waiting, point, gather, world, ctx)] if army else withdrawals
+
+    def _cross_orders(self, units: list[Unit], point: Cell, world: World, ctx: MatchContext) -> list[Intent]:
+        """main's orders once the armies crossed (see `cross_commit`): committed, on the commit's aim; home, by the
+        reverse route."""
+        if self._cross.decision == cross_commit.HOME:
+            return self._cross_home(units, point, world, ctx)
+        return self._commit_orders(units, world, ctx)
+
+    def _commit_orders(self, units: list[Unit], world: World, ctx: MatchContext) -> list[Intent]:
+        """main committed to the base trade: a siege of the covering defenses by its long-range units behind their
+        screen, else the fight with the enemy near it, else as `defended` says, else the march on the commit's aim."""
+        aim = self._cross.aim(units, world, ctx)
+        long_range, screen = _subgroups(units, ctx)
+        if self._cross.decision == cross_commit.COMMIT_SIEGE and long_range:
+            return self._siege.orders(long_range, screen, aim, True, world, ctx.tuning)
+        if self.estimate is not None:
+            return self._fight(units, world, ctx, aim)
+        defended_orders = self._defended_orders(units, aim, world, ctx)
+        if defended_orders is not None:
+            return defended_orders
+        return self._march(units, aim, world, ctx)
+
+    def _cross_home(self, units: list[Unit], point: Cell, world: World, ctx: MatchContext) -> list[Intent]:
+        """main home by the reverse route: in steps through its cells with stepped_return on, else a move to each cell
+        in turn."""
+        route = self._cross.route
+        if ctx.tuning.combat.stepped_return:
+            plan = stepping.Plan((cross_commit.HOME, point), stepping.HOME, point, tuple(route[:-1]))
+            stepped = self._steps(plan, units, world, ctx, Priority.MOVE)
+            if stepped is not None:
+                return stepped
+        return _to_staging(units, self._cross.next_leg(units), ctx.tuning.combat, Priority.MOVE)
+
+    def _retreat(
+        self, army: list[Unit], units: list[Unit], point: Cell, world: World, ctx: MatchContext
+    ) -> list[Intent]:
+        """main's retreat by its plan: a step back while it is on a stepped advance (see `_plan_step_back`), an army
+        gone forward home in steps (see `_home`), else an emergency move of every unit to the staging point, or main's
+        fight when caught on its way there; it is main at the staging point again but on a step back."""
+        stepped_back = self._plan_step_back(army, world, ctx) if self._army else None
+        if stepped_back is not None:
+            return stepped_back
+        was_forward = bool(self._army) or self._stepper.is_stepping(_home_key(point))
+        self._army = set()
+        if was_forward:
+            return self._home(army, units, point, world, ctx, Priority.EMERGENCY)
+        caught = self._caught_home(units, point, world, ctx)
+        return caught if caught is not None else _to_staging(units, point, ctx.tuning.combat)
 
     def _intercepting(self, units: list[Unit], point: Cell, world: World, ctx: MatchContext) -> list[Intent]:
         """main on its answer to an enemy army closing (see `closing_intercept`): engaged with an enemy near, it fights
@@ -749,6 +1141,13 @@ class CombatManager:
         if not commanded:
             return withdrawals
         self._pass_flank_waypoint(action, commanded, ctx)
+        stepped = self._commanded_steps(action, commanded, world, ctx)
+        if stepped is not None:
+            return [*withdrawals, *stepped]
+        caught = self._caught_home(commanded, action.cell, world, ctx) if action.kind in HOME_KINDS else None
+        if caught is not None:
+            # A caught main fights: the retreat override's and the regroup's moves wait for the fight to end.
+            return [*withdrawals, *caught]
         aim = action.cell if action.kind in FORWARD_KINDS else None
         defended_orders = self._defended_orders(commanded, aim, world, ctx)
         if defended_orders is not None:
@@ -776,12 +1175,270 @@ class CombatManager:
         elif is_near(middle, action.via[0], action.via[1], tuning.gathered_cells):
             self._flanked = True
 
+    def _commanded_steps(
+        self, action: Action, units: list[Unit], world: World, ctx: MatchContext
+    ) -> list[Intent] | None:
+        """main's orders on a stepped move under a standing action (see `stepping`): an advance, a flank, an attack
+        and a siege on its way until a long-range unit has the target in its band, out; a gather and a retreat home,
+        home. None while the action is not stepped; a flank whose step points have passed its waypoints marches on
+        the objective from then on."""
+        plan = self._commanded_plan(action, units, world, ctx)
+        if plan is None:
+            return None
+        self._follow_override(plan, ctx.commander, world)
+        orders = self._steps(plan, units, world, ctx, Priority.MOVE)
+        if plan.waypoints and self._stepper.has_passed_waypoints(plan.key):
+            self._flanked, self._flank_legs = True, []
+        return orders
+
+    def _follow_override(self, plan: stepping.Plan, commander: Commander | None, world: World) -> None:
+        """Step main back one step while the commander's retreat override pulls it back from a stepped advance (see
+        `commander`), and on again once the override lets it go."""
+        move = self._stepper.move
+        if commander is None or move is None or move.key != plan.key:
+            return
+        is_pulled = commander.retreat.is_active and commander.steps_back
+        if is_pulled and not move.is_pulled_back:
+            move.is_pulled_back = True
+            if move.decision != stepping.STEP_BACK:
+                move.step_back(world.tick)
+        elif not is_pulled and move.is_pulled_back:
+            move.is_pulled_back = False
+            move.resume(world.tick)
+
+    def _commanded_plan(
+        self, action: Action, units: list[Unit], world: World, ctx: MatchContext
+    ) -> stepping.Plan | None:
+        """The move a standing action asks to step, by its switch; None for an action that does not step, and for a
+        siege once a long-range unit has its target in its firing band, whose stepping ends then."""
+        combat = ctx.tuning.combat
+        kind = action.kind
+        if self._is_in_band(action, units, world, ctx):
+            return None
+        if kind in (ADVANCE, FLANK, ATTACK, SIEGE) and combat.stepped_advance:
+            waypoints = () if action.via is None or self._flanked else tuple(self._flank_legs or [action.via])
+            return stepping.Plan(action.key, stepping.ADVANCE, action.cell, waypoints)
+        if kind in (GATHER, RETREAT_HOME) and combat.stepped_return:
+            return stepping.Plan(action.key, stepping.HOME, action.cell)
+        return None
+
+    def _is_in_band(self, action: Action, units: list[Unit], world: World, ctx: MatchContext) -> bool:
+        """Whether a siege's long-range unit has its target in its firing band, which ends its stepping."""
+        if action.kind != SIEGE or not _has_in_band(action.cell, units, world, ctx):
+            return False
+        if self._stepper.is_stepping(action.key):
+            self._stepper.finish(world)
+        return True
+
+    def _steps(
+        self, plan: stepping.Plan, units: list[Unit], world: World, ctx: MatchContext, priority: Priority
+    ) -> list[Intent] | None:
+        """main's orders on a stepped move in this cycle (see `stepping`), the units outside its group sent straight to
+        its destination; the group's fight once it is caught on its way (see `_watch_caught`). None while the move is
+        not stepped."""
+        move = self._stepper.follow(plan, units, world, ctx.terrain, ctx.tuning)
+        if move is None:
+            return None
+        self._watch_caught(plan, units, world, ctx)
+        group = [unit for unit in units if unit.id in move.group]
+        others = [unit for unit in units if unit.id not in move.group]
+        steps = (
+            self._caught_fight(group, world, ctx)
+            if move.is_caught
+            else self._step_orders(move, group, world, ctx, priority)
+        )
+        return [*steps, *_to_staging(others, plan.destination, ctx.tuning.combat, priority)]
+
+    def _watch_caught(
+        self,
+        plan: stepping.Plan,
+        units: list[Unit],
+        world: World,
+        ctx: MatchContext,
+        stepper: stepping.Stepper | None = None,
+        watch: stepping.CaughtWatch | None = None,
+    ) -> None:
+        """With moving_returns_fire on, whether main's stepped move under way, or the one of `stepper` watched by
+        `watch`, is caught on its way to its step point, or to the step point it steps back to (see
+        `stepping.CaughtWatch`), and its step ordered afresh once the fight is over: after the cycle's decision on the
+        enemies it met, and not while it fights them. A catch holds the release of the step from the next cycle on."""
+        move = (stepper or self._stepper).move
+        caught = watch or self._caught
+        if not ctx.tuning.combat.moving_returns_fire or move is None or move.key != plan.key:
+            return
+        if move.decision == stepping.FIGHT:
+            move.is_caught = False
+            return
+        group = [unit for unit in units if unit.id in move.group]
+        heading_to = move.back_point if move.decision == stepping.STEP_BACK else move.point
+        move.is_caught = bool(group) and caught.follow(group, heading_to, world, ctx.tuning)
+        if caught.ended_now:
+            move.restart(world.tick)
+
+    def _caught_home(self, units: list[Unit], heading_to: Cell, world: World, ctx: MatchContext) -> list[Intent] | None:
+        """With moving_returns_fire on, the fight of main caught on an unstepped move home to a cell (see
+        `stepping.CaughtWatch`); None while it is not caught, and for a main standing there already."""
+        tuning = ctx.tuning.combat
+        if not tuning.moving_returns_fire or not _not_there(units, heading_to, tuning):
+            return None
+        return (
+            self._caught_fight(units, world, ctx) if self._caught.follow(units, heading_to, world, ctx.tuning) else None
+        )
+
+    def _caught_fight(
+        self, units: list[Unit], world: World, ctx: MatchContext, watch: stepping.CaughtWatch | None = None
+    ) -> list[Intent]:
+        """The fight of a group caught on the move, main by default or the one `watch` watches, whatever its ratio: its
+        units within caught_group_cells of its centroid on the enemies as near it, by focus fire sending none after an
+        enemy, its long-range units firing from where they stand, no order to a cell farther than caught_chase_cells
+        from where it was caught; the units farther off moved there, so that the group fights together."""
+        reach = ctx.tuning.combat.caught_group_cells
+        middle = centroid(units)
+        near = [unit for unit in units if is_near(middle, unit.x, unit.y, reach)]
+        astray = [unit.id for unit in units if not is_near(middle, unit.x, unit.y, reach)]
+
+        def admit(record: EnemyRecord) -> bool:
+            return is_near(middle, record.x, record.y, reach)
+
+        long_range, screen = _subgroups(near, ctx)
+        enemies = [record for record in targeting.enemies_in_sight(world) if admit(record)]
+        aim = centroid(enemies) if enemies else middle
+        fire = self._siege.orders(long_range, [], aim, False, world, ctx.tuning) if long_range else []
+        fight = self._focus_orders(screen, middle, world, ctx, admit, chase=False) if screen else []
+        center = (watch or self._caught).center or cells.nearest_cell(*middle)
+        gather = [Intent(Priority.MOVE, {"cmd": "move", "units": astray, "to": list(center)})] if astray else []
+        chase = ctx.tuning.combat.caught_chase_cells
+        # No unit is sent farther than caught_chase_cells from where the group was caught: it fights where it stands.
+        kept = [
+            intent
+            for intent in [*fight, *fire]
+            if "to" not in intent.order or cells.is_within(tuple(intent.order["to"]), center, chase)
+        ]
+        return [*kept, *gather]
+
+    def _step_orders(
+        self, move: stepping.StepMove, units: list[Unit], world: World, ctx: MatchContext, priority: Priority
+    ) -> list[Intent]:
+        """The orders of a step: on an advance the units in contact fire at what is within their weapon range and the
+        rest of the screen attack-moves to the step point; home, the screen moves there. The long-range units move to
+        their slots on a line across the step close behind the step point, on the side main comes from on an advance
+        and on the side it goes to on the way home (see `stepping.long_range_slots`)."""
+        if move.decision == stepping.STEP_BACK:
+            return self._step_back_orders(move, units, world, ctx, priority)
+        if move.decision == stepping.FIGHT:
+            return self._met_fight(move, units, world, ctx)
+        advancing = move.kind == stepping.ADVANCE
+        fire, free = self._hold_fire_of(units, world, ctx) if advancing else ([], units)
+        cmd = "attack_move" if advancing else "move"
+        return _fire_then(fire, self._to_step(move, free, move.start, move.point, move.kind, cmd, world, ctx, priority))
+
+    def _met_fight(self, move: stepping.StepMove, units: list[Unit], world: World, ctx: MatchContext) -> list[Intent]:
+        """The fight of a stepping group with the enemies it met and beats (see `stepping`): focus fire on the enemies
+        within met_chase_cells of the step's way, none sent after one beyond, no unit sent after an enemy out of
+        sight; with long-range units, the siege aimed at the met enemies in sight there."""
+        tuning = ctx.tuning.combat
+        reach, start, point = tuning.met_chase_cells, move.start, move.point
+        # With met_fight_group_reach on, the enemies near the group as well: met within met_cells of a unit but more
+        # than met_chase_cells off the step's way, they held the step unreleased while no unit was sent at them.
+        group_reach = tuning.caught_group_cells if tuning.met_fight_group_reach else None
+        group_middle = centroid(units)
+
+        def admit(record: EnemyRecord) -> bool:
+            if distance_to_path((record.x, record.y), start, point) <= reach:
+                return True
+            return group_reach is not None and is_near(group_middle, record.x, record.y, group_reach)
+
+        met = [record for record in stepping.met_enemies(units, world, ctx.tuning) if admit(record)]
+        in_sight = [record for record in met if record.visible]
+        long_range, screen = _subgroups(units, ctx)
+        if long_range and in_sight:
+            sieging = self._siege.orders(long_range, screen, centroid(in_sight), True, world, ctx.tuning)
+            return self._screened(sieging, long_range, screen, world, ctx, enemy_only=True)
+        middle = centroid(in_sight) if in_sight else group_middle
+        fight = self._focus_orders(units, middle, world, ctx, admit, chase=False)
+        return [*fight, *_met_closing(units, fight, in_sight, tuning)]
+
+    def _plan_step_back(self, army: list[Unit], world: World, ctx: MatchContext) -> list[Intent] | None:
+        """With met_enemy_decision on, main's plan RETREAT carried out as a step back while main is on a stepped
+        advance by its plan (see `stepping`): to the current step's start, not the staging point; None otherwise."""
+        move = self._stepper.move
+        if not ctx.tuning.combat.met_enemy_decision or move is None or move.kind != stepping.ADVANCE:
+            return None
+        if move.decision != stepping.STEP_BACK:
+            move.step_back(world.tick, stepping.met_enemies(army, world, ctx.tuning))
+        plan = stepping.Plan(move.key, stepping.ADVANCE, move.destination)
+        return self._steps(plan, army, world, ctx, Priority.EMERGENCY)
+
+    def _step_back_orders(
+        self, move: stepping.StepMove, units: list[Unit], world: World, ctx: MatchContext, priority: Priority
+    ) -> list[Intent]:
+        """The orders of a group stepped back: every unit moved to the step point it stepped back to, no targeted
+        attack on the way, and the units standing there firing at what is within their weapon range."""
+        back, reach = move.back_point, ctx.tuning.combat.step_arrive_cells
+        there = [unit for unit in units if is_near(back, unit.x, unit.y, reach)]
+        fire, _ = self._hold_fire_of(there, world, ctx)
+        moves = self._to_step(move, units, move.point, back, stepping.HOME, "move", world, ctx, priority)
+        return _fire_then(fire, moves)
+
+    def _to_step(
+        self,
+        move: stepping.StepMove,
+        units: list[Unit],
+        start: Cell,
+        point: Cell,
+        kind: str,
+        cmd: str,
+        world: World,
+        ctx: MatchContext,
+        priority: Priority,
+    ) -> list[Intent]:
+        """The orders that take a group's units to a step point from `start`: the screen's by `cmd` to the point, the
+        long-range units' moves to their slots by it (see `stepping.long_range_slots`), each for the units due one; with
+        artillery_screen_place on, those out of contact to their places behind the point (see `screen_place`), the
+        threat after the enemies near the move's destination on an advance and `start` home."""
+        long_range, screen = _subgroups(units, ctx)
+        tick, reach = world.tick, ctx.tuning.combat.step_arrive_cells
+        going = move.due(dict.fromkeys((unit.id for unit in screen), point), screen, tick, reach)
+        orders = [Intent(priority, {"cmd": cmd, "units": going, "to": list(point)})] if going else []
+        hint = move.destination if kind == stepping.ADVANCE else start
+        placed = self._placer.place(long_range, screen, world, ctx.terrain, ctx.tuning, point, hint)
+        if placed is not None:
+            orders.extend(placed.intents)
+            long_range = [unit for unit in long_range if unit.id not in placed.ids]
+        slots = stepping.long_range_slots(long_range, start, point, kind, world, ctx.tuning)
+        for unit_id in move.due(slots, long_range, tick, reach):
+            orders.append(Intent(priority, {"cmd": "move", "units": [unit_id], "to": list(slots[unit_id])}))
+        return orders
+
+    def _home(
+        self, army: list[Unit], units: list[Unit], point: Cell, world: World, ctx: MatchContext, priority: Priority
+    ) -> list[Intent]:
+        """main's units back to a point, the staging point or its gather point: the `army` gone forward in steps with
+        stepped_return on (see `stepping`), and the rest by one `move`, as all of them otherwise."""
+        if ctx.tuning.combat.stepped_return:
+            stepped = self._steps(stepping.Plan(_home_key(point), stepping.HOME, point), army, world, ctx, priority)
+            if stepped is not None:
+                stepping_ids = frozenset(unit.id for unit in army)
+                rest = [unit for unit in units if unit.id not in stepping_ids]
+                return [*stepped, *_to_staging(rest, point, ctx.tuning.combat, priority)]
+        caught = self._caught_home(units, point, world, ctx)
+        return caught if caught is not None else _to_staging(units, point, ctx.tuning.combat, priority)
+
+    def _plan_steps(self, army: list[Unit], objective: Cell, world: World, ctx: MatchContext) -> list[Intent] | None:
+        """main's orders on its plan's way to its objective in steps with stepped_advance on (see `stepping`); None
+        while it is not stepped, as while main as a whole strikes, which goes straight on."""
+        if not ctx.tuning.combat.stepped_advance or ctx.strike_target is not None:
+            return None
+        via = self._attack.via(objective, ctx.tuning)
+        plan = stepping.Plan(objective, stepping.ADVANCE, objective, () if via is None else (via,))
+        return self._steps(plan, army, world, ctx, Priority.MOVE)
+
     def _commanded_staging(self, action: Action, units: list[Unit], world: World, ctx: MatchContext) -> Cell | None:
         """The staging cell main holds at under a standing action (see `forward_staging`): an advance, a flank on its
         last leg, a siege, or an attack on a group farther than near_attack_cells of `[commander]` from main's centroid
         when it sets out; on the way to the cell the action sends main to now. The objective is the action while the
         commander's forward gate stays as it is. None while main goes on as the action says."""
-        if not ctx.tuning.combat.forward_staging or not self._stages(action):
+        if not ctx.tuning.combat.forward_staging or not self._stages(action) or self._stepper.is_done(action.key):
             return None
         commander = ctx.commander
         objective = (action.key, commander is not None and commander.gate.is_open)
@@ -828,11 +1485,30 @@ class CombatManager:
         fire = self._contact_fire(action, units, world, ctx) if contact_focus else []
         self._leave_engaged(action, units, fire, world, ctx)
         long_range, screen = _subgroups(units, ctx)
-        if action.kind == SIEGE and long_range:
+        if action.kind == SIEGE and long_range and self._commanded_target(action) == action.cell:
             return [*fire, *self._siege.orders(long_range, screen, action.cell, True, world, ctx.tuning)]
         if self._marches(action):
             return _fire_then(fire, self._march(units, action.cell, world, ctx))
-        return [*fire, *([] if self.commanded_order is None else [Intent(Priority.MOVE, self.commanded_order)])]
+        placing = self._hold_places(action, long_range, screen, world, ctx)
+        return [
+            *fire,
+            *placing,
+            *([] if self.commanded_order is None else [Intent(Priority.MOVE, self.commanded_order)]),
+        ]
+
+    def _hold_places(
+        self, action: Action, long_range: list[Unit], screen: list[Unit], world: World, ctx: MatchContext
+    ) -> list[Intent]:
+        """With artillery_screen_place on, under the commander's hold and a gather that is no retreat, the moves of
+        main's long-range units out of contact to their places behind the screen (see `screen_place`), those units
+        taken out of the commander's order; none otherwise."""
+        if action.kind not in (HOLD_ACTION, GATHER) or _is_retreat(action, ctx):
+            return []
+        placed = self._placer.place(long_range, screen, world, ctx.terrain, ctx.tuning)
+        if placed is None:
+            return []
+        self.commanded_order = crush.order_without(self.commanded_order, placed.ids)
+        return placed.intents
 
     def _contact_fire(self, action: Action, units: list[Unit], world: World, ctx: MatchContext) -> list[Intent]:
         """The focus fire of the units in contact under a forward action, which sends none of them after an enemy, but
@@ -863,13 +1539,14 @@ class CombatManager:
         self.commanded_order = crush.order_without(self.commanded_order, left_out)
 
     def _gather_point(self, members: dict[int, Unit], point: Cell, world: World, ctx: MatchContext) -> Cell:
-        """Where main gathers in this cycle: the staging point, or with the forward hold on where the hold says; main
-        retreats at once when it falls back from the forward point."""
-        if not ctx.tuning.combat.forward_hold:
+        """Where main gathers in this cycle: the staging point, or with the forward hold or the cover of the expansions
+        on where the hold says (see `forward_hold`); main retreats at once when it falls back from the point."""
+        combat = ctx.tuning.combat
+        if not (combat.forward_hold or combat.expansion_cover_rally):
             return point
         if self._hold.follow(list(members.values()), self.estimate, point, world, ctx):
             self._main.fall_back(world.tick)
-        return self._hold.cell
+        return self._hold.cell or point
 
     def _split(self, members: dict[int, Unit]) -> tuple[list[Unit], list[Unit]]:
         """main as its army and the units waiting at the staging point; all of it is the army while it waits there.
@@ -890,7 +1567,7 @@ class CombatManager:
         if self._army and self._hold.is_under_hold and not striking:
             # The forward hold sends main nowhere under HOLD: an army gone forward under another plan comes back.
             self._army = set()
-            return _to_staging([*army, *waiting], gather, ctx.tuning.combat, Priority.MOVE)
+            return self._home(army, [*army, *waiting], gather, world, ctx, Priority.MOVE)
         objective = self._objective(army, world, ctx)
         # An engaged group with an enemy near fights where it is: it is neither gathered nor marched off.
         is_fighting = self._is_fighting(army, objective, ctx)
@@ -920,6 +1597,11 @@ class CombatManager:
         """The orders of an army gone forward: to fight, go on to its objective or come back, and the reinforcements.
         An army holding at its staging cell (see `forward_staging`) goes into no fight from there, and one whose
         objective is defended beyond what it can beat goes as `defended` says."""
+        if objective is not None:
+            self._attack.aim(objective, army, world, ctx)
+        stepped = self._forward_steps(army, objective, world, ctx)
+        if stepped is not None:
+            return [*self._reinforce(waiting, army, point, world, ctx), *stepped]
         defended_orders = self._defended_orders(army, objective, world, ctx)
         if defended_orders is not None:
             return [*self._reinforce(waiting, army, point, world, ctx), *defended_orders]
@@ -934,20 +1616,33 @@ class CombatManager:
             self._army = set()
             self._march_watch.reset()
             self._staging.stop()
-            return _to_staging(army, point, ctx.tuning.combat, Priority.MOVE)
+            return self._home(army, army, point, world, ctx, Priority.MOVE)
         reinforcing = self._reinforce(waiting, army, point, world, ctx)
         if held is not None:
             # Holding short of the objective is no stall of the advance either.
             self._march_watch.reset()
             return [*reinforcing, *self._hold_at(army, held, world, ctx)]
-        return [*reinforcing, *self._march_fighting(army, objective, world, ctx)]
+        return [*reinforcing, *self._march_fighting(army, self._route_target(objective, army, ctx), world, ctx)]
+
+    def _forward_steps(
+        self, army: list[Unit], objective: Cell | None, world: World, ctx: MatchContext
+    ) -> list[Intent] | None:
+        """The steps of an army gone forward on its objective while it has one and screen enough (see `_plan_steps`);
+        None otherwise. Stepping is no stall of the advance."""
+        if objective is None or not self._is_screened(army, world, ctx):
+            return None
+        stepped = self._plan_steps(army, objective, world, ctx)
+        if stepped is not None:
+            self._march_watch.reset()
+        return stepped
 
     def _staged(self, army: list[Unit], objective: Cell, world: World, ctx: MatchContext) -> Cell | None:
         """The staging cell main holds at on its plan's way to its objective, the straight way (see
         `forward_staging`); None while it goes on, and always with `forward_staging` off."""
-        if not ctx.tuning.combat.forward_staging:
+        if not ctx.tuning.combat.forward_staging or self._stepper.is_done(objective):
             return None
-        return self._staging.follow(objective, army, objective, objective, True, world, ctx)
+        heading_to = self._route_target(objective, army, ctx)
+        return self._staging.follow(objective, army, heading_to, objective, True, world, ctx)
 
     def _hold_at(self, units: list[Unit], cell: Cell, world: World, ctx: MatchContext) -> list[Intent]:
         """main on its way to its staging cell and holding there: its units in contact fire at what is within their
@@ -956,7 +1651,8 @@ class CombatManager:
         fire, rest = self._hold_fire_of(units, world, ctx)
         long_range, screen = _subgroups(rest, ctx)
         if long_range:
-            return [*fire, *self._siege.march(long_range, screen, cell, world, ctx.tuning)]
+            marching_orders = self._siege.march(long_range, screen, cell, world, ctx.tuning)
+            return [*fire, *self._screened(marching_orders, long_range, screen, world, ctx)]
         return [*fire, *_march(rest, cell, ctx)]
 
     def _defended_orders(
@@ -982,15 +1678,36 @@ class CombatManager:
     def _preserve(self, units: list[Unit], point: Cell, world: World, ctx: MatchContext) -> list[Intent]:
         """main kept home: what is far from the base is sent to the staging point, the rest gathers or fights. While a
         nuke is expected and main does not fight, each unit goes to its place in the groups spread around the staging
-        point instead, a far one whatever it does."""
+        point instead, a far one whatever it does. While the endgame lead is kept, the lead point stands for the
+        staging point, and main fights only the enemies within `endgame_army_leash_cells` of it (`_lead_orders`)."""
         self._army = set()
         tuning = ctx.tuning.combat
         far, near = _far_and_near(units, world, ctx.tuning.clock.preserve_recall_cells)
+        lead = _lead_point(world, ctx)
+        point = lead or point
         is_fighting = self._main.mode == ENGAGE and self.estimate is not None and near
         if self._nuke.is_spreading and not is_fighting:
             return self._nuke.gather(units, point, world, ctx.terrain, tuning, frozenset(unit.id for unit in far))
+        if lead is not None:
+            return [*_to_staging(far, point, tuning, Priority.MOVE), *self._lead_orders(near, lead, world, ctx)]
         home = self._fight(near, world, ctx, None) if is_fighting else self._gather_main(near, point, world, ctx)
         return [*_to_staging(far, point, tuning, Priority.MOVE), *home]
+
+    def _lead_orders(self, units: list[Unit], lead: Cell, world: World, ctx: MatchContext) -> list[Intent]:
+        """main inside the cover of the endgame lead's defenses: the focus fire on the enemies within
+        `endgame_army_leash_cells` of the lead point while main engages one there, else gathered at the point."""
+        leash = ctx.tuning.clock.endgame_army_leash_cells
+
+        def is_leashed(record: EnemyRecord) -> bool:
+            return cells.is_within((record.x, record.y), lead, leash)
+
+        found = self.estimate
+        is_fighting = self._main.mode == ENGAGE and found is not None and any(map(is_leashed, found.enemies))
+        if units and is_fighting:
+            fight = self._focus_orders(units, found.centroid, world, ctx, is_leashed)
+            if fight:
+                return fight
+        return self._gather_main(units, lead, world, ctx)
 
     def _objective(self, army: list[Unit], world: World, ctx: MatchContext) -> Cell | None:
         """Where the army goes: the must-kill target main as a whole strikes; under FINISH what is left of the enemy, or
@@ -1034,7 +1751,25 @@ class CombatManager:
         in_sight = [record for record in self.estimate.enemies if record.visible]
         aim = centroid(in_sight) if in_sight else objective or _nearest_defense(self.estimate.centroid, world, ctx)
         may_advance = siege.has_screen(long_range, screen, world, ctx.tuning.siege)
-        return self._siege.orders(long_range, screen, aim, may_advance, world, ctx.tuning)
+        sieging = self._siege.orders(long_range, screen, aim, may_advance, world, ctx.tuning)
+        return self._screened(sieging, long_range, screen, world, ctx, enemy_only=True)
+
+    def _screened(
+        self,
+        orders: list[Intent],
+        long_range: list[Unit],
+        screen: list[Unit],
+        world: World,
+        ctx: MatchContext,
+        enemy_only: bool = False,
+    ) -> list[Intent]:
+        """The siege's `orders` with artillery_screen_place on: the long-range units out of contact sent to their
+        places behind the screen (see `screen_place`) in place of their slots, with `enemy_only` only while an enemy is
+        near main; `orders` as they are otherwise."""
+        placed = self._placer.place(long_range, screen, world, ctx.terrain, ctx.tuning, enemy_only=enemy_only)
+        if placed is None:
+            return orders
+        return [*crush.without(placed.ids, orders), *placed.intents]
 
     def _hold_forward(
         self, army: list[Unit], is_fighting: bool, point: Cell, world: World, ctx: MatchContext
@@ -1070,9 +1805,9 @@ class CombatManager:
         artillery taking the enemy vehicles first while a crush run is on; none when every one is on one. An artillery
         piece or a V2 with an enemy come within its minimum range and the margin steps back toward the base instead
         (see `kite`)."""
-        running = self._crush.units
+        running = self._crushing
         free = [unit for unit in units if unit.id not in running]
-        steps = kite.fall_back_moves(free, world, ctx.tuning)
+        steps = kite.fall_back_moves(free, world, ctx.tuning, ctx.terrain, self._placer.places)
         stepping = kite.stepping(steps)
         firing = [unit for unit in free if unit.id not in stepping]
         if not firing:
@@ -1102,13 +1837,17 @@ class CombatManager:
         if not is_strong or len(gathered) < ctx.tuning.combat.gathered_share * len(units) or objective is None:
             return self._gather_main(units, point, world, ctx)
         self._army = {unit.id for unit in units}
+        self._set_out(objective, units, world, ctx)
+        stepped = self._plan_steps(units, objective, world, ctx)
+        if stepped is not None:
+            return stepped
         defended_orders = self._defended_orders(units, objective, world, ctx)
         if defended_orders is not None:
             return defended_orders
         held = self._staged(units, objective, world, ctx)
         if held is not None:
             return self._hold_at(units, held, world, ctx)
-        return self._march_fighting(units, objective, world, ctx)
+        return self._march_fighting(units, self._route_target(objective, units, ctx), world, ctx)
 
     def _gathered(self, units: list[Unit], point: Cell, world: World, ctx: MatchContext) -> list[Unit]:
         """main's units gathered at `point`: near it, or while a nuke is expected at their places around it."""
@@ -1125,7 +1864,12 @@ class CombatManager:
         tuning = ctx.tuning.combat
         if self._nuke.is_spreading:
             return [*fire, *self._nuke.gather(units, point, world, ctx.terrain, tuning)]
-        return [*fire, *_gather(units, point, tuning)]
+        long_range, screen = _subgroups(units, ctx)
+        placed = self._placer.place(long_range, screen, world, ctx.terrain, ctx.tuning)
+        if placed is None:
+            return [*fire, *_gather(units, point, ctx.tuning)]
+        rest = [unit for unit in units if unit.id not in placed.ids]
+        return [*fire, *placed.intents, *_gather(rest, point, ctx.tuning)]
 
     def _march_fighting(self, army: list[Unit], objective: Cell, world: World, ctx: MatchContext) -> list[Intent]:
         """The army on its way to its objective (see `_march`). With contact_focus on and no long-range unit among it,
@@ -1168,7 +1912,11 @@ class CombatManager:
         self, waiting: list[Unit], army: list[Unit], point: Cell, world: World, ctx: MatchContext
     ) -> list[Intent]:
         """Send the units waiting at the staging point after the army together, once they are worth enough; while main
-        has a staging cell, they meet at the cell instead (see `_join_at`)."""
+        has a staging cell, they meet at the cell instead (see `_join_at`); while main is away with
+        reinforce_hold_home on, they are held home (see `reinforce_hold`)."""
+        held = self._hold_home(waiting, centroid(army) if army else None, point, world, ctx, self._army.update)
+        if held is not None:
+            return held
         if self._staging.cell is not None:
             return self._join_at(waiting, army, self._staging.cell, world, ctx)
         if strength(waiting, world) < ctx.tuning.combat.reinforcement_strength:
@@ -1177,6 +1925,46 @@ class CombatManager:
         meeting = cells.clamped(cells.nearest_cell(*centroid(army)), world.map_bounds)
         order = {"cmd": "attack_move", "units": [unit.id for unit in waiting], "to": list(meeting)}
         return [Intent(Priority.MOVE, order)]
+
+    def _hold_home(
+        self,
+        joining: list[Unit],
+        main_center: Point | None,
+        point: Cell,
+        world: World,
+        ctx: MatchContext,
+        admit: Callable[[frozenset[int]], None],
+    ) -> list[Intent] | None:
+        """With reinforce_hold_home on, while main is away: the units joining it gathered at the home gather point,
+        the group of their own sent on to main, and the units of the group that reached main admitted to it by
+        `admit` (see `reinforce_hold`); None while main is not away."""
+        home = reinforce_hold.home_point(self._hold.cell, point)
+        verdict = self._home_hold.follow(joining, main_center, home, world, ctx.tuning)
+        if verdict is None:
+            return None
+        admit(verdict.joined)
+        return [*self._gather_main(verdict.held, home, world, ctx), *self._group_moves(verdict, world, ctx)]
+
+    def _group_moves(self, verdict: reinforce_hold.Verdict, world: World, ctx: MatchContext) -> list[Intent]:
+        """The orders of the group of held units on its way to main: by steps with stepped_advance on, fighting or
+        stepping back from the enemies it meets and fighting when caught, as main does (see `stepping`); else, or
+        once its steps are done, by an attack-move to main's centroid."""
+        group, holding = verdict.group, self._home_hold
+        if not group:
+            return []
+        plan = reinforce_hold.group_plan(verdict.target)
+        move = (
+            holding.stepper.follow(plan, group, world, ctx.terrain, ctx.tuning)
+            if ctx.tuning.combat.stepped_advance
+            else None
+        )
+        if move is None:
+            return holding.attack_moves(group, verdict.target, world.tick)
+        self._watch_caught(plan, group, world, ctx, holding.stepper, holding.caught)
+        members = [unit for unit in group if unit.id in move.group]
+        if move.is_caught:
+            return self._caught_fight(members, world, ctx, holding.caught)
+        return self._step_orders(move, members, world, ctx, Priority.MOVE)
 
     def _join_at(
         self, waiting: list[Unit], army: list[Unit], cell: Cell, world: World, ctx: MatchContext
@@ -1191,7 +1979,8 @@ class CombatManager:
         going_on = [unit.id for unit in self._staging.joining.going_on(there, is_enough, world.tick)]
         standing_there = {unit.id for unit in there}
         astray = [unit.id for unit in units if unit.id not in standing_there]
-        moves = [Intent(Priority.MOVE, {"cmd": "move", "units": astray, "to": list(cell)})] if astray else []
+        order = {"cmd": safe_staging.gather_command(ctx.tuning), "units": astray, "to": list(cell)}
+        moves = [Intent(Priority.MOVE, order)] if astray else []
         if not going_on:
             return [*fire, *moves]
         self._army.update(going_on)
@@ -1231,6 +2020,22 @@ def _is_retreat(action: Action, ctx: MatchContext) -> bool:
     return action.kind == GATHER and is_pulled
 
 
+def _home_key(point: Cell) -> tuple[str, Cell]:
+    """What tells main's stepped move home to a point apart from its other moves."""
+    return stepping.HOME, point
+
+
+def _has_in_band(target: Cell, units: list[Unit], world: World, ctx: MatchContext) -> bool:
+    """Whether one of main's long-range units among `units` stands in its firing band on a target (see `siege`)."""
+    long_range = set(ctx.groups.siege_members(MAIN))
+    tuning = ctx.tuning.siege
+    return any(
+        siege.firing_band(unit.type, target, world, tuning).holds(math.hypot(unit.x - target[0], unit.y - target[1]))
+        for unit in units
+        if unit.id in long_range
+    )
+
+
 def _not_there(units: list[Unit], target: Cell, tuning: CombatTuning) -> list[Unit]:
     """The units that do not stand idle within gathered_cells of a target, the nearest to it first."""
     going = [unit for unit in units if not (unit.idle and is_near(target, unit.x, unit.y, tuning.gathered_cells))]
@@ -1256,6 +2061,12 @@ def _subgroups(units: list[Unit], ctx: MatchContext) -> tuple[list[Unit], list[U
     return [unit for unit in units if unit.id in long_range], [unit for unit in units if unit.id not in long_range]
 
 
+def _lead_point(world: World, ctx: MatchContext) -> Cell | None:
+    """While the endgame lead is kept, the lead point main gathers at and the producers rally to (see
+    `endgame_lead`); None otherwise."""
+    return endgame_lead.lead_point(world, ctx.tuning.clock) if endgame_lead.is_in_force(ctx) else None
+
+
 def _far_and_near(units: list[Unit], world: World, reach: float) -> tuple[list[Unit], list[Unit]]:
     """The units farther than `reach` from the center of the base, and the rest."""
     far = [unit for unit in units if not cells.is_within((unit.x, unit.y), world.base_center, reach)]
@@ -1264,10 +2075,13 @@ def _far_and_near(units: list[Unit], world: World, reach: float) -> tuple[list[U
     return far, [unit for unit in units if unit.id not in far_ids]
 
 
-def _gather(units: list[Unit], point: Cell, tuning: CombatTuning) -> list[Intent]:
-    """A `move` to the point main gathers at for the units that stand idle away from it."""
-    astray = [unit.id for unit in units if unit.idle and not is_near(point, unit.x, unit.y, tuning.gathered_cells)]
-    return [Intent(Priority.MOVE, {"cmd": "move", "units": astray, "to": list(point)})] if astray else []
+def _gather(units: list[Unit], point: Cell, tuning: Tuning) -> list[Intent]:
+    """A move to the point main gathers at for the units that stand idle away from it: an `attack_move` with
+    gather_attack_move on (see `safe_staging`)."""
+    reach = tuning.combat.gathered_cells
+    astray = [unit.id for unit in units if unit.idle and not is_near(point, unit.x, unit.y, reach)]
+    order = {"cmd": safe_staging.gather_command(tuning), "units": astray, "to": list(point)}
+    return [Intent(Priority.MOVE, order)] if astray else []
 
 
 def _march(army: list[Unit], objective: Cell, ctx: MatchContext) -> list[Intent]:
@@ -1275,6 +2089,24 @@ def _march(army: list[Unit], objective: Cell, ctx: MatchContext) -> list[Intent]
     reach = ctx.tuning.combat.gathered_cells
     going = [unit.id for unit in army if not (unit.idle and is_near(objective, unit.x, unit.y, reach))]
     return [Intent(Priority.MOVE, {"cmd": "attack_move", "units": going, "to": list(objective)})] if going else []
+
+
+def _met_closing(units: list[Unit], fight: list[Intent], met: list[EnemyRecord], tuning: CombatTuning) -> list[Intent]:
+    """With met_fight_group_reach on, an `attack_move` on the nearest of the met enemies in sight for each unit of a
+    stepping group's fight given no order (artillery and V2 but, which fire from where they stand): a unit with no
+    enemy in its reach stood idle while the fight went on."""
+    if not tuning.met_fight_group_reach or not met:
+        return []
+    given = {unit_id for intent in fight for unit_id in intent.order.get("units", ())}
+    orders = []
+    for unit in units:
+        if unit.id in given or unit.type in SIEGE_TYPES:
+            continue
+        nearest = min(met, key=lambda record: (math.hypot(record.x - unit.x, record.y - unit.y), record.id))
+        orders.append(
+            Intent(Priority.CONTACT, {"cmd": "attack_move", "units": [unit.id], "to": [nearest.x, nearest.y]})
+        )
+    return orders
 
 
 def _objective(army: list[Unit], world: World, ctx: MatchContext) -> Cell | None:

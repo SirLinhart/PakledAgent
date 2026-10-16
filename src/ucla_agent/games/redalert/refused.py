@@ -36,7 +36,7 @@ from dataclasses import dataclass
 
 from ucla_agent.core import records
 from ucla_agent.games.redalert.managers import MatchContext
-from ucla_agent.games.redalert.placement import Box
+from ucla_agent.games.redalert.placement import Box, RefusedPlace
 from ucla_agent.games.redalert.world import Building, Cell, World
 
 PLACEMENT_REFUSED_EVENT = "placement_refused"
@@ -61,8 +61,9 @@ class RefusedPlaces:
         self._asked: dict[str, _Asked] = {}
         # The ids of the own buildings at the last look; None before the first.
         self._seen: frozenset[int] | None = None
-        # The places refused, the oldest first.
+        # The places refused, the oldest first, and the tick each was last refused at.
         self._refused: deque[Box] = deque()
+        self._refused_at: dict[Box, int] = {}
         # The center of a far field -> how many buildings placed toward it in a row the engine put elsewhere.
         self._misses: Counter[Cell] = Counter()
 
@@ -70,6 +71,11 @@ class RefusedPlaces:
     def boxes(self) -> tuple[Box, ...]:
         """The places refused that are kept off, the oldest first."""
         return tuple(self._refused)
+
+    @property
+    def places(self) -> tuple[RefusedPlace, ...]:
+        """The places refused that are kept off, each with the tick it was last refused at, the oldest first."""
+        return tuple(RefusedPlace(box, self._refused_at[box]) for box in self._refused)
 
     def asked(self, item: str, box: Box | None, tick: int, toward: Cell | None) -> None:
         """Note the place a building of an item is asked onto at a tick, and the far field's center when it is placed
@@ -100,8 +106,11 @@ class RefusedPlaces:
             self._misses.pop(asked.toward, None)
             return
         self._refused.append(asked.box)
+        self._refused_at[asked.box] = world.tick
         while len(self._refused) > tuning.refused_spots_max:
-            self._refused.popleft()
+            dropped = self._refused.popleft()
+            if dropped not in self._refused:
+                del self._refused_at[dropped]
         _log_miss(building, asked, distance, self._count_miss(asked.toward, ctx), world)
 
     def _count_miss(self, toward: Cell | None, ctx: MatchContext) -> bool:

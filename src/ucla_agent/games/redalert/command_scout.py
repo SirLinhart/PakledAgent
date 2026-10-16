@@ -66,12 +66,16 @@ Nothing here reads a file, a clock or the network.
 from __future__ import annotations
 
 from collections import defaultdict
+from dataclasses import replace
 from functools import partial
 from typing import Sequence
 
 from ucla_agent.games.redalert import cells
 from ucla_agent.games.redalert.command_state import FullState, full_state
 from ucla_agent.games.redalert.command_prompt import (
+    ARRIVED_CELLS,
+    CONTINUE,
+    CONTINUE_ID,
     NEVER,
     NONE,
     Action,
@@ -88,6 +92,7 @@ from ucla_agent.games.redalert.command_prompt import (
     lettered,
     picks_line,
     seconds_ago,
+    with_continue,
 )
 from ucla_agent.games.redalert.family import CONSTRUCTION_YARD, REFINERY
 from ucla_agent.games.redalert.items import TICKS_PER_SECOND
@@ -109,7 +114,7 @@ from ucla_agent.games.redalert.scout_missions import (
 )
 from ucla_agent.games.redalert.scout_report import is_combat_unit
 from ucla_agent.games.redalert.scout_steering import COMMANDER, Course, Dangers, away_from, fled_from, route
-from ucla_agent.games.redalert.sight import SIGHT_CELLS, SightGrid
+from ucla_agent.games.redalert.sight import SightGrid, sight_of
 from ucla_agent.games.redalert.terrain import OrePatch
 from ucla_agent.games.redalert.world import Building, Cell, EnemyRecord, Unit, World
 
@@ -146,6 +151,7 @@ SCOUT_IDS = {
     EXPANSION_APPROACH: "E",
     ATTACK_LANE: "F",
     ENEMY_HOME_FIELD: "G",
+    CONTINUE: CONTINUE_ID,
 }
 # What each kind of mission watches, as an action names its place, and what being there shows.
 MISSION_PLACES = {
@@ -180,18 +186,27 @@ def question(
     Asked once the map, both bases and the enemy's start are known. Raises `ValueError` when it cannot be held to
     `MAX_PROMPT_CHARS`.
     """
-    actions = scout_actions(scout, dangers, sight, offered, world, ctx)
-    closing = None if ctx.commander is None else ctx.commander.closing
+    commander = ctx.commander
+    standing = None if commander is None else commander.continued_scout()
+    actions = scout_actions(scout, dangers, sight, offered, world, ctx, standing)
+    closing = None if commander is None else commander.closing
     state = full_state(world, ctx, {}, (scout.x, scout.y), closing=closing)
     lines_at = partial(_lines, scout, sight, state, picks, current_line(current, actions, world), world, ctx)
     return fitted(SYSTEM_TEXT, lines_at, actions, world.tick, MAX_PROMPT_CHARS, current, SHORT_SYSTEM_TEXT)
 
 
 def scout_actions(
-    scout: Unit, dangers: Dangers, sight: SightGrid, offered: Sequence[Mission], world: World, ctx: MatchContext
+    scout: Unit,
+    dangers: Dangers,
+    sight: SightGrid,
+    offered: Sequence[Mission],
+    world: World,
+    ctx: MatchContext,
+    standing: Action | None = None,
 ) -> tuple[Action, ...]:
     """The scout's actions, lettered by kind: hold, back off while danger is near, then the best mission of each kind
-    by score, highest first, up to options_max."""
+    by score, highest first, up to options_max; and the `standing` action (None for none) offered again as the
+    continue option when the list leaves it off and it is still sound (see `_with_continue`)."""
     position = (scout.x, scout.y)
     fixed = [_hold(position)]
     back_off = _back_off(position, dangers, sight, world, ctx)
@@ -199,7 +214,44 @@ def scout_actions(
         fixed.append(back_off)
     room = max(0, ctx.tuning.commander.options_max - len(fixed))
     missions = _mission_actions(scout, dangers.leaving(position), sight, offered, world, ctx)
-    return lettered([*fixed, *missions[:room]], SCOUT_IDS)
+    listed = lettered([*fixed, *missions[:room]], SCOUT_IDS)
+    if standing is None:
+        return listed
+    return _with_continue(listed, missions, room, standing, scout, dangers, sight, offered, world, ctx)
+
+
+def _with_continue(
+    listed: tuple[Action, ...],
+    missions: list[Action],
+    room: int,
+    standing: Action,
+    scout: Unit,
+    dangers: Dangers,
+    sight: SightGrid,
+    offered: Sequence[Mission],
+    world: World,
+    ctx: MatchContext,
+) -> tuple[Action, ...]:
+    """The scout's actions with its standing mission offered again as the continue option, when the list leaves it
+    off and the mission is still sound: still offered by the planner, the scout not within ARRIVED_CELLS of it, no
+    danger flight on, and a safe way there. The option is the mission's action the options_max cut dropped, else the
+    standing action as taken, in a place left or in that of the lowest-scored mission listed; never in hold's nor in
+    back off's."""
+    if standing.kind not in MISSION_PLACES or any(action.key == standing.key for action in listed):
+        return listed
+    mission = next((mission for mission in offered if mission.key == standing.key), None)
+    position = (scout.x, scout.y)
+    if mission is None or cells.is_within(position, mission.cell, ARRIVED_CELLS):
+        return listed
+    if fled_from(position, dangers, ctx) is not None:
+        return listed
+    way = route(position, mission.cell, dangers.leaving(position), world, ctx, keeps_from_center=False)
+    if _path(way, mission.cell, sight) == PASSES_DANGER:
+        return listed
+    cut = missions[room:]
+    option = next((action for action in cut if action.key == standing.key), replace(standing, consequence=""))
+    giving_way = [action for action in reversed(missions[:room])]
+    return with_continue(listed, option, giving_way, ctx.tuning.commander.options_max)
 
 
 def situation(scout: Unit, dangers: Dangers, ctx: MatchContext) -> Situation:
@@ -324,10 +376,11 @@ def _lines(
 ) -> list[str]:
     """The state lines of the question at a level of detail, in order, the empty ones left out: the full-state
     sections the level keeps, the scout's lines, the picks and the clock."""
+    sees = sight_of(scout.type, world.items, ctx.tuning.scouting.sight_by_type)
     lines = [
         *state.lines(detail),
         _bases(world, ctx),
-        f"scout={scout.type} hp={scout.hp}% at {at((scout.x, scout.y))} sight={SIGHT_CELLS}",
+        f"scout={scout.type} hp={scout.hp}% at {at((scout.x, scout.y))} sight={sees:g}",
         _danger_now(scout, world, ctx, detail),
         _known_defense(scout, world, ctx, detail),
         _intel(sight, world, ctx, detail),

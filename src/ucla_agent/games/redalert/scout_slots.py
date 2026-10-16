@@ -60,6 +60,14 @@ on the Infantry queue, is still ordered. While upkeep's full hold for the
 MCV's money is in force, a slot emptied by a loss waits too, unless every
 slot is empty: then the rifleman is ordered as before.
 
+With `scout_loss_memory` on, the cell a slot's scout was last seen on
+before it was killed is remembered: it is a hurt area (see `scout_berth`)
+the scouts' ways keep off, the rush scout's next run takes the next approach
+whose legs keep scout_lost_avoid_cells from every such cell (see
+`rush_scout`), and the slot is refilled scout_slot_replace_seconds after the
+loss at the soonest. In the live games of 20261016 slot 1 lost three scouts
+on nearly one cell, each replacement sent the same way.
+
 A scout gone from the world (but for one aboard a transport) is lost, and
 its slot is empty; so is the slot of a scout below scout_release_below_hp
 (wide_release_below_hp with `scout_wide_berth` on, see `scout_berth`), which
@@ -125,9 +133,23 @@ stands within 4 cells of it, a `scout_slot` event of kind `returned` (see
 A scout that was hit or is outclassed by the enemy in sight retreats (see
 `scout_retreat`): its retreat is its move while it lasts, the most urgent of
 the scouts', its mission kept for it, and is a `retreat` event with its
-cause, the cell it stood on, the cell it is sent to, its health and the cell
-of the enemy it is sent away from (null when it goes back along its way).
-The cell a scout was hit on becomes a hurt area (see `scout_berth`).
+cause, the cell it stood on, the cell it is sent to, its health, the cell
+of the enemy it is sent away from (null when it goes back along its way) and
+the target of its bait shot (null for none). With `scout_bait_shot` on, a
+retreat begun fires that one shot first (see `scout_bait`): the scout's
+order of the cycle is the attack, and its retreat move is held back for
+scout_bait_shot_seconds. The cell a scout was hit on becomes a hurt area
+(see `scout_berth`). With `scout_stray_hunt` on, a scout in the field that is
+not retreating, nor the rush scout while its rule steers it, hunts a lone
+enemy unit it clearly outfights away from the enemy's base (see
+`scout_hunt`): while it hunts, its order is its attack, it is not steered,
+its mission is kept for it and it takes no retreat cause. Each hunt begun is
+a `hunt` event, each one ended a `hunt_end` event with why. With
+`scout_base_harass` on, such a scout that does not hunt harasses an enemy
+base it finds with no defense and no army by it (see `scout_harass`), steered
+the same way, with a `harass` event and a `harass_end` event with why and its
+count of attack orders; a harass ended at a defense, an enemy unit or a hit
+hands the scout over to a retreat with its bait shot.
 
 While the model commander steers the first scout (see `commander`), it is
 the scout of the lowest slot holding one in the field. In every cycle its
@@ -154,7 +176,7 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass, field
-from typing import Collection
+from typing import Collection, Mapping
 
 from ucla_agent.core import records
 from ucla_agent.games.redalert import cells, command_scout
@@ -163,11 +185,12 @@ from ucla_agent.games.redalert.command_prompt import Action
 from ucla_agent.games.redalert.command_scout import follow, is_held
 from ucla_agent.games.redalert.commander import SCOUT_ROLE, STOP
 from ucla_agent.games.redalert.family import FAMILIES, RIFLE_INFANTRY, WAR_FACTORY
-from ucla_agent.games.redalert.groups import MAIN, SCOUT
+from ucla_agent.games.redalert.groups import CANARY, MAIN, SCOUT
 from ucla_agent.games.redalert.items import SOVIET, TICKS_PER_SECOND
 from ucla_agent.games.redalert.managers import MatchContext
 from ucla_agent.games.redalert.production import INFANTRY_QUEUE, VEHICLE_QUEUE
 from ucla_agent.games.redalert.rush_scout import RUSH_SCOUT, RUSH_SCOUT_SLOT, RushScout
+from ucla_agent.games.redalert.scout_attacks import ScoutAttacks, scout_order
 from ucla_agent.games.redalert.scout_berth import HurtAreas, release_below_hp
 from ucla_agent.games.redalert.scout_choice import ANSWERED, ScoutQuestion, take_answer
 from ucla_agent.games.redalert.scout_mission_planner import Assignment, MissionPlanner
@@ -187,7 +210,7 @@ from ucla_agent.games.redalert.scout_steering import (
 )
 from ucla_agent.games.redalert.sight import SightGrid
 from ucla_agent.games.redalert.tuning import FACTORY_FIRST, SOVIET_SCOUT_UNITS, ScoutingTuning
-from ucla_agent.games.redalert.world import Cell, Unit, World
+from ucla_agent.games.redalert.world import Cell, EnemyRecord, Unit, World
 
 SCOUT_SLOT_EVENT = "scout_slot"
 # The kinds of a `scout_slot` event: a slot taken by one of the first infantry, by the faster unit trained for it, and
@@ -210,6 +233,8 @@ REPLACEMENT = "replacement"
 # Why a `lost` event says a scout was lost to its slot: it is gone from the world, or so hurt it was released.
 KILLED = "killed"
 RELEASED = "released"
+# A slot whose scout the canary rule took (see `canary`).
+TO_CANARY = "canary"
 # The faster unit the Allied scouts become; the Soviet one is the setting soviet_scout_unit.
 ALLIED_FAST_SCOUT = "jeep"
 # The Soviet scout vehicle of the factory-first opening, from the war factory; the Allied one is the jeep.
@@ -279,6 +304,8 @@ class ScoutSlots:
         self._stances = ScoutStances()
         self._retreats = Retreats()
         self._returning = ReturningScouts()
+        # The attacks the slots order for their careful scouts on purpose (see `scout_attacks`).
+        self._attacks = ScoutAttacks()
         # Under the factory-first opening: whether its scout vehicle has taken a slot. And under the hold of
         # `single_scout_rifle`: whether the one replacement rifleman has been ordered.
         self._has_vehicle_come = False
@@ -286,6 +313,9 @@ class ScoutSlots:
         # The first slot's pass through the enemy base and its watch at the enemy's exit, while `rush_scout_direct`
         # is on and the rush watch lasts.
         self._rush = RushScout()
+        # Slot number -> where its scout was last seen, and the tick its scout was last killed (scout_loss_memory).
+        self._last_cells: dict[int, Cell] = {}
+        self._lost_at: dict[int, int] = {}
 
     def intents(self, world: World, ctx: MatchContext, sight: SightGrid) -> list[Intent]:
         """Account for the scouts lost and those too hurt to scout, fill the slots from the cycle's new units, order
@@ -293,10 +323,10 @@ class ScoutSlots:
         scouts' destinations are published on the match context."""
         if not self._slots:
             self._slots = _new_slots(ctx)
-        self._account(world)
+        self._account(world, ctx)
         self._note_hurt(world, ctx)
         orders = self._release(world, ctx) + self._bring_home(world, ctx)
-        for unit in self._new_units(world):
+        for unit in self._new_units(world, ctx):
             self._take(unit, world, ctx)
         if is_cautious(ctx.tuning.scouting):
             holding = [world.combat_units[slot.unit_id] for slot in self._held(world)]
@@ -316,15 +346,38 @@ class ScoutSlots:
         ctx.returning_scouts = self._returning.units
         return orders + self._stances.orders()
 
-    def _account(self, world: World) -> None:
-        """Empty the slot of every scout gone from the world, but for one aboard a transport, with a `lost` event."""
+    def _account(self, world: World, ctx: MatchContext) -> None:
+        """Empty the slot of every scout gone from the world, but for one aboard a transport, with a `lost` event;
+        with scout_loss_memory on, remember where and when (see the module's note)."""
+        tuning = ctx.tuning.scouting
         for slot in self._slots:
             if (
                 slot.unit_id is not None
                 and slot.unit_id not in world.combat_units
                 and world.aboard(slot.unit_id) is None
             ):
+                cell = self._last_cells.get(slot.number)
+                if tuning.scout_loss_memory and cell is not None:
+                    self._lost_at[slot.number] = world.tick
+                    self._rush.note_lost(cell, world.tick)
+                    self._hurt.mark(cell, world.tick, tuning)
                 self._lose(slot, KILLED)
+        self._last_cells = {
+            slot.number: (world.combat_units[slot.unit_id].x, world.combat_units[slot.unit_id].y)
+            for slot in self._slots
+            if slot.unit_id in world.combat_units
+        }
+
+    @property
+    def rush_post_unit(self) -> int | None:
+        """The unit that stood at the rush watch's exit post (see `rush_scout`); None while none has."""
+        return self._rush.post_unit
+
+    def give_up(self, unit_id: int) -> None:
+        """Empty the slot a unit holds, the canary rule having taken it (see `canary`); the slot rules refill it."""
+        for slot in self._slots:
+            if slot.unit_id == unit_id:
+                self._lose(slot, TO_CANARY)
 
     def _lose(self, slot: Slot, reason: str) -> None:
         """Empty a slot whose scout is lost to it, with the `lost` event that says why."""
@@ -377,10 +430,10 @@ class ScoutSlots:
             _log_returned(unit_id, returning)
         return moves
 
-    def _new_units(self, world: World) -> list[Unit]:
-        """The own units that fight seen for the first time in this cycle, in the order of their ids; a unit that came
-        out of a transport under a new id is not new."""
-        not_new = self._seen | set(world.taken_over.values())
+    def _new_units(self, world: World, ctx: MatchContext) -> list[Unit]:
+        """The own units that fight seen for the first time in this cycle, in the order of their ids, but the canary
+        (see `canary`); a unit that came out of a transport under a new id is not new."""
+        not_new = self._seen | set(world.taken_over.values()) | set(ctx.groups.members(CANARY))
         new = [unit for unit_id, unit in world.combat_units.items() if unit_id not in not_new]
         self._seen.update(world.combat_units)
         return sorted(new, key=lambda unit: unit.id)
@@ -472,10 +525,15 @@ class ScoutSlots:
         """A unit for each slot emptied by a loss with no order out and not `taken` by another order of the cycle, while
         one may be ordered: the fastest scout that can be trained once the replacement floor has passed since the last,
         else a rifleman while every slot is empty and a barracks stands."""
+        wait_ticks = ctx.tuning.scouting.scout_slot_replace_seconds * TICKS_PER_SECOND
         emptied = [
             slot
             for slot in self._slots
-            if slot.was_held and slot.unit_id is None and slot.awaiting is None and slot not in taken
+            if slot.was_held
+            and slot.unit_id is None
+            and slot.awaiting is None
+            and slot not in taken
+            and world.tick - self._lost_at.get(slot.number, -wait_ticks) >= wait_ticks
         ]
         replacements: list[tuple[Slot, str]] = []
         for slot in emptied:
@@ -550,50 +608,137 @@ class ScoutSlots:
         """The move of each scout in the field (see `scout_steering`), at most scout_orders_per_batch of them, the
         most urgent first, each change of destination written as a `destination` event; first of all, while the model
         commander steers a scout, the commander's order for it, when one is due (see `command_scout`). With
-        `scout_cautious` on, a retreating scout's move is its retreat's (see `scout_retreat`)."""
-        retreats = self._retreat_moves(world, ctx)
+        `scout_cautious` on, a retreating scout's move is its retreat's (see `scout_retreat`), and a scout one of the
+        slots' own attacks holds (see `scout_attacks`) is sent that attack, or nothing while its move is held back."""
         rush_slot = self._rush_slot(world, ctx)
+        # The run through the enemy base has one owner: no retreat nor attack of the slots takes its scout.
+        runner = rush_slot if rush_slot is not None and self._is_runner(rush_slot, world, ctx) else None
+        retreats = self._retreat_moves(world, ctx, runner)
+        attacks = self._attack_moves(world, ctx, retreats, rush_slot, runner)
+        aside = retreats.keys() | attacks.keys()
         dangers = Dangers(world, ctx, self._hurt.live(world.tick, ctx.tuning.scouting))
         offered = self._planner.missions(world, ctx, sight) if self._needs_missions(ctx) else []
         commanded = self._command(offered, sight, dangers, world, ctx, rush_slot)
-        if commanded is not None and commanded[0].number in retreats:
+        if commanded is not None and commanded[0].number in aside:
             commanded = None
-        steered = [slot for slot in self._slots if slot.number not in retreats and slot is not rush_slot]
-        free = [slot for slot in steered if commanded is None or slot is not commanded[0]]
+        free = self._free_slots(aside, rush_slot, None if commanded is None else commanded[0])
+        moves = self._free_moves(free, offered, sight, dangers, world, ctx, aside)
+        moves += self._set_aside_moves(retreats, attacks, rush_slot, world, ctx)
+        ordered = [] if commanded is None else self._commanded_moves(*commanded, moves, dangers, world, ctx)
+        return ordered + self._sent(moves, world, ctx)
+
+    def _free_slots(self, aside: Collection[int], rush_slot: Slot | None, commanded: Slot | None) -> list[Slot]:
+        """The slots that nothing else steers in this cycle: neither set `aside` (by number), nor the rush scout's, nor
+        the one the model commander steers."""
+        return [slot for slot in self._slots if slot.number not in aside and slot not in (rush_slot, commanded)]
+
+    def _free_moves(
+        self,
+        free: list[Slot],
+        offered: list[Mission],
+        sight: SightGrid,
+        dangers: Dangers,
+        world: World,
+        ctx: MatchContext,
+        aside: Collection[int],
+    ) -> list[tuple[Move, Slot]]:
+        """The moves of the scouts of the `free` slots, which nothing else steers in this cycle, their courses handed
+        back to the script: on their missions, the slots set `aside` keeping theirs for later, or from place to
+        place."""
         _release(free)
         if ctx.tuning.scouting.scout_missions:
-            moves = self._mission_moves(free, offered, dangers, world, ctx, retreating=retreats.keys())
-        else:
-            moves = self._place_moves(free, sight, dangers, world, ctx)
-        moves += [
-            (retreats[slot.number], slot) for slot in self._slots if slot.number in retreats and slot is not rush_slot
+            return self._mission_moves(free, offered, dangers, world, ctx, retreating=aside)
+        return self._place_moves(free, sight, dangers, world, ctx)
+
+    def _set_aside_moves(
+        self,
+        retreats: dict[int, Move],
+        attacks: dict[int, Move | None],
+        rush_slot: Slot | None,
+        world: World,
+        ctx: MatchContext,
+    ) -> list[tuple[Move, Slot]]:
+        """The moves of the scouts the steering leaves alone in this cycle, with their slots: the retreats, the rush
+        scout's move, and in place of either the slots' own attacks (none while a move is held back)."""
+        moves = [
+            (retreats[slot.number], slot)
+            for slot in self._slots
+            if slot.number in retreats and slot.number not in attacks and slot is not rush_slot
         ]
-        moves += self._rush_moves(rush_slot, retreats, world, ctx)
-        ordered = [] if commanded is None else self._commanded_moves(*commanded, moves, dangers, world, ctx)
+        # The rush scout's move is worked out even while an attack holds it: the rule follows its scout's health.
+        moves += [pair for pair in self._rush_moves(rush_slot, retreats, world, ctx) if pair[1].number not in attacks]
+        return moves + [(move, slot) for slot in self._slots if (move := attacks.get(slot.number)) is not None]
+
+    def _sent(self, moves: list[tuple[Move, Slot]], world: World, ctx: MatchContext) -> list[Intent]:
+        """The orders of the scouts' moves that go in this cycle, at most scout_orders_per_batch of them, the most
+        urgent first; each slot's course notes where its scout was sent, and each of the slots' own attacks sent is
+        noted."""
         # A stable sort: of moves as urgent, the lower slot's goes first, and one left out is still urgent next cycle.
         moves.sort(key=lambda pair: pair[0].urgency)
         sent = moves[: ctx.tuning.scouting.scout_orders_per_batch]
         for move, slot in sent:
-            slot.course.sent = move.cell
-        return ordered + [
-            Intent(Priority.SCOUT, {"cmd": "move", "units": [slot.unit_id], "to": list(move.cell)})
-            for move, slot in sent
-        ]
+            # After an attack the scout is no longer on its way to the cell it was last sent to.
+            slot.course.sent = move.cell if move.target is None else None
+            if move.target is not None:
+                self._attacks.sent(slot.unit_id, world.tick)
+        return [scout_order(slot.unit_id, move) for move, slot in sent]
 
-    def _retreat_moves(self, world: World, ctx: MatchContext) -> dict[int, Move]:
+    def _is_runner(self, slot: Slot, world: World, ctx: MatchContext) -> bool:
+        """Whether the rush scout's run owns the scout of a slot now (`RushScout.is_running`)."""
+        return self._rush.is_running(world.combat_units[slot.unit_id], world, ctx)
+
+    def _attack_moves(
+        self,
+        world: World,
+        ctx: MatchContext,
+        retreats: dict[int, Move],
+        rush_slot: Slot | None,
+        runner: Slot | None = None,
+    ) -> dict[int, Move | None]:
+        """With `scout_cautious` on, by slot number, the scouts in the field whose order of the cycle is one of the
+        slots' own attacks, with its move, None for one these attacks hold that is sent nothing (see `scout_attacks`);
+        first the scouts free to, neither retreating nor the rush scout while its rule steers it, begin a hunt or a
+        harass, each begun a `hunt` or `harass` event."""
+        if not is_cautious(ctx.tuning.scouting):
+            return {}
+        held = {slot.number: slot for slot in self._held(world) if slot is not runner}
+        scouts = {number: world.combat_units[slot.unit_id] for number, slot in held.items()}
+        free = {
+            number: scout for number, scout in scouts.items() if number not in retreats and held[number] != rush_slot
+        }
+        self._attacks.start(free, world, ctx)
+        self._log_notes(held)
+        return self._attacks.moves(scouts, world, ctx)
+
+    def _log_notes(self, held: Mapping[int, Slot]) -> None:
+        """Write the events the slots' own attacks noted in this cycle about the slots `held` (by number)."""
+        for note in self._attacks.notes():
+            _log(note.kind, held[note.slot], **note.fields)
+
+    def _retreat_moves(self, world: World, ctx: MatchContext, runner: Slot | None = None) -> dict[int, Move]:
         """With `scout_cautious` on, the retreat move of each scout in the field that retreats in this cycle, by its
-        slot's number; each retreat begun a `retreat` event, the cell a scout was hit on made a hurt area."""
+        slot's number; each retreat begun a `retreat` event, with its bait shot (see `scout_bait`), the cell a scout
+        was hit on made a hurt area. First the slots' own attacks whose end has come end (see `scout_attacks`), with
+        their events, a retreat begun for each that hands its scout over to one; the scouts they still engage take no
+        retreat cause."""
         tuning = ctx.tuning.scouting
         if not is_cautious(tuning):
             return {}
-        held = {slot.number: slot for slot in self._held(world)}
+        held = {slot.number: slot for slot in self._held(world) if slot is not runner}
         scouts = {number: world.combat_units[slot.unit_id] for number, slot in held.items()}
-        moves, begun = self._retreats.update(scouts, world, ctx)
-        for started in begun:
+        handovers = self._attacks.end(scouts, self._retreats.last_hp, world, ctx)
+        self._log_notes(held)
+        handed = [
+            (self._retreats.begin(handover.slot, scouts[handover.slot], handover.cause, world, ctx), handover.baits)
+            for handover in handovers
+        ]
+        moves, begun = self._retreats.update(scouts, world, ctx, suspended=self._attacks.engaged)
+        for started, baits in [*handed, *((started, True) for started in begun)]:
             scout = scouts[started.slot]
             if started.retreat.cause == HIT:
                 self._hurt.mark((scout.x, scout.y), world.tick, tuning)
-            _log_retreat(held[started.slot], started, scout)
+            bait = self._attacks.bait(scout, world, ctx) if baits else None
+            _log_retreat(held[started.slot], started, scout, bait)
         return moves
 
     def _rush_slot(self, world: World, ctx: MatchContext) -> Slot | None:
@@ -802,12 +947,23 @@ def _follow_mission(slot: Slot, assignment: Assignment, tick: int) -> None:
         )
 
 
-def _log_retreat(slot: Slot, begun: Begun, scout: Unit) -> None:
-    """Write the `retreat` event of a slot's scout: why, where it stood and is sent, its health, and the cell of the
-    enemy it is sent away from (None when it goes back along its way)."""
+def _log_retreat(slot: Slot, begun: Begun, scout: Unit, bait: EnemyRecord | None) -> None:
+    """Write the `retreat` event of a slot's scout: why, where it stood and is sent, its health, the cell of the enemy
+    it is sent away from (None when it goes back along its way) and the id and type of its bait shot's target (None
+    when it made no shot)."""
     retreat = begun.retreat
     enemy = None if retreat.enemy_cell is None else list(retreat.enemy_cell)
-    _log(RETREAT, slot, cause=retreat.cause, cell=[scout.x, scout.y], to=list(retreat.to), hp=scout.hp, enemy=enemy)
+    shot = None if bait is None else [bait.id, bait.type]
+    _log(
+        RETREAT,
+        slot,
+        cause=retreat.cause,
+        cell=[scout.x, scout.y],
+        to=list(retreat.to),
+        hp=scout.hp,
+        enemy=enemy,
+        bait=shot,
+    )
 
 
 def _log_returned(unit_id: int, returning: Returning) -> None:

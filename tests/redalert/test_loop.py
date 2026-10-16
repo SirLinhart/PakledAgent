@@ -511,9 +511,15 @@ def test_a_call_that_sends_a_batch_logs_the_state_and_then_the_exact_action_with
         situations.GameState.from_mcp_state(fixture_state("midgame_allies", 6000)), situations.context()
     )
 
-    # The first playing cycle of a match sets its first plan.
-    state, plan_change, action, _summary, _result = match_record()
-    assert (state["kind"], plan_change["kind"], action["kind"]) == ("state", "plan_change", "action")
+    # The first playing cycle of a match brings the enemy army estimate up to date (the fixture shows enemy units) and
+    # sets its first plan.
+    state, estimate, plan_change, action, _summary, _result = match_record()
+    assert (state["kind"], estimate["kind"], plan_change["kind"], action["kind"]) == (
+        "state",
+        "enemy_estimate",
+        "plan_change",
+        "action",
+    )
     assert (state["data"]["state_version"], state["data"]["phase"]) == (6000, "playing")
     assert action["data"]["state_version"] == 6000 and action["data"]["action"] == decision.action
     assert 0 <= action["data"]["compute_ms"] < 150
@@ -526,7 +532,16 @@ def test_a_call_that_waits_logs_the_state_and_the_action_wait(match_record):
     ask(agent, fixture_state("midgame_allies", 6000))
 
     lines = match_record()
-    assert kinds(lines) == ["state", "action", "state", "plan_change", "action", "ledger_summary", "result"]
+    assert kinds(lines) == [
+        "state",
+        "action",
+        "state",
+        "enemy_estimate",
+        "plan_change",
+        "action",
+        "ledger_summary",
+        "result",
+    ]
     assert [line["data"]["action"] for line in lines if line["kind"] == "action"] == ["WAIT", "WAIT"]
     assert [line["data"]["phase"] for line in lines if line["kind"] == "state"] == ["waiting_for_agents", "playing"]
 
@@ -594,13 +609,14 @@ def test_a_terminal_state_logs_the_ledger_s_summary_and_nothing_else(match_recor
     lines = match_record()
     assert orders == [] and kinds(lines) == [
         "state",
+        "enemy_estimate",
         "plan_change",
         "action",
         "action_result",
         "ledger_summary",
         "result",
     ]
-    assert lines[4]["data"]["orders_rejected_by_reason"] == {"invalid": 1}
+    assert lines[5]["data"]["orders_rejected_by_reason"] == {"invalid": 1}
 
 
 def test_a_terminal_state_that_cannot_be_read_is_answered_with_wait_and_the_failure_logged(match_record, monkeypatch):

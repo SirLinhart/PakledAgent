@@ -9,7 +9,7 @@ from dataclasses import replace
 import pytest
 
 from situations import REPO_ROOT, ask, base_state, new_agent
-from switches_off import SWITCHES_OFF
+from switches_off import SWITCHES_OFF, stepping_off
 from ucla_agent.games.redalert import defended
 from ucla_agent.games.redalert.batch import Intent, Priority
 from ucla_agent.games.redalert.combat import CombatManager
@@ -30,7 +30,12 @@ REFINERY_CELL = (50, 29)
 # A lone pillbox, 20 cells north of main, with no enemy unit within 10 cells of it.
 LONE_CELL = (45, 28)
 ATTACK_ARMY = Action(kind="attack", key=("attack", OBJECTIVE), label="attack", head="attack", cell=OBJECTIVE)
-SWITCHED_OFF = Tuning(combat=CombatTuning(defended_redirect=False))
+# main's stepped movement off throughout (see `switches_off.stepping_off`): these tests check the one order to the
+# redirect's cell, the siege stand and the dart, worked out before main stepped.
+SWITCHED_OFF = stepping_off(Tuning(combat=CombatTuning(defended_redirect=False)))
+# The strikes main's units would go on of their own off: the refinery an uncovered redirect takes is an exposed
+# expansion, and the strike would split main's attack on it.
+STRIKES_OFF = {"strike_exposed_expansion": False, "counterattack": False}
 
 
 def own(unit_id: int, unit_type: str, x: int, y: int, *, idle: bool = True) -> dict:
@@ -78,7 +83,7 @@ def at(tick: int, units=(), enemies=(), buildings=()) -> dict:
 def commanded(action: Action = ATTACK_ARMY, tuning: Tuning | None = None) -> tuple:
     """An agent with the combat manager alone, whose main the commander has on a standing action, and the manager."""
     manager = CombatManager()
-    agent = new_agent(manager, tuning=tuning)
+    agent = new_agent(manager, tuning=tuning or stepping_off(Tuning(combat=CombatTuning(**STRIKES_OFF))))
     manager.command(action)
     return agent, manager
 
@@ -254,7 +259,7 @@ def test_defended_in_the_siege_a_jeep_darts_to_the_front_every_30_s_and_comes_ba
 
 
 def test_defended_the_plan_s_advance_on_a_building_under_the_pillboxes_sieges_instead_of_marching_in(match_record):
-    agent = new_agent(CombatManager())
+    agent = new_agent(CombatManager(), tuning=stepping_off())
     agent.ctx.min_attack_strength = lambda plan: 3000
     # Five light tanks, 3,500, gathered at the staging point: enough against the pillboxes alone (1.3 x 2,400), 1.0
     # against them with the army.

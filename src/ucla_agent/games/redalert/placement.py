@@ -22,6 +22,21 @@ air power, stands by the refinery nearest the enemy's start instead: enemy
 aircraft go for the harvesters and the refinery they unload at, and that one
 is the first they reach.
 
+A base that grows away from its yard leaves a point in front of the yard in
+the middle of the base. So with the tuning file's defense front switched on
+and the enemy's start known, a ground defense (an AA defense too, until the
+enemy has shown air power) placed without a goal of its own goes to the
+front of the base: its base is the yard it is laid out around and the
+buildings but defenses nearest that yard, and the front building the one of
+those farthest along the line from the yard's middle toward the enemy. The
+defense is asked onto the place nearest the point `defense_front_cells`
+beyond that building toward the enemy, or, with ground defenses of the base
+standing on the enemy's side of the yard, nearest the point halfway between
+it and their middle, so that the front's defenses stand together. Its
+places are those of the ring and those within `defense_adjacent_cells` of a
+building of the base, with no radius around the yard, and none on the far
+side of the yard from the enemy while the enemy's side has one.
+
 A refinery aimed at the nearest unserved patch often lands far short of it,
 since the engine lets a building stand only close to one that stands, and its
 harvesters then drive the difference on every trip. With the tuning file's
@@ -196,6 +211,8 @@ _WIDE_REPORTED_OFFSET = (1, 1)
 _NARROW_REPORTED_OFFSET = (0, 0)
 # The AA defenses, which stand by the refinery the enemy's aircraft come to first.
 ANTI_AIR_DEFENSE_TYPES = frozenset(ANTI_AIR_DEFENSES.values())
+# The defenses that fire at ground units, which the front of the base is for.
+GROUND_DEFENSE_TYPES = DEFENSE_TYPES - ANTI_AIR_DEFENSE_TYPES
 # The rules by which a refinery's ore field is chosen by reach, in the order they are tried, as the match record
 # names them: an unserved field a refinery can stand against, a large near field it can share, the nearest unserved
 # field, and with every field in reach served, the nearest one that still takes another refinery.
@@ -270,6 +287,14 @@ class Box:
     def holds_any(self, some_cells: Container[Cell]) -> bool:
         """Whether one of the rectangle's cells is among the given."""
         return any(cell in some_cells for cell in self.cells())
+
+
+@dataclass(frozen=True)
+class RefusedPlace:
+    """A place the engine would not put a building on (see `refused`), and the tick that was noticed at."""
+
+    box: Box
+    tick: int
 
 
 @dataclass(frozen=True)
@@ -527,6 +552,9 @@ def choose_placement(
     anchor = _anchor_for(item, world, terrain, tuning, target)
     if anchor is None:
         return PlacementChoice(None)
+    front = _front(item, anchor, world, tuning, aa_refinery_cells)
+    if front is not None:
+        return PlacementChoice(_front_defense_cell(item, front, anchor, world, terrain, tuning, promised))
     candidates = candidate_cells(item, world, terrain, tuning, promised, anchor)
     cap = _refinery_cap(item, tuning, field_cap)
     candidates = _under_cap(candidates, world, terrain, cap)
@@ -736,6 +764,97 @@ def _cell_toward_goal(
         ] or candidates
     # The first of several equally near is taken, which is the one nearest the construction yard.
     return min(candidates, key=lambda cell: _distance_to(box_at(item, cell), goal))
+
+
+@dataclass(frozen=True)
+class _Front:
+    """The enemy's side of a base, which a ground defense with no goal of its own is placed on (see `_front`)."""
+
+    # The middle cell of the base's construction yard, which every projection is measured from.
+    origin: Cell
+    # The unit vector from that middle toward the enemy's start.
+    direction: tuple[float, float]
+    # The boxes of the base's own buildings but its defenses.
+    buildings: tuple[Box, ...]
+    # The point the defense is asked to stand as near to as it can.
+    goal: tuple[float, float]
+
+    def projection(self, point: tuple[float, float]) -> float:
+        """How far a point lies along the line from the yard's middle toward the enemy; below 0 behind the yard."""
+        return (point[0] - self.origin[0]) * self.direction[0] + (point[1] - self.origin[1]) * self.direction[1]
+
+
+def _front(
+    item: str, anchor: Cell, world: World, tuning: PlacementTuning, aa_refinery_cells: int | None
+) -> _Front | None:
+    """The front a defense of a type is placed on with `defense_front` on (`_is_front_defense`), with the enemy's
+    start known and a yard at `anchor`. None otherwise, when the defense is placed as without the switch."""
+    enemy = world.enemy_base
+    yards = [building for building in world.buildings.values() if building.type == CONSTRUCTION_YARD]
+    yard = next((building for building in yards if (building.x, building.y) == anchor), None)
+    if not tuning.defense_front or not _is_front_defense(item, aa_refinery_cells) or enemy is None or yard is None:
+        return None
+    origin = _middle_cell(standing_box(yard))
+    gap = cells.distance(origin, enemy)
+    if gap == 0:
+        return None
+    base = _base_buildings(yard, yards, world)
+    buildings = tuple(standing_box(building) for building in base if building.type not in DEFENSE_TYPES)
+    side = _Front(origin, ((enemy[0] - origin[0]) / gap, (enemy[1] - origin[1]) / gap), buildings, origin)
+    front_building = max(buildings, key=lambda box: side.projection(box.center))
+    point = cells.toward(_middle_cell(front_building), enemy, tuning.defense_front_cells)
+    defenses = [standing_box(building).center for building in base if building.type in GROUND_DEFENSE_TYPES]
+    ahead = [center for center in defenses if side.projection(center) >= 0]
+    return dataclasses.replace(side, goal=_cluster_goal(point, ahead))
+
+
+def _is_front_defense(item: str, aa_refinery_cells: int | None) -> bool:
+    """Whether a defense of a type stands at the front: a ground defense, or an AA defense while no
+    `aa_refinery_cells` says enemy air was seen."""
+    if item in ANTI_AIR_DEFENSE_TYPES:
+        return aa_refinery_cells is None
+    return item in DEFENSE_TYPES
+
+
+def _cluster_goal(point: Cell, ahead: list[tuple[float, float]]) -> tuple[float, float]:
+    """The point a front defense stands nearest: halfway between the point beyond the front building and the middle
+    of the ground defenses `ahead` on the enemy's side of the yard, that point itself while there are none."""
+    if not ahead:
+        return point
+    middle_x, middle_y = sum(x for x, _ in ahead) / len(ahead), sum(y for _, y in ahead) / len(ahead)
+    return (point[0] + middle_x) / 2, (point[1] + middle_y) / 2
+
+
+def _base_buildings(yard: Building, yards: list[Building], world: World) -> list[Building]:
+    """The own buildings whose nearest construction yard, middle to middle, is `yard`: the yard itself among them."""
+    middles = {building.id: _middle_cell(standing_box(building)) for building in world.buildings.values()}
+
+    def nearest_yard(building: Building) -> Building:
+        return min(yards, key=lambda other: cells.distance(middles[building.id], middles[other.id]))
+
+    return [building for building in world.buildings.values() if nearest_yard(building) is yard]
+
+
+def _front_defense_cell(
+    item: str,
+    front: _Front,
+    anchor: Cell,
+    world: World,
+    terrain: Terrain,
+    tuning: PlacementTuning,
+    promised: tuple[Box, ...],
+) -> Cell | None:
+    """The cell of a defense on the front: of the ring's places and those within `defense_adjacent_cells` of a
+    building of the base, those on the enemy's side of the yard while there is one, the place nearest the front's goal
+    among those within `defense_cluster_cells` of it, else the nearest; of several as near, the one nearest the yard.
+    None without a place."""
+    ring = candidate_cells(item, world, terrain, tuning, promised, anchor)
+    places = _creep_candidates(item, ring, anchor, world, terrain, tuning, promised, near=front.buildings)
+    ahead = [cell for cell in places if front.projection(box_at(item, cell).center) >= 0] or places
+    distances = [(_distance_to(box_at(item, cell), front.goal), cell) for cell in ahead]
+    clustered = [pair for pair in distances if pair[0] <= tuning.defense_cluster_cells] or distances
+    # The places are in the ring's order, so the first of several as near is the one nearest the yard.
+    return min(clustered, key=lambda pair: pair[0])[1] if clustered else None
 
 
 def _anti_air_cell(
@@ -1220,10 +1339,13 @@ class RefineryPlaces:
         # The cell of a yard -> the places a refinery could take by it, nearest the yard first, and their boxes.
         self._by_yard: dict[Cell, tuple[list[Cell], list[Box]]] = {}
 
-    def against(self, field: OrePatch, rule: str, keep: Callable[[Box], bool] | None = None) -> PlacementChoice | None:
+    def against(
+        self, field: OrePatch, rule: str, keep: Callable[[Box], bool] | None = None, anchor: Cell | None = None
+    ) -> PlacementChoice | None:
         """The place `_refinery_toward` gives against a field, with the field and the rule, of those whose box `keep`
-        keeps when given; None when no such place reaches the field, and without a base."""
-        anchor = _yard_nearest(self._world, field)
+        keeps when given, by the yard at `anchor` when given, else by the yard nearest the field; None when no such
+        place reaches the field, and without a base."""
+        anchor = anchor or _yard_nearest(self._world, field)
         if anchor is None:
             return None
         candidates, boxes = self._by(anchor)
@@ -1247,6 +1369,42 @@ class RefineryPlaces:
             candidates = _creep_candidates(REFINERY, ring, anchor, world, terrain, tuning, promised)
             self._by_yard[anchor] = (candidates, [box_at(REFINERY, cell) for cell in candidates])
         return self._by_yard[anchor]
+
+
+class RefineryFit:
+    """Whether a refinery could be asked onto a place against a field next to a construction yard that does not stand
+    yet. The places are the boxes that reach the field (`reaches`) on open ground (`_Ground.is_open`, the `terrain`'s
+    blocked cells included) that `keep` keeps, worked out once for the field; a yard's box picks those it leaves clear
+    and stands next to (`fits`), as the ground of placement would with the yard standing (`_Ground.takes`)."""
+
+    def __init__(
+        self,
+        field: OrePatch,
+        world: World,
+        terrain: Terrain,
+        tuning: PlacementTuning,
+        promised: Iterable[Box],
+        keep: Callable[[Box], bool],
+    ) -> None:
+        self._ground = _ground(REFINERY, world, terrain, tuning, ())
+        self._promised, self._gap = tuple(promised), tuning.gap_cells
+        width, height = footprint(REFINERY)
+        zone = terrain.walk_zone(field, tuning.refinery_ore_cells)
+        boxes = {Box(x - dx, y - dy, width, height) for x, y in zone for dx in range(width) for dy in range(height)}
+        self._boxes = [box for box in boxes if self._ground.is_open(box) and keep(box)]
+
+    def fits(self, yard: Box, within: int) -> bool:
+        """Whether one of the places lies within `within` cells of a yard standing on `yard`, as a king moves, clear of
+        it and of the places promised (but those the yard itself would cover), and next to it or another building."""
+        kept_clear = [yard.grown(self._gap), *(box.grown(self._gap) for box in self._promised if not box.overlaps(yard))]
+        standing = (*self._ground.standing, yard)
+        reach = self._ground.reach
+        return any(
+            _cells_apart(box, yard) <= within
+            and not any(box.overlaps(other) for other in kept_clear)
+            and any(box.grown(reach).overlaps(other) for other in standing)
+            for box in self._boxes
+        )
 
 
 def _yard_nearest(world: World, field: OrePatch) -> Cell | None:
@@ -1561,7 +1719,7 @@ def _middle_cell(box: Box) -> Cell:
     return cells.nearest_cell(*box.center)
 
 
-def _distance_to(box: Box, goal: Cell) -> float:
+def _distance_to(box: Box, goal: tuple[float, float]) -> float:
     middle_x, middle_y = box.center
     return ((middle_x - goal[0]) ** 2 + (middle_y - goal[1]) ** 2) ** 0.5
 

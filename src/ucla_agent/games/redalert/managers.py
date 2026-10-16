@@ -39,7 +39,7 @@ from ucla_agent.games.redalert.groups import Groups
 from ucla_agent.games.redalert.income import IncomeEstimate
 from ucla_agent.games.redalert.ledger import LedgerEntry, OrderLedger
 from ucla_agent.games.redalert.model_history import ModelHistory
-from ucla_agent.games.redalert.placement import CreepTarget
+from ucla_agent.games.redalert.placement import Box, CreepTarget, RefusedPlace
 from ucla_agent.games.redalert.production import Production
 from ucla_agent.games.redalert.scout_report import ScoutReport
 from ucla_agent.games.redalert.spread import InfantrySpread
@@ -52,6 +52,7 @@ from ucla_agent.games.redalert.world import Cell, EnemyRecord, World
 if TYPE_CHECKING:
     # The commander reads the match context, so the context names its type only for the annotation.
     from ucla_agent.games.redalert.commander import Commander
+    from ucla_agent.games.redalert.failed_attack import FailedAttack
     from ucla_agent.games.redalert.exposed_trucks import ExposedTrucks
 
 # The slots of the managers, in the order they run.
@@ -60,6 +61,11 @@ MANAGER_ORDER = ("base_defense", "upkeep", "opening", "scouting", "combat", "rai
 NO_THREAT = "none"
 MINOR_THREAT = "minor"
 MAJOR_THREAT = "major"
+# The spending focus upkeep decides (see `spending_focus`): the money to the army, to the economy, or spent as always.
+# Named here, where the rules that read it find it without an import of the module that decides it.
+MILITARY_FOCUS = "military"
+ECONOMY_FOCUS = "economy"
+BALANCED_FOCUS = "balanced"
 
 
 class Manager(Protocol):
@@ -179,6 +185,8 @@ class MatchContext:
     # first state and the runtime say; None until the match has begun.
     seat: str | None = None
     match_kind: str | None = None
+    # The platform's id of the match's session, taken in with the first state; None before it and in a test without.
+    session_id: str | None = None
     # Set by the base-defense manager while the base is under attack; the opening starts nothing new then.
     threat_active: bool = False
     # The opening's build in force, published by the opening manager; none before its first cycle.
@@ -196,11 +204,23 @@ class MatchContext:
     # The cell each defense the base-defense manager ordered is to stand nearest, by item, while it is on its way: the
     # side of the base facing a threat, or a place in range of an enemy building. Upkeep's placement reads it.
     defense_goals: dict[str, Cell] = field(default_factory=dict)
+    # The items of `defense_goals` whose goal is a place of its own (the harass tower's in range of an enemy building,
+    # the endgame lead's point), which the line across the lane leaves as it is (see `defense_line`).
+    exact_defense_goals: set[str] = field(default_factory=set)
+    # The last tick base defense wrote that an MCV's escort was kept on its way (see `base_defense`); None before.
+    escort_kept_tick: int | None = None
+    # Whether the spending focus holds a new MCV back (see `spending_focus`), published by upkeep in every cycle.
+    mcv_held_by_focus: bool = False
     # The cells of the match's vehicle attacks on the base, in the order they came: one for each threat that was led
     # by vehicles and hit an own building or harvester, added by the base-defense manager.
     vehicle_attacks: list[Cell] = field(default_factory=list)
     # The harvesters the base-defense manager has sent to shelter, which it sends back to work itself.
     fleeing_harvesters: frozenset[int] = frozenset()
+    # With `truck_shares_by_mines` of [upkeep] on, the field each truck works: the one it is assigned to, while that
+    # field is active and not dry (see `truck_shares`). Every order that sends a truck back to harvest names an ore cell
+    # of it. Published by upkeep in every cycle; base defense, which runs first, reads that of the cycle before. Empty
+    # with the switch off.
+    truck_fields: Mapping[int, OrePatch] = field(default_factory=dict)
     # The ore field the base creeps toward, published by upkeep in every cycle: the far field with `creep_from_opening`
     # on while there is one, else the next field along the lane to the enemy; None with both off and while there is
     # none.
@@ -250,6 +270,15 @@ class MatchContext:
     # against it, and fewer than `claim_refineries_max` refineries stand or are on their way. Published by upkeep at the
     # start of every cycle, before any of its rules is asked; None while there is none.
     new_yard_field: OrePatch | None = None
+    # With `new_yard_refinery_until_standing` of [expansion] on, the cell of the yard whose claim `new_yard_field` is,
+    # by which its refinery is placed; None while there is no claim and with the switch off.
+    new_yard_cell: Cell | None = None
+    # The places the engine refused a building on (see `refused`), each with the tick it was noticed at, the oldest
+    # first, and the places asked for lately with the MCV's yard box: placement keeps a building off both, and so does
+    # the refinery order with `new_yard_refinery_until_standing` of [expansion] on. Published by upkeep's placement at
+    # the start of every cycle and again once it has noticed the refusals of the cycle.
+    refused_places: tuple[RefusedPlace, ...] = ()
+    promised_places: tuple[Box, ...] = ()
     # With `second_yard` and `mcv_new_area` of [expansion] on: the fields an own harvester's last cell on ore lies in,
     # which an MCV's site lasts by none of (see `expansion`); none with either switch off. And the fields marked dry
     # (see `fresh_ore`), which no site lasts by, no refinery is placed against (see `refinery_fields`) and no harvester
@@ -265,6 +294,13 @@ class MatchContext:
     waypoints: Waypoints = field(default_factory=Waypoints)
     # What is known of the enemy, published by the scouting manager in every cycle.
     scout_report: ScoutReport = field(default_factory=ScoutReport)
+    # What the enemy army is likely worth now, in credits (see `enemy_estimate`), brought up to date by the plan rules
+    # once a cycle with `enemy_army_estimate` of [plan_rules] on; None with it off and before an enemy army unit was
+    # seen.
+    enemy_army_estimate: float | None = None
+    # The spending focus (MILITARY_FOCUS, ECONOMY_FOCUS or BALANCED_FOCUS), decided by upkeep at the start of its cycle
+    # with `spending_focus` of [upkeep] on (see `spending_focus`); balanced with it off and before the opening is done.
+    spending_focus: str = BALANCED_FOCUS
     # The rush watch's verdict on the enemy's first minutes ("rush", "none" or "unknown"), published by the scouting
     # manager in every cycle; None with `[scouting] rush_detection` off.
     rush_verdict: str | None = None
@@ -350,6 +386,45 @@ class MatchContext:
     army_mix: ArmyMix = field(init=False)
     # What the unit queues make under a plan: called as `composition(plan, family, world)`.
     composition: Callable[[str, str, World], Composition] = field(init=False)
+    # Whether main's attack is out, the tick it set out and its objective (see `attack_approach`), published by the
+    # combat manager in every cycle while flank_approach or commit_on_cross of [combat], canary_post of [scouting] or
+    # canary_alarm of [upkeep] is on; the managers before it read those of the cycle before. False and None otherwise.
+    attack_out: bool = False
+    attack_out_since: int | None = None
+    attack_objective: Cell | None = None
+    # The side cell of the attack's approach that main is still to pass; None for none.
+    attack_side_cell: Cell | None = None
+    # main's failed attacks remembered, and whether PRESS's objective is blocked by them or its defenses (see
+    # `failed_attack`), published by the combat manager; the plans read those of the cycle before.
+    failed_attacks: tuple[FailedAttack, ...] = ()
+    press_blocked: bool = False
+    # Whether main is spread against an expected nuke in this cycle (see `nuke`), published by the combat manager; the
+    # managers before it read the cycle before's.
+    nuke_spreading: bool = False
+    # The tick the canary was found lost (see `canary`) and whether an attack was out then, published by the scouting
+    # manager; None while no canary was lost.
+    canary_lost_tick: int | None = None
+    canary_lost_while_out: bool = False
+    # Whether the canary alarm is in force (see `canary_alarm`), since which tick and why it started, and why the last
+    # one ended; published by upkeep at the start of every cycle.
+    canary_alarm: bool = False
+    canary_alarm_since: int | None = None
+    canary_alarm_reason: str | None = None
+    canary_alarm_ended: str | None = None
+    # Whether the approach alarm is in force (see `approach_alarm`), since which tick, where its group's centroid was
+    # last seen and whether infantry leads it; published by base defense at the start of every cycle.
+    approach_alarm: bool = False
+    approach_alarm_since: int | None = None
+    approach_alarm_cell: Cell | None = None
+    approach_alarm_infantry: bool = False
+    # The tick each refusal of the defense cap (see `defense_cap`) was last written, by its rule and cause.
+    defense_capped_at: dict[tuple[str, str], int] = field(default_factory=dict)
+    # Whether main's attack has crossed the enemy's army, the tick that was seen, and whether main is committed to the
+    # base trade (see `cross_commit`), published by the combat manager in every cycle; base defense and upkeep read
+    # those of the cycle before.
+    armies_crossed: bool = False
+    armies_crossed_tick: int | None = None
+    main_committed: bool = False
     # The cycle's view of production; made by `begin_cycle`, so there is none before the first cycle.
     production: Production = field(init=False)
     # The match's rolling income, spending and queue utilization, brought up to date by `begin_cycle`.

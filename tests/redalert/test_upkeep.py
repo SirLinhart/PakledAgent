@@ -32,7 +32,17 @@ from switches_off import (
 from ucla_agent.core import metrics, metrics_redalert, records
 from ucla_agent.core.config import ConfigError
 from ucla_agent.core.metrics import Attempt, Match
-from ucla_agent.games.redalert import batch, cells, clock, expansion, harvester_room, parking, placement
+from ucla_agent.games.redalert import (
+    batch,
+    cells,
+    clock,
+    counter_units,
+    expansion,
+    harvester_room,
+    parking,
+    placement,
+    truck_shares,
+)
 from ucla_agent.games.redalert.base_defense import BaseDefenseManager
 from ucla_agent.games.redalert.batch import Priority
 from ucla_agent.games.redalert.combat import CombatManager
@@ -1302,6 +1312,39 @@ def test_repair_is_switched_off_above_95_percent_hp_or_when_cash_is_below_100(hp
     assert repairs(orders) == ([{"cmd": "repair", "building": REFINERY_ID, "on": False}] if switched_off else [])
 
 
+PILLBOX_ID = 105
+
+
+def damaged_pillbox(hp: int, refinery_hp: int = 100) -> dict:
+    """A state of the small base with a pillbox (id 105) of so much hp beside it, and the refinery at its own."""
+    state = damaged(refinery_hp)
+    buildings = state["observation"]["buildings"]
+    buildings.append({**buildings[0], "id": PILLBOX_ID, "type": "pbox", "x": 30, "y": 48, "hp": hp, "repairing": False})
+    return state
+
+
+@pytest.mark.parametrize(
+    "early, hp, refinery_hp, switched_on",
+    [
+        (True, 80, 80, [PILLBOX_ID]),
+        (True, 94, 100, [PILLBOX_ID]),
+        (True, 95, 100, []),
+        (False, 80, 80, []),
+        (False, 74, 100, [PILLBOX_ID]),
+    ],
+    ids=["defense at 80%", "defense at 94%", "defense at 95%", "switch off at 80%", "switch off at 74%"],
+)
+def test_repair_defenses_early_a_defense_is_repaired_below_95_percent_and_another_building_below_75(
+    early, hp, refinery_hp, switched_on
+):
+    upkeep = dataclasses.replace(TWO_REFINERIES_ONLY.upkeep, repair_defenses_early=early)
+    agent = upkeep_agent(tuning=dataclasses.replace(TWO_REFINERIES_ONLY, upkeep=upkeep))
+
+    orders = ask(agent, damaged_pillbox(hp, refinery_hp))
+
+    assert [order["building"] for order in repairs(orders) if order["on"]] == switched_on
+
+
 def test_a_building_that_is_being_repaired_is_not_switched_on_again():
     assert repairs(ask(upkeep_agent(), damaged(40, repairing=True))) == []
 
@@ -1495,6 +1538,29 @@ def test_with_the_forward_hold_on_the_producers_are_rallied_to_the_forward_point
     assert rallied == [
         [{"cmd": "rally", "building": 103, "to": STAGING}, {"cmd": "rally", "building": 104, "to": STAGING}],
         [{"cmd": "rally", "building": 103, "to": [43, 48]}, {"cmd": "rally", "building": 104, "to": [43, 48]}],
+        [],
+    ]
+
+
+def test_producers_rally_to_cover_point():
+    tuning = dataclasses.replace(TWO_REFINERIES_ONLY, combat=combat_off(expansion_cover_rally=True))
+    agent = new_agent(UpkeepManager(), CombatManager(), plan_selector=OpeningThen(HOLD), tuning=tuning)
+    # A jeep and a rocket soldier of main, 800 in a fight, at the staging point; an expansion yard whose middle is
+    # (35, 52), 13 cells out on the line to the enemy's start, and the cover point 6 cells beyond it.
+    main = [situations.unit(320, "jeep", 32, 48), situations.unit(321, "e3", 33, 48)]
+    expansion_yard, cover = ("fact", 35, 51), [41, 48]
+
+    rallied = [
+        rallies(
+            ask(agent, base_state("england", YARD, POWER, BARRACKS, WAR_FACTORY, expansion_yard, tick=tick, units=main))
+        )
+        for tick in (3000, 3005, 3010)
+    ]
+
+    assert agent.current_plan == HOLD and agent.ctx.gather_point == tuple(cover)
+    assert rallied == [
+        [{"cmd": "rally", "building": 103, "to": STAGING}, {"cmd": "rally", "building": 104, "to": STAGING}],
+        [{"cmd": "rally", "building": 103, "to": cover}, {"cmd": "rally", "building": 104, "to": cover}],
         [],
     ]
 
@@ -6629,8 +6695,12 @@ def test_dry_distinct_a_field_with_2_harvesters_one_of_them_re_sent_twice_is_not
 
 # -- the Soviet infantry counter: flamethrowers exempt from no_army_infantry ---------------------------------------
 
-# The shipped army mix and Soviet infantry counter over the no-army-infantry base.
-SOVIET_INFANTRY_COUNTER = dataclasses.replace(NO_ARMY_INFANTRY, mix=Tuning().mix, composition=Tuning().composition)
+# The shipped army mix and Soviet infantry counter over the no-army-infantry base, without the counter quota.
+SOVIET_INFANTRY_COUNTER = dataclasses.replace(
+    NO_ARMY_INFANTRY,
+    mix=Tuning().mix,
+    composition=dataclasses.replace(Tuning().composition, counter_quota=False, infantry_counter_lift=False),
+)
 # A Soviet base at the dome stage with its flame tower: a service depot and a radar dome beside the holding base.
 DOME_STAGE = (*HOLDING["russia"], ("fix", 30, 44), ("dome", 30, 48))
 # 30 rifles and 5 medium tanks seen (86% infantry by count), and 5 rifles and 10 medium tanks (33%).
@@ -6888,6 +6958,155 @@ def test_rebalance_leaves_alone_a_harvester_the_move_to_fresh_ore_sent_until_it_
     assert [intent.order["units"] for intent in moved] == [[301]]
 
 
+# -- truck shares by ore mine ------------------------------------------------------------------------------------------
+
+# The field room's tuning with the truck shares by ore mine on: 2 trucks a mine, 2 for a field without one, one move
+# in 10 s.
+MINED = dataclasses.replace(
+    FIELD_SHARE, upkeep=dataclasses.replace(FIELD_SHARE.upkeep, truck_shares_by_mines=True)
+)
+HOME_ONE_MINE = dataclasses.replace(HOME_100, mines=1)
+HOME_TWO_MINES = dataclasses.replace(HOME_100, mines=2)
+EAST_ONE_MINE = dataclasses.replace(EAST_33, mines=1)
+# The two-field base before its east refinery stands.
+HOME_BASE = tuple(spec for spec in SPREAD_BASE if spec != EAST_REFINERY)
+SHARE_MOVE_TICKS = Tuning().upkeep.truck_rebalance_seconds * harvester_room.TICKS_PER_SECOND
+# A refinery whose footprint, from (42, 40), stands 6 cells west of the east field's ore: it serves no field, but
+# counts against the east field.
+SIX_FROM_EAST = ("proc", 43, 41)
+
+
+def mined_agent(*fields: OrePatch, tuning: Tuning = MINED):
+    """An upkeep agent with the truck shares on that has seen the base without its east refinery and with no truck,
+    on the map of these fields."""
+    agent = upkeep_agent(tuning=tuning)
+    ask(agent, base_state("england", *HOME_BASE, units=[], tick=3990))
+    agent.ctx.terrain = field_terrain(*fields)
+    return agent
+
+
+def mined_orders(agent, units: list[dict], tick: int, *more_buildings) -> list[dict]:
+    """The harvest orders of the agent in a state of the base without its east refinery but the buildings given."""
+    return harvest_orders(ask(agent, base_state("england", *HOME_BASE, *more_buildings, units=units, tick=tick)))
+
+
+def test_share_two_per_mine():
+    agent = mined_agent(HOME_ONE_MINE, EAST_ONE_MINE)
+    ask(agent, base_state("england", *SPREAD_BASE, units=[], tick=4000))
+    ctx = agent.ctx
+
+    shares = [truck_shares.share(dataclasses.replace(EAST_33, mines=mines), ctx) for mines in (1, 2, 0)]
+    active = truck_shares.shares(agent.world, ctx)
+    ctx.dry_fields = frozenset({EAST_33})
+
+    assert shares == [2, 4, 2] and active == {HOME_ONE_MINE: 2, EAST_ONE_MINE: 2}
+    # Dry, a field without a mine takes none; one with a mine keeps its share.
+    assert truck_shares.share(EAST_33, ctx) == 0 and truck_shares.share(EAST_ONE_MINE, ctx) == 2
+
+
+def test_expansion_refinery_6_cells_from_ore_is_active():
+    agent = mined_agent(HOME_ONE_MINE, EAST_ONE_MINE)
+    ask(agent, base_state("england", *HOME_BASE, SIX_FROM_EAST, units=[], tick=4000))
+
+    corner = footprint_cell(next(b for b in agent.world.buildings.values() if (b.x, b.y) == SIX_FROM_EAST[1:]))
+    assert placement.ore_distance(box_at("proc", corner), EAST_33) == 6
+    assert EAST_33 not in harvester_room.serving_counts(agent.world, agent.ctx)
+    assert truck_shares.shares(agent.world, agent.ctx)[EAST_ONE_MINE] == 2
+
+
+def test_home_spares_move_to_new_expansion(match_record):
+    agent = mined_agent(HOME_ONE_MINE, EAST_ONE_MINE)
+    trucks = home_harvesters(5)
+    mined_orders(agent, trucks, 4000)
+
+    ticks = [4005, 4006, 4005 + SHARE_MOVE_TICKS - 1, 4005 + SHARE_MOVE_TICKS, 4005 + 2 * SHARE_MOVE_TICKS]
+    orders = [mined_orders(agent, trucks, tick, EAST_REFINERY) for tick in ticks]
+
+    moves = [[(order["units"], tuple(order["to"]) in EAST_33.cells) for order in batch] for batch in orders]
+    assert moves == [[([300], True)], [], [], [([301], True)], []]
+    assert [event["tick"] for event in match_record("harvesters_rebalanced")] == [4005, 4005 + SHARE_MOVE_TICKS]
+    assert agent.ctx.truck_fields[300] == EAST_ONE_MINE and agent.ctx.truck_fields[302] == HOME_ONE_MINE
+
+
+def test_free_truck_stays_at_expansion():
+    agent = mined_agent(HOME_TWO_MINES, EAST_ONE_MINE)
+    home = home_harvesters(1)
+    mined_orders(agent, home, 4000, EAST_REFINERY)
+    free = situations.unit(399, "harv", *BY_THE_EAST_REFINERY)
+
+    (sent,) = mined_orders(agent, [*home, free], 4005, EAST_REFINERY)
+
+    # The home field has more room (4 less 1) than the east one (2 less 0); the east one is nearer.
+    assert sent["units"] == [399] and tuple(sent["to"]) in EAST_33.cells
+
+
+def test_idle_resend_keeps_assigned_field():
+    agent = mined_agent(HOME_TWO_MINES, EAST_ONE_MINE)
+    home = home_harvesters(1)
+    mined_orders(agent, home, 4000, EAST_REFINERY)
+    mined_orders(agent, [*home, situations.unit(399, "harv", *BY_THE_EAST_REFINERY)], 4005, EAST_REFINERY)
+    # Back by the home field, idle: seen idle a third time in a row (it came out idle), it is sent back to harvest.
+    idle = situations.unit(399, "harv", 25, 33)
+
+    resent = [mined_orders(agent, [*home, idle], tick, EAST_REFINERY) for tick in (4300, 4301)]
+
+    assert resent[0] == []
+    (order,) = resent[1]
+    assert order["units"] == [399] and tuple(order["to"]) in EAST_33.cells
+
+
+def test_never_strips_below_share():
+    agent = mined_agent(HOME_ONE_MINE, EAST_ONE_MINE)
+    trucks = home_harvesters(2)
+    mined_orders(agent, trucks, 4000)
+
+    orders = [mined_orders(agent, trucks, tick, EAST_REFINERY) for tick in (4005, 4005 + SHARE_MOVE_TICKS)]
+
+    assert orders == [[], []]
+
+
+def test_harvest_orders_send_a_truck_that_works_a_field_to_its_ore_and_the_rest_without_a_cell():
+    agent = mined_agent(HOME_ONE_MINE, EAST_ONE_MINE)
+    trucks = home_harvesters(2)
+    mined_orders(agent, trucks, 4000, EAST_REFINERY)
+    agent.ctx.truck_fields = {300: EAST_ONE_MINE}
+
+    orders = truck_shares.harvest_orders([300, 301], agent.world, agent.ctx, Priority.EMERGENCY)
+    agent.ctx.truck_fields = {}
+    bare = truck_shares.harvest_orders([300, 301], agent.world, agent.ctx, Priority.EMERGENCY)
+
+    assert [(intent.order["units"], intent.order.get("to")) for intent in orders] == [
+        ([300], list(EAST_33.nearest_cell((29, 33)))),
+        ([301], None),
+    ]
+    assert [intent.order for intent in bare] == [{"cmd": "harvest", "units": [300, 301]}]
+    assert {intent.priority for intent in orders} == {Priority.EMERGENCY}
+
+
+def test_truck_shares_a_truck_the_move_to_fresh_ore_sends_is_assigned_to_its_new_field():
+    agent = mined_agent(HOME_ONE_MINE, EAST_ONE_MINE)
+    trucks = home_harvesters(3)
+    mined_orders(agent, trucks, 4000, EAST_REFINERY)
+    shares = truck_shares.TruckShares()
+    units = [unit for unit in agent.world.units.values() if unit.type == "harv"]
+    shares.note_cycle(units, agent.world, agent.ctx)
+    shares.note_cycle(units, agent.world, agent.ctx)
+    moved = batch.Intent(Priority.PRODUCTION, {"cmd": "harvest", "units": [302], "to": [50, 41]})
+
+    shares.pin([moved], agent.ctx)
+
+    assert agent.ctx.truck_fields[302] == EAST_ONE_MINE and agent.ctx.truck_fields[301] == HOME_ONE_MINE
+    assert shares.assigned_counts() == Counter({HOME_ONE_MINE: 2, EAST_ONE_MINE: 1})
+
+
+def test_truck_shares_switch_off_the_room_spreads_as_before():
+    off = upkeep_off()
+
+    assert off.truck_shares_by_mines is False and FIELD_SHARE.upkeep.truck_shares_by_mines is False
+    agent = spread_agent(home_harvesters(4))
+    assert agent.ctx.truck_fields == {}
+
+
 # -- the rush watch's warning reserve: $1,200 held from the optional buildings, never from harvesters or power -------
 
 
@@ -6987,3 +7206,272 @@ def test_factory_first_once_the_scout_vehicle_has_its_slot_harvesters_are_traine
     orders = ask(ordered_by(FACTORY_FIRST), state)
 
     assert harvesters_trained(orders) == 1
+
+
+# -- trucks built only up to the shares -------------------------------------------------------------------------------
+
+CAPPED = dataclasses.replace(MINED, upkeep=dataclasses.replace(MINED.upkeep, truck_cap_by_shares=True))
+# Where a truck the east refinery brings stands, and where a new one comes out of the war factory.
+FREE_WAIT_TICKS = Tuning().upkeep.free_truck_wait_seconds * harvester_room.TICKS_PER_SECOND
+EAST_TRUCKS = [situations.unit(350 + number, "harv", 47, 45 + number, idle=False) for number in range(2)]
+TRUCK_JOB = situations.job("Vehicle", "harv")
+
+
+def truck_trains(agent, units: list[dict], tick: int, *more_buildings, **observation) -> list[tuple[str, int]]:
+    """The trucks the agent trains in a state of the base without its east refinery but the buildings given."""
+    state = base_state("england", *HOME_BASE, *more_buildings, units=units, tick=tick, **observation)
+    return [(item, count) for item, count in trains(ask(agent, state)) if item == "harv"]
+
+
+def test_truck_cap_is_sum_of_shares():
+    full = mined_agent(HOME_TWO_MINES, EAST_ONE_MINE, tuning=CAPPED)
+    short = mined_agent(HOME_TWO_MINES, EAST_ONE_MINE, tuning=CAPPED)
+
+    at_cap = truck_trains(full, [*home_harvesters(4), *EAST_TRUCKS], 4000, EAST_REFINERY)
+    one_short = truck_trains(short, [*home_harvesters(3), *EAST_TRUCKS], 4000, EAST_REFINERY)
+
+    assert dict(truck_shares.shares(full.world, full.ctx)) == {HOME_TWO_MINES: 4, EAST_ONE_MINE: 2}
+    assert at_cap == [] and one_short == [("harv", 1)]
+
+
+def test_no_truck_for_planned_expansion():
+    agent = mined_agent(HOME_ONE_MINE, EAST_ONE_MINE, tuning=CAPPED)
+    mcv_out = situations.unit(700, "mcv", 30, 50, idle=False)
+
+    trained = [truck_trains(agent, [*home_harvesters(2), mcv_out], tick) for tick in (4000, 4005)]
+
+    assert trained == [[], []]
+
+
+def test_pending_free_truck_counts():
+    agent = mined_agent(HOME_ONE_MINE, EAST_ONE_MINE, tuning=CAPPED)
+    home = home_harvesters(2)
+    trained = situations.unit(399, "harv", 22, 56)
+
+    full = truck_trains(agent, home, 4000)
+    first = truck_trains(agent, home, 4005, EAST_REFINERY)
+    # One truck in production and the free one due: the trucks are at the cap of 4.
+    queued = truck_trains(agent, home, 4130, EAST_REFINERY, production=[TRUCK_JOB])
+    out = truck_trains(agent, [*home, trained], 4300, EAST_REFINERY)
+    # 20 s after the refinery stood, its free truck has not shown up: one more is due.
+    second = truck_trains(agent, [*home, trained], 4005 + FREE_WAIT_TICKS, EAST_REFINERY)
+
+    assert (full, first, queued, out, second) == ([], [("harv", 1)], [], [], [("harv", 1)])
+    assert agent.ctx.truck_fields[399] == EAST_ONE_MINE
+
+
+def test_pending_free_truck_seen_counts_no_more():
+    agent = mined_agent(HOME_ONE_MINE, EAST_ONE_MINE, tuning=CAPPED)
+    home = home_harvesters(2)
+    free = situations.unit(398, "harv", *BY_THE_EAST_REFINERY)
+    trained = situations.unit(399, "harv", 22, 56)
+    truck_trains(agent, home, 4000)
+
+    # The free truck shows up with its refinery: one more is due for the east field's share, and no other.
+    with_free = truck_trains(agent, [*home, free], 4005, EAST_REFINERY)
+    queued = truck_trains(agent, [*home, free], 4010, EAST_REFINERY, production=[TRUCK_JOB])
+    full = truck_trains(agent, [*home, free, trained], 4005 + FREE_WAIT_TICKS, EAST_REFINERY)
+
+    assert (with_free, queued, full) == ([("harv", 1)], [], [])
+
+
+def test_lost_truck_replaced():
+    agent = mined_agent(HOME_ONE_MINE, EAST_ONE_MINE, tuning=CAPPED)
+    home = home_harvesters(2)
+
+    full = truck_trains(agent, home, 4000)
+    lost = truck_trains(agent, home[:1], 4005)
+
+    assert full == [] and lost == [("harv", 1)]
+
+
+def test_cap_never_above_22():
+    agent = mined_agent(HOME_ONE_MINE, EAST_ONE_MINE, tuning=CAPPED)
+
+    assert truck_shares.cap({HOME_ONE_MINE: 20, EAST_ONE_MINE: 6}, agent.ctx) == 22
+    assert truck_shares.cap({HOME_ONE_MINE: 2, EAST_ONE_MINE: 4}, agent.ctx) == 6
+
+
+def test_truck_cap_switch_off_the_harvester_target_applies():
+    one, two = upkeep_agent(tuning=MINED), upkeep_agent(tuning=MINED)
+
+    # 2 a refinery with one refinery: 2 trucks are the target.
+    assert MINED.upkeep.truck_cap_by_shares is False
+    assert truck_trains(one, home_harvesters(1), 4000) == [("harv", 1)]
+    assert truck_trains(two, home_harvesters(2), 4000) == []
+
+
+# -- the counter quota on the unit queues --------------------------------------------------------------------------
+
+# The two-refinery base with the counter quota on; with no_army_infantry on as well; and with upkeep's defenses only
+# against a threat, so that no lost defense of the opening is replaced.
+COUNTER_QUOTA = dataclasses.replace(
+    TWO_REFINERIES_ONLY,
+    composition=dataclasses.replace(TWO_REFINERIES_ONLY.composition, counter_quota=True),
+)
+COUNTER_QUOTA_HELD = dataclasses.replace(
+    COUNTER_QUOTA, upkeep=dataclasses.replace(COUNTER_QUOTA.upkeep, no_army_infantry=True)
+)
+COUNTER_QUOTA_ON_THREAT_ONLY = dataclasses.replace(
+    COUNTER_QUOTA, upkeep=dataclasses.replace(COUNTER_QUOTA.upkeep, defenses_on_threat_only=True)
+)
+# Six light tanks of main, worth 4,200: the counter units stand below the cap beside them.
+LIGHT_TANKS = soldiers("1tnk", 6, first_id=500)
+
+
+def enemies_seen(**counts: int) -> list[dict]:
+    """Enemy units in sight by type, numbered from 900, out east of the base."""
+    types = [unit_type for unit_type, count in counts.items() for _ in range(count)]
+    return [{"id": 900 + n, "type": unit_type, "x": 70, "y": 40, "hp": 100} for n, unit_type in enumerate(types)]
+
+
+TEN_ROCKETS_FOUR_TANKS = enemies_seen(e3=10, **{"2tnk": 4})
+# The Soviet holding base without its flame tower.
+SOVIET_NO_FLAME_TOWER = tuple(building for building in HOLDING["russia"] if building[0] != "ftur")
+
+
+def test_counter_quota_soviet_flamers_trained_and_never_grenadiers():
+    agent = upkeep_agent(tuning=COUNTER_QUOTA)
+
+    orders = ask(agent, holding("russia", units=[*harvesters(4), *LIGHT_TANKS], visible_enemies=TEN_ROCKETS_FOUR_TANKS))
+
+    assert trained(orders, "Infantry") == [("e4", 3)]
+    assert "e2" not in [item for item, _ in trains(orders)]
+
+
+def test_counter_quota_under_no_army_infantry_soviet_flamers_pass():
+    units = [*harvesters(4), *rockets(4), *LIGHT_TANKS]
+
+    orders = ask(
+        upkeep_agent(tuning=COUNTER_QUOTA_HELD),
+        holding("russia", units=units, visible_enemies=enemies_seen(e1=40)),
+    )
+
+    # 40 rifles: 10 flamers wanted, which no_army_infantry keeps exempt as it does the mix's.
+    assert trained(orders, "Infantry") == [("e4", 3)]
+
+
+def no_flame_tower(tick: int = 1000) -> dict:
+    """The Soviet holding base without its flame tower, with ten rockets and four tanks of the enemy in sight."""
+    return base_state(
+        "russia", *SOVIET_NO_FLAME_TOWER, units=harvesters(4), visible_enemies=TEN_ROCKETS_FOUR_TANKS, tick=tick
+    )
+
+
+def test_soviet_builds_one_flame_tower_for_flamers():
+    agent = upkeep_agent(tuning=COUNTER_QUOTA_ON_THREAT_ONLY)
+
+    first = ask(agent, no_flame_tower())
+    goal = agent.ctx.defense_goals.get("ftur")
+    second = ask(agent, no_flame_tower(tick=1500))
+
+    assert built(first, "Defense") == ["ftur"] and built(second, "Defense") == []
+    # 15 cells from the base's centre (22, 48) toward the enemy's start (74, 48).
+    assert goal == (37, 48)
+    assert not {"e2", "e4"} & {item for item, _ in trains(first)}
+
+
+def test_counter_quota_no_flame_tower_without_the_switch():
+    off = dataclasses.replace(
+        COUNTER_QUOTA_ON_THREAT_ONLY, composition=dataclasses.replace(COUNTER_QUOTA.composition, counter_quota=False)
+    )
+
+    assert built(ask(upkeep_agent(tuning=off), no_flame_tower()), "Defense") == []
+
+
+# Forty enemy rifles seen: 10 anti-infantry units wanted, 5 jeeps and 5 rifles once a war factory stands.
+FORTY_RIFLES = enemies_seen(e1=40)
+
+
+@pytest.mark.parametrize(
+    "rifles, vehicle",
+    [(9, [("1tnk", 1)]), (6, [("jeep", 1)])],
+    ids=["9 rifles of 2,300: 39 percent", "6 rifles of 2,000: 30 percent"],
+)
+def test_counter_cap_35_percent(rifles, vehicle):
+    units = [*harvesters(4), *soldiers("e1", rifles), *soldiers("1tnk", 2, first_id=500)]
+
+    orders = ask(upkeep_agent(tuning=COUNTER_QUOTA), holding(units=units, visible_enemies=FORTY_RIFLES))
+
+    assert trained(orders, "Vehicle") == vehicle
+
+
+def test_counter_quota_a_vehicle_counter_one_at_a_time_and_the_rifles_short_three_at_a_time():
+    orders = ask(upkeep_agent(tuning=COUNTER_QUOTA), holding(visible_enemies=FORTY_RIFLES))
+
+    assert unit_trains(orders) == [("e1", 3), ("jeep", 1)]
+
+
+def test_counter_quota_units_on_their_way_count_toward_it():
+    queued = [situations.job("Infantry", "e1")] * 3
+    agent = upkeep_agent(tuning=COUNTER_QUOTA)
+    ask(agent, holding(units=[*harvesters(4), *soldiers("e1", 2)], production=queued))
+
+    assert counter_units.shortfalls({"e1": 5, "jeep": 1}, agent.world, agent.ctx) == {"jeep": 1}
+
+
+def test_counter_quota_under_no_army_infantry_only_rockets_pass():
+    enemies = enemies_seen(e1=40, **{"2tnk": 8})
+    units = [*harvesters(4), *rockets(4), *LIGHT_TANKS]
+
+    orders = ask(upkeep_agent(tuning=COUNTER_QUOTA_HELD), holding(units=units, visible_enemies=enemies))
+
+    # 8 tanks: 4 rockets wanted, and 4 stand; the rifles wait for no_army_infantry, whatever the mix's rockets do.
+    assert "e1" not in dict(trained(orders, "Infantry"))
+    assert trained(orders, "Vehicle") == [("jeep", 1)]
+
+
+def test_counter_quota_under_no_army_infantry_rockets_short_are_trained():
+    units = [*harvesters(4), *rockets(4), *LIGHT_TANKS]
+
+    orders = ask(
+        upkeep_agent(tuning=COUNTER_QUOTA_HELD), holding(units=units, visible_enemies=enemies_seen(**{"2tnk": 16}))
+    )
+
+    # 16 tanks: 8 rockets wanted, 4 stand.
+    assert trained(orders, "Infantry") == [("e3", 3)]
+
+
+# The counter quota under no_army_infantry with the infantry counter lift on.
+COUNTER_QUOTA_LIFTED = dataclasses.replace(
+    COUNTER_QUOTA_HELD, composition=dataclasses.replace(COUNTER_QUOTA_HELD.composition, infantry_counter_lift=True)
+)
+
+
+def test_no_army_infantry_lets_quota_rifles_through():
+    units = [*harvesters(4), *rockets(4), *LIGHT_TANKS]
+    # 16 rifles: 4 anti-infantry units wanted, 2 jeeps and 2 rifles. With 30 tanks beside them, 35 percent infantry.
+    heavy = holding(units=units, visible_enemies=enemies_seen(e1=16))
+    not_heavy = holding(units=units, visible_enemies=enemies_seen(e1=16, **{"2tnk": 30}))
+
+    lifted = ask(upkeep_agent(tuning=COUNTER_QUOTA_LIFTED), heavy)
+    no_longer = ask(upkeep_agent(tuning=COUNTER_QUOTA_LIFTED), not_heavy)
+    switch_off = ask(upkeep_agent(tuning=COUNTER_QUOTA_HELD), heavy)
+
+    assert trained(lifted, "Infantry") == [("e1", 2)]
+    assert "e1" not in dict(trained(no_longer, "Infantry"))
+    assert "e1" not in dict(trained(switch_off, "Infantry"))
+
+
+def test_switch_off_mix_as_before():
+    units = [*harvesters(4), *soldiers("e1", 2), *LIGHT_TANKS]
+    seen = holding(units=units, visible_enemies=FORTY_RIFLES)
+
+    off = unit_trains(ask(upkeep_agent(), seen))
+    unseen = unit_trains(ask(upkeep_agent(tuning=COUNTER_QUOTA), holding(units=units)))
+
+    assert off == unseen == unit_trains(ask(upkeep_agent(), holding(units=units)))
+    assert off != unit_trains(ask(upkeep_agent(tuning=COUNTER_QUOTA), seen))
+
+
+def test_counter_quota_event_when_the_quota_changes(match_record):
+    agent = upkeep_agent(tuning=COUNTER_QUOTA)
+    ask(agent, holding())
+    ask(agent, holding(visible_enemies=FORTY_RIFLES, tick=1100))
+    ask(agent, holding(visible_enemies=FORTY_RIFLES, tick=1200))
+
+    events = match_record(counter_units.COUNTER_QUOTA_EVENT)
+
+    assert events == [
+        {"tick": 1100, "rockets": 0, "infantry": 40, "tanks": 0, "wanted": {"jeep": 5, "e1": 5}, "capped": False}
+    ]

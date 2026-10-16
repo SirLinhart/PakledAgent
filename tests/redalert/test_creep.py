@@ -86,7 +86,8 @@ def test_walked_route_a_walking_unit_of_main_takes_no_combat_order_and_the_other
 
 
 def test_walked_route_a_walking_guard_rifle_is_not_sent_to_the_guard_post_and_still_counts_for_the_guard():
-    lean = tuning_off(opening=opening_off(lean_infantry=True))
+    # A lean guard of three, so that a walker and two more rifles make it whole.
+    lean = tuning_off(opening=opening_off(lean_infantry=True, lean_guard_rifles=3))
     astray = [situations.unit(unit_id, "e1", 22, 70) for unit_id in GUARD_IDS]
     marked, short = new_agent(OpeningManager(), tuning=lean), new_agent(OpeningManager(), tuning=lean)
     # The guard was sent to its post 100 ticks ago, and stands idle far from it since.

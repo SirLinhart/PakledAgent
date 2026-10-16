@@ -60,7 +60,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable, Sequence
 
-from ucla_agent.games.redalert import cells
+from ucla_agent.games.redalert import cells, safe_staging
 from ucla_agent.games.redalert.batch import Intent, Priority
 from ucla_agent.games.redalert.fight import centroid, is_near, strength, worth
 from ucla_agent.games.redalert.forward_staging import JoinWait
@@ -207,6 +207,17 @@ class Joiners:
         """The ids of the units joining main in the latest cycle main was split."""
         return frozenset(unit.id for unit in self.units)
 
+    @property
+    def split_tick(self) -> int | None:
+        """The tick of the latest cycle main was split in; None before the first."""
+        return self._tick
+
+    def admit(self, unit_ids: frozenset[int]) -> None:
+        """Units joining main that reached it on another way than this one's (see `reinforce_hold`): main's from now
+        on."""
+        self._members |= unit_ids
+        self._sent -= unit_ids
+
     def start(self, members: Iterable[int]) -> None:
         """The gate opened: main is these units, and none is joining it."""
         self._members, self.units, self._sent, self._wait = set(members), [], set(), JoinWait(_JOIN_WAIT_TICKS)
@@ -244,7 +255,7 @@ class Joiners:
         split in."""
         if self._tick != world.tick or self.center is None:
             return []
-        meeting = staging_cell or cells.staging_point(world, ctx.tuning.upkeep.staging_distance_cells)
+        meeting = staging_cell or safe_staging.staging_point(world, ctx.tuning, ctx)
         joining = [unit for unit in self.units if unit.id not in excluded]
         self._sent &= {unit.id for unit in joining}
         sent = [unit for unit in joining if unit.id in self._sent]
@@ -264,7 +275,8 @@ class Joiners:
         standing_there = {unit.id for unit in there}
         # Units on their way to the staging point are turned to the staging cell; a staging point is waited for.
         astray = [unit for unit in waiting if (unit.idle or staging_cell is not None) and unit.id not in standing_there]
-        return [*_order("move", astray, meeting), *_order("attack_move", [*going_on, *lagging], self.center)]
+        gathering = safe_staging.gather_command(ctx.tuning)
+        return [*_order(gathering, astray, meeting), *_order("attack_move", [*going_on, *lagging], self.center)]
 
 
 def _order(command: str, units: list[Unit], cell: Cell) -> list[Intent]:

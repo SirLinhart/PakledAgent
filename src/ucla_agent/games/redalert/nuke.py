@@ -32,6 +32,18 @@ its nearest share of the units left, so that a unit standing at its cell
 stays with it from cycle to cycle. A unit within half `nuke_spread_cells` of
 its cell is at its place: it is not sent there again, and counts as gathered.
 
+**Following up** (`nuke_follow_up` of `[combat]`). The state gives no
+warning of a launch, and a silo seen once may fire long after the clock
+expects it: spreading that ended 500 ticks after a launch that never came
+left main gathered when it did. With the switch on, each silo keeps its next
+expected launch, and spreading holds from SPREAD_BEFORE_TICKS before it until
+an impact is seen: our side losing nuke_impact_lost_value or more in one
+state while a silo is remembered. An impact sets the next launch of the silo
+expected soonest to that tick + nuke_charge_ticks, with a `combat` event of
+reason `nuke_impact`. The combat manager spreads the idle home guard around
+the guard post as well, and a remembered silo is a target of the strike near
+us however long ago it was seen (see `strike`).
+
 **Record.** Each start and each end of spreading is a `combat` event with
 the reason `nuke_spread`: the tick, whether spreading is now in force, the
 expected launch it is for and the ids of the silos remembered.
@@ -57,6 +69,7 @@ SPREAD_BEFORE_TICKS = 1500
 SPREAD_AFTER_TICKS = 500
 COMBAT_EVENT = "combat"
 NUKE_SPREAD = "nuke_spread"
+NUKE_IMPACT = "nuke_impact"
 # Our structures within this many cells of one make up its cluster.
 CLUSTER_CELLS = 5
 
@@ -90,6 +103,9 @@ class NukeWatch:
     def __init__(self) -> None:
         # Silo id -> the tick it was first seen.
         self._first_seen: dict[int, int] = {}
+        # With nuke_follow_up on, silo id -> its next expected launch, and our side's losses as of the latest state.
+        self._next_launch: dict[int, int] = {}
+        self._deaths_cost: int | None = None
         # The expected launch spreading is in force for; None while it is not.
         self.launch_tick: int | None = None
         # The tick and the point the groups' cells were last sought for, and those cells.
@@ -108,12 +124,34 @@ class NukeWatch:
             return
         silos = known_silos(world)
         self._first_seen = {silo.id: self._first_seen.get(silo.id, silo.last_seen_tick) for silo in silos}
-        launch = self._launch_due(world.tick, tuning)
+        if tuning.nuke_follow_up:
+            launch = self._overdue_due(silos, world, tuning)
+        else:
+            launch = self._launch_due(world.tick, tuning)
         if launch is not None and self.launch_tick is None:
             _log(launch, True, silos, world)
         elif launch is None and self.launch_tick is not None:
             _log(self.launch_tick, False, silos, world)
         self.launch_tick = launch
+
+    def _overdue_due(self, silos: list[EnemyRecord], world: World, tuning: CombatTuning) -> int | None:
+        """With nuke_follow_up on, the earliest next launch of the silos remembered whose spreading has begun, held
+        until an impact is seen (see the module's note); None for none."""
+        first_launch = tuning.nuke_charge_ticks - tuning.nuke_build_ticks
+        self._next_launch = {
+            silo.id: self._next_launch.get(silo.id, self._first_seen[silo.id] + first_launch) for silo in silos
+        }
+        deaths = world.military.deaths_cost
+        lost = 0 if self._deaths_cost is None else deaths - self._deaths_cost
+        self._deaths_cost = deaths
+        if self._next_launch and lost >= tuning.nuke_impact_lost_value:
+            soonest = min(self._next_launch, key=lambda silo_id: (self._next_launch[silo_id], silo_id))
+            self._next_launch[soonest] = world.tick + tuning.nuke_charge_ticks
+            next_launch = self._next_launch[soonest]
+            impact = {"tick": world.tick, "reason": NUKE_IMPACT, "lost": lost, "next_launch": next_launch}
+            records.log(COMBAT_EVENT, impact)
+        due = [launch for launch in self._next_launch.values() if world.tick >= launch - SPREAD_BEFORE_TICKS]
+        return min(due, default=None)
 
     def _launch_due(self, tick: int, tuning: CombatTuning) -> int | None:
         """The earliest expected launch of the silos remembered whose spreading time holds `tick`; None for none."""

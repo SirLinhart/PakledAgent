@@ -48,7 +48,7 @@ import functools
 from dataclasses import dataclass
 
 from ucla_agent.core import records
-from ucla_agent.games.redalert import cells, placement
+from ucla_agent.games.redalert import cells, placement, truck_shares
 from ucla_agent.games.redalert.batch import Intent, Priority
 from ucla_agent.games.redalert.composition import PRESERVE
 from ucla_agent.games.redalert.family import CONSTRUCTION_YARD, REFINERY
@@ -104,7 +104,7 @@ class Parking:
         was_parked, self._is_parked = self._is_parked, parked_at is not None
         if parked_at is None:
             self._sent = {}
-            return _back_to_work(at_hand) if was_parked else ParkingOrders([], frozenset(), frozenset())
+            return _back_to_work(at_hand, world, ctx) if was_parked else ParkingOrders([], frozenset(), frozenset())
         reason, cell = parked_at
         if not was_parked:
             _log_parked(reason, cell, len(harvesters), world, ctx)
@@ -130,11 +130,12 @@ class Parking:
         return is_sent or cells.is_within((harvester.x, harvester.y), cell, PARKED_WITHIN_CELLS)
 
 
-def _back_to_work(harvesters: list[Unit]) -> ParkingOrders:
+def _back_to_work(harvesters: list[Unit], world: World, ctx: MatchContext) -> ParkingOrders:
     """`harvest` for every harvester at hand as parking ends, those still on their way to the cell as well as those
-    standing there: one on its way does not stand idle, and the idle-harvester rule would leave it parked."""
+    standing there: one on its way does not stand idle, and the idle-harvester rule would leave it parked. A truck
+    that works a field of its truck share is sent to that field (`truck_shares.harvest_orders`)."""
     ids = [unit.id for unit in harvesters]
-    intents = [Intent(Priority.PRODUCTION, {"cmd": "harvest", "units": ids})] if ids else []
+    intents = truck_shares.harvest_orders(ids, world, ctx, Priority.PRODUCTION) if ids else []
     return ParkingOrders(intents, frozenset(), frozenset(ids))
 
 

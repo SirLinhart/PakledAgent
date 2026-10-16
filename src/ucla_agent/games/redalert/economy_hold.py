@@ -96,13 +96,18 @@ class EconomyHold:
         self._ended_at: int | None = None
 
     def holds(
-        self, due: list[EconomyItem], is_on_its_way: Callable[[str], bool], tick: int, tuning: UpkeepTuning
+        self,
+        due: list[EconomyItem],
+        is_on_its_way: Callable[[str], bool],
+        tick: int,
+        tuning: UpkeepTuning,
+        untimed: frozenset[str] = frozenset(),
     ) -> bool:
         """Whether the unit queues wait in this cycle: a hold in force goes on, or one starts for the first item `due`
         when the money does not cover it and the last hold's release is over. A hold that ends leaves the unit queues
-        free in the cycle it ends in."""
+        free in the cycle it ends in. A hold for an item of `untimed` does not time out."""
         if self._hold is not None:
-            return self._goes_on(due, is_on_its_way, tick, tuning)
+            return self._goes_on(due, is_on_its_way, tick, tuning, untimed)
         if not due or due[0].is_covered or self._is_released(tick, tuning):
             return False
         self._hold = (due[0].item, tick)
@@ -110,11 +115,16 @@ class EconomyHold:
         return True
 
     def _goes_on(
-        self, due: list[EconomyItem], is_on_its_way: Callable[[str], bool], tick: int, tuning: UpkeepTuning
+        self,
+        due: list[EconomyItem],
+        is_on_its_way: Callable[[str], bool],
+        tick: int,
+        tuning: UpkeepTuning,
+        untimed: frozenset[str],
     ) -> bool:
         """Whether the hold in force goes on; one that ends is written with its reason, and its release begins."""
         item, started = self._hold
-        reason = _end_reason(item, started, due, is_on_its_way, tick, tuning)
+        reason = _end_reason(item, started, due, is_on_its_way, tick, tuning, item in untimed)
         if reason is None:
             return True
         self._hold, self._ended_at = None, tick
@@ -203,12 +213,13 @@ def _end_reason(
     is_on_its_way: Callable[[str], bool],
     tick: int,
     tuning: UpkeepTuning,
+    untimed: bool = False,
 ) -> str | None:
     """Why a hold for an item that started at a tick ends now: its item is on its way, it has lasted
-    `economy_wait_seconds`, or its item is due no longer; None while it goes on."""
+    `economy_wait_seconds` and is not `untimed`, or its item is due no longer; None while it goes on."""
     if is_on_its_way(item):
         return ORDERED
-    if tick - started >= tuning.economy_wait_seconds * TICKS_PER_SECOND:
+    if not untimed and tick - started >= tuning.economy_wait_seconds * TICKS_PER_SECOND:
         return TIMED_OUT
     return None if any(entry.item == item for entry in due) else NOT_DUE
 

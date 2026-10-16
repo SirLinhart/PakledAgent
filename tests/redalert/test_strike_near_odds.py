@@ -12,7 +12,7 @@ from ucla_agent.games.redalert.combat import CombatManager
 from ucla_agent.games.redalert.items import TICKS_PER_SECOND
 from ucla_agent.games.redalert.scout_report import ScoutReport
 from ucla_agent.games.redalert.strike import LONE_TARGET_RATIO, near_ratio
-from ucla_agent.games.redalert.tuning import Tuning
+from ucla_agent.games.redalert.tuning import CombatTuning, Tuning
 
 # The Allied base of the fixture map: its yard at the center of the base (22, 48), and a refinery 18 cells east of
 # it, so that an enemy yard up to 15 cells from that refinery is a must-kill target.
@@ -68,9 +68,14 @@ def state(tick: int, units=(), enemies=(), buildings=(FAR_YARD,)) -> dict:
     return base_state("england", YARD, FORWARD_REFINERY, tick=tick, **shown)
 
 
+# The strike sized by half the enemy army's estimate too, as these odds were worked out on (see `strike`).
+BY_ARMY = Tuning(combat=CombatTuning(strike_near_by_defenses=False))
+
+
 def strike_agent(enemy_army: int = 0, tuning: Tuning | None = None):
-    """An agent under HOLD with the combat manager alone, the enemy army estimated at `enemy_army`."""
-    agent = new_agent(CombatManager(), tuning=tuning, plan_selector=Always("HOLD"))
+    """An agent under HOLD with the combat manager alone, the enemy army estimated at `enemy_army`, the strike sized
+    by the enemy army's estimate too unless a tuning is given."""
+    agent = new_agent(CombatManager(), tuning=tuning or BY_ARMY, plan_selector=Always("HOLD"))
     agent.ctx.scout_report = replace(ScoutReport(), enemy_combat_value=enemy_army)
     return agent
 
@@ -218,3 +223,103 @@ def test_strike_near_main_as_a_whole_is_rechecked_every_cycle_and_all_of_it_goes
     assert combat_events(match_record, "strike_near")[1:] == [{"phase": "end", "target": 601, "outcome": "abandoned"}]
     assert {"cmd": "move", "units": [300, 301, 302, 303], "to": STAGING} in orders
     assert agent.ctx.strike_target is None
+
+
+# -- sized by its defenses (strike_near_by_defenses) -----------------------------------------------------------
+
+BY_DEFENSES = Tuning()
+
+
+@pytest.mark.parametrize(
+    "open_building, expected", [(False, [300]), (True, [300, 301, 302])], ids=["by defenses", "by its hp"]
+)
+def test_by_defenses_the_lone_yard_is_struck_however_big_the_enemy_army_estimate(match_record, open_building, expected):
+    tuning = Tuning(combat=CombatTuning(strike_near_open_building=open_building))
+    agent = strike_agent(enemy_army=20_000, tuning=tuning)
+
+    ask(agent, state(1000, main_at_staging()))
+
+    # By its defenses one tank outweighs a lone yard; by its hit points, two heavy tanks and a medium one bring it down.
+    (start,) = combat_events(match_record, "strike_near")
+    assert (start["target"], start["units"]) == (600, expected)
+
+
+def test_open_building_a_fresh_yard_with_main_away_is_struck_by_the_idle_tanks_at_home(match_record):
+    agent = strike_agent(enemy_army=20_000, tuning=BY_DEFENSES)
+    away = [own(310 + n, "2tnk", 70, 20 + n) for n in range(4)]
+    for unit in away:
+        unit["idle"], unit["act"] = False, "AttackMoveActivity"
+    home = [own(300, "3tnk", 24, 50), own(301, "3tnk", 25, 50), own(302, "2tnk", 24, 51), own(303, "2tnk", 25, 51)]
+
+    ask(agent, state(1000, [*away, *home]))
+
+    (start,) = combat_events(match_record, "strike_near")
+    assert start["target"] == 600 and set(start["units"]) <= {300, 301, 302, 303} and start["units"]
+
+
+def test_open_building_the_strike_is_not_abandoned_on_its_ratio_within_30_s(match_record):
+    agent = strike_agent(tuning=BY_DEFENSES)
+    ask(agent, state(1000, main_at_staging()))
+    on_the_way = [own(300 + n, "3tnk", 45, 48 + n) for n in range(2)]
+    # Sixteen rocket soldiers beside the yard, in sight: the ratio at the target falls, none near the strikers.
+    guard = [foe(720 + n, "e3", 52 + n % 2, 44 + n // 2) for n in range(16)]
+
+    ask(agent, state(1005, [*on_the_way, *main_at_staging()[2:]], guard))
+
+    (manager,) = [manager for manager in agent.managers if isinstance(manager, CombatManager)]
+    assert manager._strike.target_id == 600
+
+
+def test_by_defenses_the_guarded_yard_takes_the_force_that_outweighs_its_guard_or_is_declined(match_record):
+    agent = strike_agent(enemy_army=20_000, tuning=BY_DEFENSES)
+
+    ask(agent, state(1000, main_at_staging(), yard_guard()))
+
+    assert combat_events(match_record, "strike_near") == []
+    assert [event["target"] for event in combat_events(match_record, "strike_near_declined")] == [600]
+
+
+def test_by_defenses_main_gathered_and_idle_away_from_staging_strikes_the_yard(match_record):
+    agent = strike_agent(tuning=BY_DEFENSES)
+    aside = [own(300, "3tnk", 30, 60), own(301, "3tnk", 31, 60), own(302, "2tnk", 30, 61), own(303, "2tnk", 31, 61)]
+
+    ask(agent, state(1000, aside))
+
+    assert [event["target"] for event in combat_events(match_record, "strike_near")] == [600]
+
+
+# By the army, with the strike on exposed expansions off as well: the yard 22 cells from the enemy's start is one.
+ARMY_ONLY = Tuning(combat=CombatTuning(strike_near_by_defenses=False, strike_exposed_expansion=False))
+
+
+@pytest.mark.parametrize("tuning, expected", [(BY_DEFENSES, 600), (ARMY_ONLY, None)], ids=["by defenses", "by army"])
+def test_by_defenses_a_yard_seen_60_s_ago_is_still_struck_and_by_army_it_is_not(tuning, expected):
+    agent = strike_agent(tuning=tuning)
+    ask(agent, state(1000, main_spread()))
+
+    ask(agent, state(1000 + 60 * TICKS_PER_SECOND, main_at_staging(), buildings=()))
+
+    (manager,) = [manager for manager in agent.managers if isinstance(manager, CombatManager)]
+    assert manager._strike.target_id == expected
+
+
+def test_by_defenses_a_turret_main_cannot_outweigh_is_sieged_by_its_long_range_units(match_record):
+    agent = strike_agent(tuning=BY_DEFENSES)
+    # A tesla coil 6 cells from the forward refinery, and main: two V2 launchers and a rifle at the staging point.
+    coil = foe(650, "tsla", 46, 48)
+    main = [own(300, "v2rl", 32, 48), own(301, "v2rl", 33, 48), own(302, "e1", 32, 49)]
+
+    ask(agent, state(1000, main, buildings=(coil,)))
+    ask(agent, state(1005, main, buildings=(coil,)))
+
+    starts = [event for event in combat_events(match_record, "strike_near") if event["phase"] == "start"]
+    assert [(event["target"], event["units"]) for event in starts] == [(650, [300, 301])]
+    assert [event for event in combat_events(match_record, "strike_near") if event["phase"] == "end"] == []
+
+
+def test_by_defenses_ships_on_at_25_cells_and_120_s_in_the_built_ins_and_the_tracked_file():
+    from situations import REPO_ROOT
+
+    for shipped in (Tuning().combat, Tuning.from_file(REPO_ROOT).combat):
+        keys = (shipped.strike_near_whole_cells, shipped.strike_near_max_seconds)
+        assert (shipped.strike_near_by_defenses, keys) == (True, (25, 120))

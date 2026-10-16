@@ -30,6 +30,12 @@ as standing against it. Every refinery after the opening's is placed:
    refineries' harvesters, and a base held at its refineries for want of an
    unserved field earns nothing more. This is the one exception to one
    refinery a field;
+With `refinery_small_fields` on, an unserved field smaller than that is
+taken in 1. as well while it holds an ore mine (the mine grows the ore back)
+or refinery_small_field_cells ore cells or more: in the live games of
+20261016 a field of 21 cells with a mine within our build reach got no
+refinery all game, the base waiting on an unserved field it never found.
+
 4. otherwise nowhere: no refinery is ordered, and a `refinery_field` event of
    the reason `waiting_unserved` says so, at most once a minute.
 
@@ -195,7 +201,7 @@ def choose(
     refineries standing; no place is taken from the `promised` and `refused` ones, nor within reach of a known enemy
     ground defense, and no dry field is chosen."""
     tuning = ctx.tuning.placement
-    terrain = placement.with_refused(ctx.terrain, (*refused, *_defended_boxes(world, ctx)))
+    terrain = placement.with_refused(ctx.terrain, (*refused, *defended_boxes(world, ctx)))
     asked = list(asked)
     field_counts = counts(world, ctx, asked)
     places = placement.RefineryPlaces(world, terrain, tuning, tuple(promised))
@@ -331,8 +337,14 @@ class UnservedPlaces:
 
     def placed(self, world: World, ctx: MatchContext) -> PlacementChoice | None:
         """Where the next refinery would go now (`choose`), the places against the field reserved for the MCV's site
-        kept off; None when it has nowhere to go."""
+        kept off; None when it has nowhere to go. With `new_yard_refinery_until_standing` of [expansion] on, the
+        places asked for lately and those the engine refused are kept off as well, as placement keeps them off: a
+        refinery ordered for a place placement would not use waits unplaced until it is cancelled, and is ordered
+        again."""
         reserved = ctx.reserved_field
+        is_as_placed = ctx.tuning.expansion.new_yard_refinery_until_standing
+        promised = ctx.promised_places if is_as_placed else ()
+        refused = tuple(place.box for place in ctx.refused_places) if is_as_placed else ()
         inputs = (
             ctx.terrain,
             ctx.tuning.placement,
@@ -344,12 +356,14 @@ class UnservedPlaces:
             tuple(ctx.asked_refinery_cells),
             None if reserved is None else reserved.center,
             tuple(sorted(field.center for field in ctx.dry_fields)),
+            promised,
+            refused,
         )
         if inputs != self._inputs:
             reach = ctx.tuning.placement.refinery_ore_cells
-            kept_off = () if reserved is None else placement.reach_boxes(reserved, reach)
+            kept_off = (*refused, *(() if reserved is None else placement.reach_boxes(reserved, reach)))
             self._inputs = inputs
-            self._choice = choose(world, ctx, (), kept_off, ctx.asked_refinery_fields, ctx.asked_refinery_cells)
+            self._choice = choose(world, ctx, promised, kept_off, ctx.asked_refinery_fields, ctx.asked_refinery_cells)
         return self._choice
 
     def note_waiting(self, world: World) -> None:
@@ -373,7 +387,6 @@ class UnservedPlaces:
             "reason": WAITING_UNSERVED_REASON,
         }
         records.log(REFINERY_FIELD_EVENT, data)
-
 
     def _note_held(self, world: World) -> None:
         """Write the `held_for_mcv` event of the refinery held, unless this window has one."""
@@ -401,11 +414,10 @@ def _unserved_place(
     [expansion] ore cells and not dry, that one of the `places` reaches and serves (`field_served_from`); None without
     one. A place that reaches a field but serves a nearer one would leave the field unserved and call for yet another
     refinery."""
-    least = ctx.tuning.expansion.mcv_site_min_ore_cells
     unserved = [
         field
         for field in ctx.terrain.ore_patches
-        if not counts[field] and field.size >= least and field not in ctx.dry_fields
+        if not counts[field] and is_worth_a_refinery(field, ctx) and field not in ctx.dry_fields
     ]
     reach = ctx.tuning.placement.refinery_serves_cells
     for field in _in_turn(unserved, world):
@@ -413,6 +425,15 @@ def _unserved_place(
         if choice is not None:
             return choice
     return None
+
+
+def is_worth_a_refinery(field: OrePatch, ctx: MatchContext) -> bool:
+    """Whether an unserved field is worth a refinery: mcv_site_min_ore_cells ore cells of [expansion] or more, or with
+    refinery_small_fields on an ore mine or refinery_small_field_cells ore cells."""
+    tuning = ctx.tuning.placement
+    if field.size >= ctx.tuning.expansion.mcv_site_min_ore_cells:
+        return True
+    return tuning.refinery_small_fields and (field.mines > 0 or field.size >= tuning.refinery_small_field_cells)
 
 
 def _serving(field: OrePatch, terrain: Terrain, reach: int) -> Callable[[Box], bool]:
@@ -481,7 +502,7 @@ def footprint_cell(refinery: Building) -> Cell:
     return placement.footprint_corner(refinery.type, (refinery.x, refinery.y))
 
 
-def _defended_boxes(world: World, ctx: MatchContext) -> list[Box]:
+def defended_boxes(world: World, ctx: MatchContext) -> list[Box]:
     """A box of one cell on each cell within a known enemy ground defense's range plus
     `refinery_enemy_defense_margin_cells`: kept off as places the engine refused are, they leave a refinery no place
     whose footprint lies that near."""

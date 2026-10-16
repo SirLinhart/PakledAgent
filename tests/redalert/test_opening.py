@@ -1363,6 +1363,157 @@ def test_reach_in_a_whole_fake_match_the_buildings_are_created_in_the_order_the_
     assert crept == ([] if decision["refinery_reaches"] else ["powr"])
 
 
+# -- the large map's economy-first build (large_map_economy_first) ---------------------------------------------------
+
+LARGE_MAP_ON = opening_off(large_map_economy_first=True)
+# The base's center, from which the enemy's start lies 88 cells east on a large map like shadowfiend-ii.
+LARGE_MAP_CENTER = [10, 10]
+SHADOWFIEND_ENEMY = [98, 10]
+LARGE_MAP_BUILD = {
+    "england": ("powr", "proc", "proc", "tent", "powr", "weap"),
+    "russia": ("powr", "proc", "proc", "barr", "powr", "weap"),
+}
+
+
+def large_map_agent(opening: OpeningTuning = LARGE_MAP_ON):
+    """An agent that plays with the opening manager alone, its opening tuning `opening`."""
+    return opening_agent(tuning=tuning_off(opening=opening))
+
+
+def sized_state(faction: str, enemy_base, *buildings, tick: int = 1000, **observation) -> dict:
+    """A state of a base with these buildings, its center at LARGE_MAP_CENTER and the enemy's start at `enemy_base`."""
+    state = base_state(faction, *buildings, tick=tick, base_center=LARGE_MAP_CENTER, **observation)
+    state["legal_actions"]["enemy_base"] = enemy_base
+    return state
+
+
+@pytest.mark.parametrize("faction", ["england", "russia"])
+def test_large_map_build_puts_two_refineries_before_barracks(faction, match_record):
+    agent = large_map_agent()
+
+    ask(agent, sized_state(faction, SHADOWFIEND_ENEMY, YARD))
+
+    names = FAMILIES[ALLIES if faction == "england" else SOVIET]
+    assert agent.ctx.opening_build.steps == LARGE_MAP_BUILD[faction] == build_steps(names, large_map=True)
+    assert match_record("opening_map_size") == [{"tick": 1000, "distance": 88.0, "large": True}]
+
+
+@pytest.mark.parametrize("distance", [52, 57], ids=["sidestep", "trapped"])
+def test_small_maps_keep_barracks_first(distance, match_record):
+    agent = large_map_agent()
+
+    ask(agent, sized_state("england", [10 + distance, 10], YARD))
+
+    assert agent.ctx.opening_build.steps == ("powr", "tent", "proc", "proc", "powr", "weap")
+    assert match_record("opening_map_size") == [{"tick": 1000, "distance": float(distance), "large": False}]
+
+
+@pytest.mark.parametrize(
+    "enemy_base, distance, large",
+    [([80, 10], 70.0, False), ([80, 19], 70.6, True)],
+    ids=["exactly 70", "70.58"],
+)
+def test_threshold_is_strict(enemy_base, distance, large, match_record):
+    agent = large_map_agent()
+
+    ask(agent, sized_state("england", enemy_base, YARD))
+
+    expected = LARGE_MAP_BUILD["england"] if large else build_steps(FAMILIES[ALLIES])
+    assert agent.ctx.opening_build.steps == expected
+    assert match_record("opening_map_size") == [{"tick": 1000, "distance": distance, "large": large}]
+
+
+# The power plant and the first refinery of the large map's build standing: the second refinery is next without a rush.
+FIRST_REFINERY_STANDING = (YARD, POWER, ("proc", 24, 39))
+
+
+@pytest.mark.parametrize(
+    "signal, value",
+    [("rush_warning", True), ("rush_verdict", "rush"), ("threat_active", True)],
+    ids=["rush warning", "rush verdict", "threat of ground units at the base"],
+)
+def test_rush_warning_pulls_barracks_forward(signal, value, match_record):
+    calm, rushed = large_map_agent(), large_map_agent()
+    setattr(rushed.ctx, signal, value)
+
+    without_rush = builds(ask(calm, sized_state("england", SHADOWFIEND_ENEMY, *FIRST_REFINERY_STANDING)))
+    with_rush = builds(ask(rushed, sized_state("england", SHADOWFIEND_ENEMY, *FIRST_REFINERY_STANDING)))
+    rushed.ctx.threat_active = False
+    after_threat = builds(ask(rushed, sized_state("england", SHADOWFIEND_ENEMY, *FIRST_REFINERY_STANDING, tick=1005)))
+
+    # A threat at the base starts no step while it lasts; the barracks comes as soon as it is over.
+    assert without_rush == ["proc"]
+    assert (after_threat if signal == "threat_active" else with_rush) == ["tent"]
+    assert rushed.ctx.opening_build.steps == build_steps(FAMILIES[ALLIES], BARRACKS_FIRST)
+    assert [event for event in match_record("opening_map_size") if event.get("pulled")] == [
+        {"tick": 1000, "distance": 88.0, "large": True, "pulled": True}
+    ]
+
+
+def test_rush_a_threat_of_aircraft_alone_or_a_barracks_on_its_way_pulls_nothing(match_record):
+    agent = large_map_agent()
+    ask(agent, sized_state("england", SHADOWFIEND_ENEMY, YARD, POWER))
+    agent.ctx.threat_active = agent.ctx.threat_aircraft_only = True
+    ask(agent, sized_state("england", SHADOWFIEND_ENEMY, YARD, POWER, tick=1005))
+    on_its_way = [situations.job("Building", "tent")]
+    agent.ctx.threat_active = agent.ctx.threat_aircraft_only = False
+    agent.ctx.rush_warning = True
+    ask(agent, sized_state("england", SHADOWFIEND_ENEMY, YARD, POWER, tick=1010, production=on_its_way))
+
+    assert agent.ctx.opening_build.steps == LARGE_MAP_BUILD["england"]
+    assert [event for event in match_record("opening_map_size") if event.get("pulled")] == []
+
+
+def test_large_map_switch_off(match_record):
+    agent = large_map_agent(opening_off())
+
+    ask(agent, sized_state("england", SHADOWFIEND_ENEMY, YARD))
+
+    today = ("powr", "tent", "proc", "proc", "powr", "weap")
+    assert agent.ctx.opening_build.steps == build_steps(FAMILIES[ALLIES]) == today
+    assert match_record("opening_map_size") == []
+
+
+def test_factory_first_unchanged_on_large_map(match_record):
+    agent = large_map_agent(opening_off(large_map_economy_first=True, order=FACTORY_FIRST))
+
+    ask(agent, sized_state("england", SHADOWFIEND_ENEMY, YARD))
+
+    assert agent.ctx.opening_build.steps == build_steps(FAMILIES[ALLIES], FACTORY_FIRST)
+    assert match_record("opening_map_size") == []
+
+
+@pytest.mark.parametrize("order", [REFINERY_FIRST, REACH_FIRST])
+def test_large_map_the_refinery_first_and_reach_first_orders_play_the_large_map_build(order):
+    agent = large_map_agent(opening_off(large_map_economy_first=True, order=order))
+
+    ask(agent, sized_state("england", SHADOWFIEND_ENEMY, YARD))
+
+    assert agent.ctx.opening_build.steps == LARGE_MAP_BUILD["england"]
+
+
+def test_large_map_the_decision_waits_for_the_enemy_s_start_and_is_made_once(match_record):
+    agent = large_map_agent()
+
+    ask(agent, sized_state("england", None, YARD, tick=1000))
+    waiting = agent.ctx.opening_build.steps
+    ask(agent, sized_state("england", SHADOWFIEND_ENEMY, YARD, tick=1005))
+    ask(agent, sized_state("england", [20, 10], YARD, tick=1010))
+
+    assert waiting == build_steps(FAMILIES[ALLIES])
+    assert agent.ctx.opening_build.steps == LARGE_MAP_BUILD["england"]
+    assert match_record("opening_map_size") == [{"tick": 1005, "distance": 88.0, "large": True}]
+
+
+def test_large_map_the_build_is_complete_once_the_war_factory_stands():
+    agent = large_map_agent()
+    standing = (YARD, POWER, ("proc", 24, 39), ("proc", 18, 39), ("tent", 22, 44), ("powr", 26, 48), WAR_FACTORY)
+
+    ask(agent, sized_state("england", SHADOWFIEND_ENEMY, *standing))
+
+    assert agent.ctx.opening_build.steps == ()
+
+
 # -- the defenses bought on a threat only ----------------------------------------------------------
 
 ON_THREAT = tuning_off(opening=opening_off(defense_on_threat=True))
@@ -1660,22 +1811,16 @@ def lean_cover_agent(faction: str):
 
 @pytest.mark.parametrize("verdict", [None, "none", "unknown"], ids=["no watch", "no rush", "unknown"])
 @pytest.mark.parametrize("faction", ["england", "russia"])
-def test_lean_without_a_rush_the_opening_trains_three_rifles_for_the_guard_and_none_for_main(faction, verdict):
+def test_lean_without_a_rush_the_opening_trains_one_rifle_for_the_guard_and_none_for_main(faction, verdict):
     none_yet = ask(lean_agent(verdict), at_second(faction, 30))
-    two_stand = ask(lean_agent(verdict), at_second(faction, 30, units=rifles(2)))
-    three_stand = ask(lean_agent(verdict), at_second(faction, 30, units=rifles(3), cash=5000))
+    one_stands = ask(lean_agent(verdict), at_second(faction, 30, units=rifles(1), cash=5000))
     more_stand = ask(lean_agent(verdict), at_second(faction, 30, units=rifles(5), cash=5000))
 
-    assert [trains(orders) for orders in (none_yet, two_stand, three_stand, more_stand)] == [
-        [("e1", 3)],
-        [("e1", 1)],
-        [],
-        [],
-    ]
+    assert [trains(orders) for orders in (none_yet, one_stands, more_stand)] == [[("e1", 1)], [], []]
 
 
 @pytest.mark.parametrize("faction", ["england", "russia"])
-def test_lean_in_a_whole_opening_against_the_fake_game_the_opening_trains_three_rifles_and_no_rocket_infantry(faction):
+def test_lean_in_a_whole_opening_against_the_fake_game_the_opening_trains_one_rifle_and_no_rocket_infantry(faction):
     opening = ProposingOpening()
     agent = new_agent(UpkeepManager(), opening, tuning=LEAN)
 
@@ -1687,7 +1832,7 @@ def test_lean_in_a_whole_opening_against_the_fake_game_the_opening_trains_three_
     for order in with_command(opening.proposed, "train"):
         trained[order["item"]] += order["count"]
     assert run.states[-1]["observation"]["tick"] >= LEAN_OPENING_SECONDS * TICKS_PER_SECOND
-    assert trained == {"e1": 3} and "weap" in building_types(run.states[-1]["observation"])
+    assert trained == {"e1": 1} and "weap" in building_types(run.states[-1]["observation"])
 
 
 @pytest.mark.parametrize(

@@ -17,6 +17,9 @@ of [upkeep] on, the queue takes turns between the due harvester (see
 3. Else the two alternate: after a harvester the next vehicle is a combat
    vehicle, and after a combat vehicle a harvester.
 
+Under the economy focus of upkeep's spending (see `spending_focus`) the due
+harvester goes first as in 1: the money is to grow the economy then.
+
 A harvester on a combat vehicle's turn is not lost: when no combat vehicle
 comes in a cycle (the unit queues wait for the economy, or the budget does
 not run to one) and the Vehicle queue stands free, the due harvester takes
@@ -34,7 +37,7 @@ from ucla_agent.games.redalert.fight import strength, worth
 from ucla_agent.games.redalert.groups import MAIN
 from ucla_agent.games.redalert.harvester_room import harvesters_counted
 from ucla_agent.games.redalert.items import TICKS_PER_SECOND
-from ucla_agent.games.redalert.managers import MatchContext
+from ucla_agent.games.redalert.managers import ECONOMY_FOCUS, MatchContext
 from ucla_agent.games.redalert.scout_report import is_combat_unit
 from ucla_agent.games.redalert.world import Cell, World
 
@@ -55,8 +58,9 @@ class VehicleTurn:
 
     def is_harvester_turn(self, world: World, ctx: MatchContext) -> bool:
         """Whether a due harvester goes into the Vehicle queue ahead of combat vehicles now: below the first
-        threshold always, while combat vehicles go first never, else when a combat vehicle went in last."""
-        if is_below_first(ctx):
+        threshold and under the economy focus always, while combat vehicles go first never, else when a combat vehicle
+        went in last."""
+        if is_below_first(ctx) or ctx.spending_focus == ECONOMY_FOCUS:
             return True
         if is_combat_first(world, ctx):
             return False

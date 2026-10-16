@@ -38,6 +38,8 @@ again each time it has stood and fired, while every enemy that close is
 infantry, which it outruns. A fall-back is carried out to its end before the
 unit is given anything else: cut short, it leaves the unit as close as it
 was.
+With `artillery_screen_place` on, the four cells go straight away from the
+nearest such enemy instead, wherever the base is (see `screen_place`).
 
 **The screen.** While main advances or fights, its screen holds a line a
 few cells ahead of the siege subgroup's centroid toward main's objective (2
@@ -113,7 +115,7 @@ from collections.abc import Collection, Iterable, Mapping
 from dataclasses import dataclass
 from typing import NamedTuple
 
-from ucla_agent.games.redalert import cells
+from ucla_agent.games.redalert import cells, screen_place
 from ucla_agent.games.redalert.batch import Intent, Priority
 from ucla_agent.games.redalert.fight import Point, centroid, ground_defenses, strength
 from ucla_agent.games.redalert.groups import SIEGE_TYPES
@@ -131,6 +133,7 @@ from ucla_agent.games.redalert.targeting import (
     target_facts,
     targets,
 )
+from ucla_agent.games.redalert.terrain import Terrain
 from ucla_agent.games.redalert.tuning import SiegeTuning, Tuning
 from ucla_agent.games.redalert.world import DEFENSE_TYPES, Cell, EnemyRecord, Unit, World
 
@@ -866,20 +869,42 @@ def closing_in(unit: Unit, enemies: Iterable[EnemyRecord], world: World, tuning:
     return [record for record in enemies if cells.is_within((unit.x, unit.y), (record.x, record.y), reach)]
 
 
-def fall_backs(units: Iterable[Unit], enemies: list[EnemyRecord], world: World, tuning: SiegeTuning) -> dict[int, Cell]:
+def fall_backs(
+    units: Iterable[Unit],
+    enemies: list[EnemyRecord],
+    world: World,
+    tuning: SiegeTuning,
+    terrain: Terrain | None = None,
+    places: Mapping[int, Cell] | None = None,
+) -> dict[int, Cell]:
     """Each long-range unit (artillery, V2) among `units` that one of `enemies` has come within its minimum range and
-    `fallback_margin` of, by id, with the cell it falls back to (see `fallback_cell`)."""
+    `fallback_margin` of, by id, with the cell it falls back to (see `fallback_cell`), each toward its place of
+    `places` when it has one and no cell away from the enemy will do."""
     stepping = {}
     for unit in units:
         closing = closing_in(unit, enemies, world, tuning) if unit.type in SIEGE_TYPES else []
         if closing:
-            stepping[unit.id] = fallback_cell(unit, closing, world, tuning)
+            place = None if places is None else places.get(unit.id)
+            stepping[unit.id] = fallback_cell(unit, closing, world, tuning, terrain, place)
     return stepping
 
 
-def fallback_cell(unit: Unit, closing: list[EnemyRecord], world: World, tuning: SiegeTuning) -> Cell:
-    """`fallback_step` cells toward the base; straight away from the nearest enemy when the base is not known."""
+def fallback_cell(
+    unit: Unit,
+    closing: list[EnemyRecord],
+    world: World,
+    tuning: SiegeTuning,
+    terrain: Terrain | None = None,
+    place: Cell | None = None,
+) -> Cell:
+    """`fallback_step` cells toward the base; straight away from the nearest enemy when the base is not known. With
+    artillery_screen_place on, straight away from the nearest enemy, or toward the unit's place, wherever the base is
+    (see `screen_place.away_cell`); toward the base as before only when neither has a cell."""
     here = (unit.x, unit.y)
+    if tuning.artillery_screen_place:
+        away = screen_place.away_cell(unit, closing, world, tuning.fallback_step, terrain, place)
+        if away is not None:
+            return away
     if world.base_center is not None and world.base_center != here:
         return _clamped(cells.toward(here, world.base_center, tuning.fallback_step), world)
     nearest = min(closing, key=lambda record: cells.distance(here, (record.x, record.y)))

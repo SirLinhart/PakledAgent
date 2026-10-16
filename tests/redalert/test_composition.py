@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+from types import SimpleNamespace
 
 import pytest
 
@@ -30,6 +31,10 @@ from ucla_agent.games.redalert.composition import (
     AttackStrengths,
     Composition,
     CompositionTable,
+    EnemyCounted,
+    counter_quota,
+    enemy_counted,
+    is_enemy_infantry_heavy,
     is_infantry_heavy,
     mix_stage,
 )
@@ -1422,3 +1427,110 @@ def test_soviet_infantry_counter_every_row_holds_100_with_no_share_above_95(
 
     assert_row_holds_100(answer)
     assert ("e4" in answer.infantry) is flame_tower
+
+
+# -- the counter quota table ---------------------------------------------------------------------------------------
+
+
+def quota_context(tuning: Tuning = SHIPPED) -> SimpleNamespace:
+    """What `counter_quota` reads of a match context: the tuning and the shipped army mix, which gives the artillery
+    and V2s points at the dome stage."""
+    army_mix = ArmyMix(tuning.mix, tuning.anti_air, AirWatch())
+    return SimpleNamespace(tuning=tuning, army_mix=army_mix, approach_alarm=False)
+
+
+def wanted(family: str, world: World, tuning: Tuning = SHIPPED) -> dict[str, int]:
+    return dict(counter_quota(family, world, quota_context(tuning)).wanted)
+
+
+ROCKETS_AND_TANKS = ("e3",) * 10 + ("2tnk",) * 4
+# The Soviet war factory and barracks with a flame tower; and the same with a radar dome and service depot.
+SOVIET_BASE = ("weap", "barr", "ftur")
+SOVIET_DOME = (*SOVIET_BASE, "fix", "dome")
+NO_V2_OFFER = ("e1", "e2", "e3", "e4", "3tnk")
+
+
+def test_soviet_flamers_per_two_rockets():
+    world = world_with(SOVIET_DOME, offered=NO_V2_OFFER, enemies=ROCKETS_AND_TANKS)
+
+    quota = wanted(SOVIET, world)
+
+    # 10 rockets: 5 flamers; 4 tanks: 2 rockets against them.
+    assert quota == {"e4": 5, "e3": 2}
+    assert "e2" not in quota
+
+
+def test_soviet_v2_counter_when_v2_in_production():
+    world = world_with(SOVIET_DOME, offered=(*NO_V2_OFFER, "v2rl"), enemies=ROCKETS_AND_TANKS)
+
+    assert wanted(SOVIET, world) == {"v2rl": 5, "e3": 2}
+
+
+def test_soviet_flamers_wanted_while_no_flame_tower_puts_them_on_offer():
+    world = world_with(("weap", "barr"), offered=("e1", "e2", "e3", "3tnk"), enemies=ROCKETS_AND_TANKS)
+
+    assert wanted(SOVIET, world) == {"e4": 5, "e3": 2}
+
+
+def test_allied_rifles_and_jeeps():
+    world = world_with(("weap", "tent"), offered=("e1", "e3", "jeep", "1tnk"), enemies=("e3",) * 8)
+
+    assert wanted(ALLIES, world) == {"jeep": 2, "e1": 2}
+
+
+def test_allied_rifles_alone_before_a_war_factory():
+    world = world_with(("tent",), offered=("e1", "e3", "jeep"), enemies=("e3",) * 8)
+
+    assert wanted(ALLIES, world) == {"e1": 4}
+
+
+def test_allied_artillery_counter_when_arty_in_production():
+    offered = ("e1", "e3", "jeep", "2tnk", "arty")
+    world = world_with(("weap", "tent", "fix", "dome"), offered=offered, enemies=("e3",) * 8)
+
+    assert wanted(ALLIES, world) == {"arty": 4}
+
+
+def test_other_infantry_one_per_four():
+    world = world_with(("tent",), offered=("e1", "e3"), enemies=("e1",) * 12)
+
+    assert wanted(ALLIES, world) == {"e1": 3}
+
+
+def test_not_infantry_heavy_no_anti_infantry():
+    world = world_with(("weap", "tent"), offered=("e1", "e3", "jeep"), enemies=("e3",) * 3 + ("2tnk",) * 10)
+
+    # 3 of 13 is infantry; 10 tanks: 5 rockets.
+    assert wanted(ALLIES, world) == {"e3": 5}
+
+
+@pytest.mark.parametrize(
+    "enemies, heavy",
+    [(("e1",) * 6 + ("2tnk",) * 9, True), (("e1",) * 6 + ("2tnk",) * 10, False), (("e1",) * 5, False)],
+    ids=["6 of 15", "6 of 16", "5 alone"],
+)
+def test_infantry_heavy_needs_6_and_40_percent_of_the_units_counted(enemies, heavy):
+    assert is_enemy_infantry_heavy(world_with(enemies=enemies), CompositionTuning()) is heavy
+
+
+def test_aircraft_are_not_counted_toward_the_quota():
+    world = world_with(enemies=("e1",) * 6 + ("yak",) * 20)
+
+    assert enemy_counted(world, CompositionTuning()) == EnemyCounted(rockets=0, infantry=6, tanks=0, units=6)
+
+
+def test_quota_drifts_back_after_120s():
+    seen = world_with(("tent",), offered=("e1", "e3"), enemies=("e3",) * 10, tick=TICK)
+    within = world_with(("tent",), offered=("e1", "e3"), world=seen, tick=TICK + 120 * TICKS_PER_SECOND)
+    within_quota = wanted(ALLIES, within)
+    after = world_with(("tent",), offered=("e1", "e3"), world=within, tick=TICK + 130 * TICKS_PER_SECOND)
+
+    assert within_quota == {"e1": 5}
+    assert wanted(ALLIES, after) == {}
+
+
+def test_counter_quota_switch_off_wants_nothing():
+    off = dataclasses.replace(SHIPPED, composition=dataclasses.replace(SHIPPED.composition, counter_quota=False))
+    world = world_with(SOVIET_DOME, offered=NO_V2_OFFER, enemies=ROCKETS_AND_TANKS)
+
+    assert wanted(SOVIET, world, off) == {}

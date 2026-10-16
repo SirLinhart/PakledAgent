@@ -56,6 +56,14 @@ standing action's key on offer ends its line with ` (current)`. The
 shipped), the newest first; main's says what was killed and lost since each
 and the army ratio then and now (`ratio 1.4 -> 1.1`, see `model_history`).
 
+With continue_option of `[commander]` on, a standing action still sound but
+left off a fresh list is offered again (see `command_army`, `command_scout`)
+as the continue option: lettered `CONTINUE_ID` (Z) under the offer kind
+`CONTINUE`, its line headed `continue: ` once, in a place left among
+options_max or in the place of the lowest-ranked action that may give way
+(see `with_continue`). Its key is the standing action's, so its line is
+marked ` (current)`, and an answer naming it names the standing action.
+
 Nothing here reads a file, a clock or the network.
 """
 
@@ -85,6 +93,12 @@ SECONDS_PER_MINUTE = 60
 UNKNOWN = "unknown"
 NONE = "none"
 NEVER = "never"
+# The commanded units have arrived when they stand this near the cell of their standing action.
+ARRIVED_CELLS = 3
+# The offer kind of a standing action offered again when the fresh list left it off, its letter, and its line's head.
+CONTINUE = "continue"
+CONTINUE_ID = "Z"
+CONTINUE_HEAD = "continue: "
 
 
 @dataclass(frozen=True)
@@ -250,6 +264,30 @@ def lettered(actions: Iterable[Action], ids: Mapping[str, str]) -> tuple[Action,
     return tuple(
         sorted((replace(action, id=ids[action.offered_as]) for action in actions), key=lambda action: action.id)
     )
+
+
+def continued(action: Action) -> Action:
+    """A standing action as the continue option: lettered CONTINUE_ID under the offer kind CONTINUE, its lines headed
+    CONTINUE_HEAD once."""
+
+    def headed(line: str) -> str:
+        return line if not line or line.startswith(CONTINUE_HEAD) else CONTINUE_HEAD + line
+
+    return replace(action, head=headed(action.head), short_head=headed(action.short_head), offer_kind=CONTINUE)
+
+
+def with_continue(
+    actions: Sequence[Action], option: Action, giving_way: Sequence[Action], most: int
+) -> tuple[Action, ...]:
+    """The actions with the continue option added (see `continued`), listed by their letters: in a place left among
+    `most`, else in that of the first of `giving_way`, the lowest-ranked action that may give way; the actions as they
+    were when the list is full and none may."""
+    kept = list(actions)
+    if len(kept) >= most:
+        if not giving_way:
+            return tuple(actions)
+        kept = [action for action in kept if action.key != giving_way[0].key]
+    return tuple(sorted([*kept, replace(continued(option), id=CONTINUE_ID)], key=lambda action: action.id))
 
 
 def fitted(

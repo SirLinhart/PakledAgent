@@ -347,3 +347,26 @@ def test_overextended_the_commander_s_targets_block_has_no_field_with_the_switch
     found = command_targets.local_targets(list(agent.world.combat_units.values()), (32, 48), agent.world, agent.ctx)
 
     assert [target.kind for target in found if target.kind == command_targets.FIELD] == []
+
+
+# -- going on to an exposed expansion (overextended_chain) ---------------------------------------------------------
+
+# An enemy yard 44 cells from the enemy's start and 35 from the far field: an exposed expansion, not the field's home.
+EXPOSED_YARD = foe(700, "fact", 40, 20)
+
+
+@pytest.mark.parametrize("chain, expected", [(True, 700), (False, None)], ids=["on", "off"])
+def test_overextended_chain_harvesters_out_of_sight_send_the_force_on_to_an_exposed_yard_not_home(chain, expected):
+    tuning = Tuning(combat=CombatTuning(overextended_chain=chain))
+    agent = strike_agent(tuning=tuning)
+    harvester = foe(520, "harv", 75, 18)
+    ask(agent, state(1000, at_staging(), [harvester], [EXPOSED_YARD]))
+    ask(agent, state(1000 + 20 * TICKS_PER_SECOND - 1, at_staging()))
+
+    orders = ask(agent, state(1000 + 20 * TICKS_PER_SECOND, at_staging()))
+
+    strike = _strike(agent)
+    assert strike.target_id == expected
+    assert ({"cmd": "move", "units": MAIN_TANKS, "to": STAGING} in orders) is not chain
+    if chain:
+        assert sorted(strike.units) == MAIN_TANKS

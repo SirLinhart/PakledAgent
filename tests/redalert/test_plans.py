@@ -25,6 +25,7 @@ from ucla_agent.games.redalert.base_defense import BaseDefenseManager
 from ucla_agent.games.redalert.combat import CombatManager
 from ucla_agent.games.redalert.composition import FINISH, HOLD, OPENING, PRESERVE, PRESS, RAID, STRIKE
 from ucla_agent.games.redalert.glossary import Glossary
+from ucla_agent.games.redalert.groups import MAIN
 from ucla_agent.games.redalert.groups import RAID as RAID_GROUP
 from ucla_agent.games.redalert.managers import MAJOR_THREAT, MINOR_THREAT, NO_THREAT
 from ucla_agent.games.redalert.plans import (
@@ -541,6 +542,50 @@ def test_finish_left_is_not_taken_up_again_within_750_ticks():
     again = [plan_after(agent, raid_or_finish(seconds, finish=True)) for seconds in (440, 459.96, 460)]
 
     assert (finishing, left, again) == (FINISH, RAID, [RAID, RAID, FINISH])
+
+
+def committing_agent():
+    """An agent with a short plan hold and wait for unseen enemies, and FINISH committed for 90 s."""
+    rules = dataclasses.replace(plan_rules_off(), plan_hold_ticks=100, cleanup_unseen_ticks=100, finish_commit=True)
+    agent = new_agent(tuning=tuning_off(plan_rules=rules))
+    agent.ctx.scout_report = ScoutReport(enemy_base_seen=True)
+    plan_after(agent, at(300))
+    return agent
+
+
+def test_finish_commit_a_finish_r6_opened_stays_90_s_whatever_r7_says_and_with_the_switch_off_does_not():
+    # R6(b) opens FINISH at 370 s; from 400 s twenty rifles in sight leave it to R7, before R6(a) is due at 480 s.
+    agent = committing_agent()
+    finishing = plan_after(agent, raid_or_finish(370, finish=True))
+    kept = [plan_after(agent, raid_or_finish(seconds, finish=False)) for seconds in (400, 459.9, 460)]
+    off = new_agent(tuning=tuning_off(plan_rules=dataclasses.replace(plan_rules_off(), plan_hold_ticks=100)))
+    off.ctx.scout_report = ScoutReport(enemy_base_seen=True)
+    plan_after(off, at(300), raid_or_finish(370, finish=True))
+
+    assert (finishing, kept) == (FINISH, [FINISH, FINISH, RAID])
+    assert plan_after(off, raid_or_finish(400, finish=False)) == RAID
+
+
+def test_finish_commit_main_down_under_0_8_of_its_strength_at_the_opening_ends_it():
+    agent = committing_agent()
+    plan_after(agent, raid_or_finish(370, finish=True))
+    weakened = at(400, army=2100, units=MAIN_3500[:3], buildings=[foe(600, "proc")], enemies=rifles(20))
+
+    assert plan_after(agent, weakened) != FINISH
+
+
+def test_finish_commit_base_defense_calling_main_home_ends_it():
+    agent = committing_agent()
+    plan_after(agent, raid_or_finish(370, finish=True))
+    agent.ctx.groups.recall(MAIN)
+
+    assert plan_after(agent, raid_or_finish(400, finish=False)) == RAID
+
+
+def test_finish_commit_ships_on_at_90_s_and_0_8_in_the_built_ins_and_the_tracked_file():
+    for shipped in (Tuning().plan_rules, Tuning.from_file(situations.REPO_ROOT).plan_rules):
+        keys = (shipped.finish_commit_seconds, shipped.finish_commit_value_share)
+        assert (shipped.finish_commit, keys) == (True, (90, 0.8))
 
 
 def test_the_enemy_base_gone_ends_the_hold_of_finish():
@@ -2977,3 +3022,99 @@ def test_finish_over_preserve_false_in_the_file_switches_it_off(tmp_path):
     write_tuning_with(tmp_path, "finish_over_preserve", "false")
 
     assert not Tuning.from_file(tmp_path).plan_rules.finish_over_preserve
+
+
+# -- R2E: the endgame lead kept behind defenses -----------------------------------------------------------------------
+
+# The endgame lead on, with the enemy army estimate it reads.
+ENDGAME_LEAD = tuning_off(
+    plan_rules=plan_rules_off(enemy_army_estimate=True),
+    clock=dataclasses.replace(tuning_off().clock, endgame_lead_defenses=True),
+)
+# Main of seven heavy tanks, 8,050; and of eighteen, 20,700, which R6(a) finishes with against the enemy below.
+LEAD_MAIN = tuple(own(1200 + number, "3tnk", 31 + number % 4, 46 + number // 4) for number in range(7))
+WINNING_LEAD_MAIN = tuple(own(1200 + number, "3tnk", 31 + number % 4, 46 + number // 4) for number in range(18))
+# An enemy army of 7,000 in sight: six heavy tanks and a rifleman; and one of 3,000: two heavy tanks and seven rifles.
+ENEMY_7000 = [*(foe(600 + number, "3tnk", 74, 40 + number) for number in range(6)), foe(620, "e1", 75, 40)]
+ENEMY_3000 = [*(foe(600 + number, "3tnk", 74, 40 + number) for number in range(2)), *rifles(7)]
+
+
+def stalemate(
+    remaining: float = 280, balance: int = 2500, units: tuple = LEAD_MAIN, enemies: list = ENEMY_7000, tick_on: int = 0
+) -> dict:
+    """A late state of a 20-minute match `tick_on` ticks after the one with `remaining` seconds left."""
+    seconds = 1200 - remaining + tick_on / TICKS_PER_SECOND
+    army = sum(situations.tracked_items()[unit["type"]].cost for unit in units)
+    return at(seconds, remaining=1200 - seconds, balance=balance, army=army, units=units, enemies=enemies)
+
+
+def test_endgame_lead_preserve_in_stalemate_ahead(match_record):
+    agent = plans_agent(base_seen=True, tuning=ENDGAME_LEAD)
+
+    plan = plan_after(agent, stalemate())
+
+    seen = agent.ctx.enemy_army_estimate
+    assert (plan, rule_of(agent)) == (PRESERVE, "R2E") and seen == 7000
+    assert match_record("plan_change")[-1]["rule"] == "R2E"
+
+
+@pytest.mark.parametrize("balance", [-500, 600], ids=["behind", "level"])
+def test_endgame_lead_not_when_behind_or_level(balance):
+    agent = plans_agent(base_seen=True, tuning=ENDGAME_LEAD)
+
+    plan_after(agent, stalemate(balance=balance))
+
+    assert rule_of(agent) != "R2E"
+
+
+def test_endgame_lead_not_without_heavy_armies():
+    agent = plans_agent(base_seen=True, tuning=ENDGAME_LEAD)
+
+    plan_after(agent, stalemate(enemies=ENEMY_3000))
+
+    assert agent.ctx.enemy_army_estimate == 3000 and rule_of(agent) != "R2E"
+
+
+def test_endgame_lead_not_before_window():
+    agent = plans_agent(base_seen=True, tuning=ENDGAME_LEAD)
+
+    plan_after(agent, stalemate(remaining=320))
+
+    assert rule_of(agent) != "R2E"
+
+
+def test_finish_beats_endgame_lead():
+    agent = plans_agent(base_seen=True, tuning=ENDGAME_LEAD)
+
+    plan = plan_after(agent, stalemate(units=WINNING_LEAD_MAIN))
+
+    assert (plan, rule_of(agent)) == (FINISH, R6)
+
+
+def test_endgame_lead_ends_when_balance_falls():
+    agent = plans_agent(base_seen=True, tuning=ENDGAME_LEAD)
+    plan_after(agent, stalemate())
+
+    # From 5 ticks on the balance stands at -100: 249 ticks of it keep R2E, the 250th ends it.
+    kept = [plan_after(agent, stalemate(balance=-100, tick_on=tick)) for tick in (5, 6, 254)]
+    kept_rules = rule_of(agent)
+    plan_after(agent, stalemate(balance=-100, tick_on=255))
+
+    assert kept == [PRESERVE] * 3 and kept_rules == "R2E" and rule_of(agent) != "R2E"
+
+
+def test_endgame_lead_stays_once_the_armies_shrink():
+    agent = plans_agent(base_seen=True, tuning=ENDGAME_LEAD)
+    plan_after(agent, stalemate())
+
+    plan = plan_after(agent, stalemate(units=LEAD_MAIN[:2], tick_on=5))
+
+    assert (plan, rule_of(agent)) == (PRESERVE, "R2E")
+
+
+def test_endgame_lead_switch_off_the_clock_as_before():
+    agent = plans_agent(base_seen=True, tuning=tuning_off(plan_rules=plan_rules_off(enemy_army_estimate=True)))
+
+    plan_after(agent, stalemate())
+
+    assert rule_of(agent) != "R2E"

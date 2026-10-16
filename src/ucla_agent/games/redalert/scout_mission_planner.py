@@ -18,6 +18,15 @@ The missions, their scores and how the scouts are assigned them together are
   changes in the scores, and a better mission for the other scout can still
   move it.
 
+With `mission_hold` on, no slot is offered a mission another slot's scout
+holds, by its key or its cell: two scouts never go for the same place, and a
+mission is not taken from the scout on it, which then took another and was
+turned back the next cycle (in the live games of 20261016 a jeep's
+destination swapped every cycle between the enemy main's edge and an
+expansion watch another jeep was on). And a mission held for less than
+mission_min_hold_seconds is left only for one that scores
+mission_early_switch_ratio times its own or more, or once it ends as above.
+
 A kept mission is scored by what was known of its place when the scout was
 given it: once the scout is there the place is in sight, and it is to watch
 it all the same. A scout that fled is next offered only the missions it has a
@@ -87,6 +96,8 @@ class _Held:
     hp: int
     # The first tick of the scout's stay at the mission's cell; None while it is not there.
     watched_since: int | None = None
+    # The tick the slot was given the mission.
+    since: int = 0
 
 
 @dataclass(frozen=True)
@@ -123,6 +134,8 @@ class MissionPlanner:
         self._army_seen_tick: int | None = None
         # The tick of the last refresh; None while there was none.
         self._refreshed_tick: int | None = None
+        # The tick of the cycle being planned.
+        self._tick = 0
 
     def missions(self, world: World, ctx: MatchContext, sight: SightGrid) -> list[Mission]:
         """The missions of the cycle (see `scout_missions.missions`), the clock of the enemy army brought up to date;
@@ -157,11 +170,13 @@ class MissionPlanner:
         keep the missions they hold until their scouts are planned for again."""
         for slot in set(self._held) - set(scouts) - set(paused):
             del self._held[slot]
+        self._tick = world.tick
         fleeing = [slot for slot, scout in scouts.items() if self._review(slot, scout, dangers, world, ctx)]
         free = {slot: scout for slot, scout in scouts.items() if slot not in fleeing}
         blacklisted = self._live_blacklist(world.tick)
         offered_to = {
-            slot: self._options(slot, scout, offered, blacklisted, dangers, world, ctx) for slot, scout in free.items()
+            slot: self._options(slot, scout, self._open(slot, offered, ctx), blacklisted, dangers, world, ctx)
+            for slot, scout in free.items()
         }
         chosen = assign(list(offered_to.values()))
         remembers = is_cautious(ctx.tuning.scouting)
@@ -251,7 +266,30 @@ class MissionPlanner:
             self._end(slot, UNSAFE)
             return found
         margin = ctx.tuning.scouting.mission_switch_margin
+        found = self._early_switches(held, found, kept[0].score, world.tick, ctx)
         return [*found, *(dataclasses.replace(option, weight=option.score * margin) for option in kept)]
+
+    def _open(self, slot: int, offered: list[Mission], ctx: MatchContext) -> list[Mission]:
+        """The missions a slot may be offered: with mission_hold on, none another slot's scout holds, by its key or its
+        cell; all of them with it off."""
+        if not ctx.tuning.scouting.mission_hold:
+            return offered
+        others = [held.mission for other, held in self._held.items() if other != slot]
+        keys, places = {mission.key for mission in others}, {mission.cell for mission in others}
+        return [mission for mission in offered if mission.key not in keys and mission.cell not in places]
+
+    @staticmethod
+    def _early_switches(
+        held: _Held, found: list[Option], own_score: float, tick: int, ctx: MatchContext
+    ) -> list[Option]:
+        """The options a held mission may give way to: with mission_hold on, while it is held for less than
+        mission_min_hold_seconds, only those scoring mission_early_switch_ratio times its own or more; all of them
+        once it is held longer, or with the switch off."""
+        tuning = ctx.tuning.scouting
+        is_young = tick - held.since < tuning.mission_min_hold_seconds * TICKS_PER_SECOND
+        if not (tuning.mission_hold and is_young):
+            return found
+        return [option for option in found if option.score >= tuning.mission_early_switch_ratio * own_score]
 
     def _take(self, slot: int, choice: Option | None, scout: Unit, *, remembers_flight: bool) -> Assignment:
         """A slot's scout on the option chosen for it, a new mission held from now on; why its mission changed. A new
@@ -267,7 +305,7 @@ class MissionPlanner:
             self._end(slot, SWITCHED)
             return Assignment(None, None if held is None else SWITCHED)
         ended = self._ended.pop(slot, NEW)
-        self._held[slot] = _Held(choice.mission, scout.id, scout.hp)
+        self._held[slot] = _Held(choice.mission, scout.id, scout.hp, since=self._tick)
         if not remembers_flight:
             self._fled.pop(slot, None)
         if choice.mission.forced:

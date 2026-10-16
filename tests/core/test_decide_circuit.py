@@ -59,43 +59,44 @@ def test_any_other_outcome_starts_the_count_again(clock, outcome_between):
     assert breaker.is_open() is False
 
 
-def test_the_circuit_stays_open_for_30_seconds_and_is_closed_again_after_that(clock):
+def test_the_circuit_stays_open_for_12_seconds_and_is_half_open_after_that(clock):
     breaker = CircuitBreaker()
     _note(breaker, "timeout", "timeout", "timeout")
 
-    clock["now"] += 29.9
+    clock["now"] += 11.9
     just_before = breaker.is_open()
     clock["now"] += 0.1
 
     assert (just_before, breaker.is_open()) == (True, False)
-    assert (circuit.FAILURES_TO_OPEN, circuit.OPEN_SECONDS) == (3, 30.0)
+    assert (circuit.FAILURES_TO_OPEN, circuit.OPEN_SECONDS) == (3, 12.0)
 
 
-def test_after_the_pause_failures_are_counted_from_zero(clock):
+def test_after_the_pause_a_used_answer_closes_the_circuit_and_failures_are_counted_from_zero(clock):
     breaker = CircuitBreaker()
     _note(breaker, "error", "error", "error")
-    clock["now"] += 30.0
+    clock["now"] += 12.0
     assert breaker.is_open() is False
 
-    _note(breaker, "error", "error")
+    _note(breaker, "used", "error", "error")
     after_two = breaker.is_open()
     breaker.note("error")
 
     assert (after_two, breaker.is_open()) == (False, True)
 
 
-def test_a_source_that_fails_again_after_the_pause_is_paused_for_another_30_seconds(clock):
+def test_a_probe_that_fails_after_the_pause_opens_the_circuit_again_at_once_for_another_12_seconds(clock):
     breaker = CircuitBreaker()
     _note(breaker, "timeout", "timeout", "timeout")
-    clock["now"] += 30.0
-    breaker.is_open()
-    _note(breaker, "timeout", "timeout", "timeout")
+    clock["now"] += 12.0
+    probing = breaker.is_open()
+    breaker.note("timeout")
 
-    clock["now"] += 29.0
+    reopened = breaker.is_open()
+    clock["now"] += 11.0
     still_open = breaker.is_open()
     clock["now"] += 1.0
 
-    assert (still_open, breaker.is_open()) == (True, False)
+    assert (probing, reopened, still_open, breaker.is_open()) == (False, True, True, False)
 
 
 def test_each_source_has_a_circuit_of_its_own(clock):

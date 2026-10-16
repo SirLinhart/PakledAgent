@@ -245,6 +245,11 @@ class CrushRuns:
         emergency."""
         return frozenset(() if self._run is None else self._run.going)
 
+    @property
+    def sent(self) -> frozenset[int]:
+        """Every tank of the run in force, on its way or arrived, which repair does not take while the run lasts."""
+        return frozenset(() if self._run is None else self._run.tanks)
+
     def held(self, orders: list[Intent]) -> dict[int, Cell]:
         """The tanks of the run in force whose run move holds in this cycle, each with the cell it runs to: all but
         those an emergency among main's `orders` names; none while no run is in force."""
@@ -300,7 +305,7 @@ class CrushRuns:
         run.keep_up({unit.id: unit for unit in tanks}, world)
         ended = run.ended(world, tuning)
         if ended is not None:
-            _log(run, ended, world)
+            log_run(run, ended, world)
             self._run = None
 
 
@@ -459,10 +464,10 @@ def far_side(unit: Unit, middle: Point, world: World, terrain: Terrain) -> Cell 
     # A tank standing on the centroid has no far side: it runs to the centroid itself.
     share = BEYOND_CELLS / length if length > 0 else 0.0
     beyond = cells.nearest_cell(middle[0] + span_x * share, middle[1] + span_y * share)
-    return _open_cell(cells.clamped(beyond, world.map_bounds), world, terrain)
+    return open_cell(cells.clamped(beyond, world.map_bounds), world, terrain)
 
 
-def _open_cell(cell: Cell, world: World, terrain: Terrain) -> Cell | None:
+def open_cell(cell: Cell, world: World, terrain: Terrain) -> Cell | None:
     """The cell nearest to `cell`, itself first, within OPEN_CELL_SEARCH_CELLS of it, that lies in the map and that
     the terrain does not block; None for none."""
     near = ((cell[0] + dx, cell[1] + dy) for dx, dy in _NEAREST_FIRST)
@@ -480,14 +485,15 @@ def _start(tanks: list[Unit], world: World, tuning: Tuning, terrain: Terrain) ->
     going = run_cells(cluster, tanks, world, terrain, combat, wanted)
     if len(going) < wanted:
         return None
-    costs = {unit.id: _cost(unit.type, world.items) for unit in tanks if unit.id in going}
+    costs = {unit.id: cost(unit.type, world.items) for unit in tanks if unit.id in going}
     return Run(cluster, world.tick, going, tuple(going), costs=costs)
 
 
-def _log(run: Run, ended: str, world: World) -> None:
+def log_run(run: Run, ended: str, world: World, **more: int) -> None:
     """Write the `combat` event of a run that has ended, with its trade: the infantry it killed and what they cost,
-    the tanks it lost, and the one cost less the other."""
-    killed_cost = sum(_cost(record.type, world.items) for record in run.cluster.infantry if record.id in run.killed)
+    the tanks it lost, and the one cost less the other; and the fields `more` gives, a crush wave's number (see
+    `crush_wave`)."""
+    killed_cost = sum(cost(record.type, world.items) for record in run.cluster.infantry if record.id in run.killed)
     lost_cost = sum(run.costs[unit_id] for unit_id in run.lost)
     data = {
         "tick": world.tick,
@@ -501,11 +507,12 @@ def _log(run: Run, ended: str, world: World) -> None:
         "tanks_lost": len(run.lost),
         "trade": killed_cost - lost_cost,
         "ended": ended,
+        **more,
     }
     records.log(COMBAT_EVENT, data)
 
 
-def _cost(actor_type: str, items: ItemTable) -> int:
+def cost(actor_type: str, items: ItemTable) -> int:
     """What an actor of a type costs; 0 for a type the item table does not know."""
     facts = items.get(actor_type)
     return 0 if facts is None else facts.cost

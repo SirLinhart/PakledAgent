@@ -6,7 +6,9 @@ from __future__ import annotations
 
 import pytest
 
-from situations import ask, base_state, event, new_agent
+import situations
+from situations import ask, base_state, event
+from switches_off import crush_wave_off
 from ucla_agent.games.redalert import crush
 from ucla_agent.games.redalert.combat import CombatManager
 from ucla_agent.games.redalert.terrain import Terrain
@@ -21,6 +23,11 @@ INFANTRY_CELLS = (
     *((48, 47), (49, 47), (50, 47), (48, 48), (49, 48), (50, 48), (48, 49), (49, 49), (50, 49), (49, 50)),
     *((49, 46), (47, 48)),
 )
+
+
+def new_agent(*managers, **more):
+    """`situations.new_agent` with the crush wave off: these are the script's runs."""
+    return situations.new_agent(*managers, tuning=crush_wave_off(), **more)
 
 
 def own(unit_id: int, unit_type: str, x: int, y: int) -> dict:
@@ -213,3 +220,13 @@ def test_crush_the_shipped_keys_need_2_tanks_a_ratio_of_1_and_take_1_tank_per_2_
     keys = (combat.crush_min_tanks, combat.crush_min_ratio, combat.crush_at_per_tanks, combat.crush_at_max_tanks)
 
     assert keys == (2, 1.0, 2, 5) and (combat.crush_at_share, combat.crush_at_min_infantry) == (0.33, 3)
+
+
+def test_a_tank_of_the_run_in_force_that_reached_its_cell_is_still_one_of_the_run_s_sent_tanks():
+    runs = crush.CrushRuns()
+    runs._run = crush.Run(crush.Cluster((), (50.0, 50.0)), 1000, going={401: (52, 50)}, tanks=(400, 401))
+
+    # 400 reached its cell and left `going`; repair takes neither while the run lasts (see `combat`).
+    assert runs.units == frozenset({401}) and runs.sent == frozenset({400, 401})
+    runs._run = None
+    assert runs.sent == frozenset()

@@ -110,6 +110,8 @@ class Item:
     speed: float | None = None
     # Weapon range in cells.
     range: float | None = None
+    # How far the unit sees, in cells; None when the source does not say.
+    sight: float | None = None
     roles: frozenset[str] = frozenset()
     # The build time the source states; None when it leaves the time to follow from the cost.
     stated_build_time_s: float | None = None
@@ -385,6 +387,7 @@ def _item_from_file(table: Table, name: str, is_building: bool) -> Item:
         hp=table.integer("hp", minimum=1),
         speed=table.number("speed", None),
         range=table.number("range", None),
+        sight=table.number("sight", None),
         roles=frozenset(table.texts("roles")),
         stated_build_time_s=table.number("build_time_s", None),
     )
@@ -449,5 +452,6 @@ _RULE_FACTS: tuple[tuple[str, str, Callable[[Any], Any]], ...] = (
     ("hp", "hp", _whole_number),
     ("speed", "speed", _cells_per_second),
     ("range", "range", _number),
+    ("sight", "sight", _number),
     ("stated_build_time_s", "build_time_s", _number),
 )

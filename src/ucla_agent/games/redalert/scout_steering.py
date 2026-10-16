@@ -168,6 +168,9 @@ class Move:
     cell: Cell
     urgency: int
     change: str | None = None
+    # The enemy the scout is ordered to attack in place of a move, at its cell: one of the scout slots' own attacks
+    # (see `scout_attacks`); None for a move.
+    target: int | None = None
 
 
 class Dangers:

@@ -3328,6 +3328,39 @@ def test_refinery_unserved_a_36_cell_field_qualifies_for_a_refinery_and_for_an_m
     assert expansion._lasts(EAST_36, [], agent.ctx)
 
 
+AS_PLACED = tuning_off(placement=UNSERVED, expansion=expansion_off(new_yard_refinery_until_standing=True))
+
+
+def test_unserved_order_sees_refused_spots():
+    terrain = terrain_of(HOME_30, EAST_45)
+    agent = unserved_agent(*UNSERVED_BASE, HOME_REFINERY, ELSEWHERE, terrain=terrain, tuning=AS_PLACED)
+    places, refused = refinery_fields.UnservedPlaces(), []
+    first = places.placed(agent.world, agent.ctx)
+    # Each place the order would use refused in turn: the cache works the place out again for each refusal.
+    while (choice := places.placed(agent.world, agent.ctx)) is not None:
+        refused.append(placement.RefusedPlace(box_at("proc", choice.cell), agent.world.tick))
+        agent.ctx.refused_places = tuple(refused)
+
+    off = unserved_agent(*UNSERVED_BASE, HOME_REFINERY, ELSEWHERE, terrain=terrain_of(HOME_30, EAST_45))
+    off.ctx.refused_places = tuple(refused)
+    assert first.field.patch == EAST_45 and len({place.box for place in refused}) == len(refused) >= 2
+    assert places.placed(agent.world, agent.ctx) is None
+    # With the switch off the order sees no refusal, as before.
+    assert refinery_fields.UnservedPlaces().placed(off.world, off.ctx) == first
+
+
+def test_unserved_order_sees_the_places_asked_for_lately():
+    terrain = terrain_of(HOME_30, EAST_45)
+    agent = unserved_agent(*UNSERVED_BASE, HOME_REFINERY, ELSEWHERE, terrain=terrain, tuning=AS_PLACED)
+    places = refinery_fields.UnservedPlaces()
+    first = places.placed(agent.world, agent.ctx)
+    agent.ctx.promised_places = (box_at("proc", first.cell),)
+
+    again = places.placed(agent.world, agent.ctx)
+
+    assert again is None or not box_at("proc", again.cell).grown(1).overlaps(box_at("proc", first.cell))
+
+
 def test_refinery_unserved_the_opening_s_two_refineries_go_on_the_60_cell_home_field_6_cells_apart(match_record):
     agent = unserved_agent(*UNSERVED_BASE, HOME_WEST_REFINERY, terrain=terrain_of(HOME_60))
 
@@ -4162,3 +4195,163 @@ def test_refinery_held_for_mcv_once_the_mcv_deployed_the_next_refinery_goes_to_t
     # The unserved field by the main yard is nearer it; the new yard's field comes first.
     assert (choice.field.patch, choice.field.rule) == (NEW_YARD_FIELD, "unserved")
     assert math.dist(EAST_36.center, YARD[1:]) < math.dist(NEW_YARD_FIELD.center, YARD[1:])
+
+
+# -- the front of the base: ground defenses beyond the building farthest toward the enemy --------------------------
+
+FRONT = placement_off(defense_front=True)
+FRONT_YARD = ("fact", 20, 20)
+# The yard's middle cell, which the front's projections are measured from: the middle of the cells (19, 19) to (21, 22).
+FRONT_ORIGIN = (20, 21)
+# A base crept east of its yard to a war factory whose middle is (33, 20).
+CREPT_EAST = (FRONT_YARD, ("powr", 24, 20), ("powr", 28, 20), ("weap", 33, 20))
+EAST_ENEMY = (80, 20)
+BEYOND_THE_FACTORY = (36, 20)
+
+
+def front_projection(item: str, cell: tuple[int, int], origin: tuple[int, int], enemy: tuple[int, int]) -> float:
+    """How far the middle of a building on a cell lies along the line from `origin` toward `enemy`."""
+    middle_x, middle_y = box_at(item, cell).center
+    gap = math.dist(origin, enemy)
+    return ((middle_x - origin[0]) * (enemy[0] - origin[0]) + (middle_y - origin[1]) * (enemy[1] - origin[1])) / gap
+
+
+def test_defense_goes_beyond_front_building():
+    world = world_with(*CREPT_EAST, enemy_base=EAST_ENEMY)
+
+    chosen = preferred_cell("pbox", world, NO_TERRAIN, FRONT)
+    today = preferred_cell("pbox", world, NO_TERRAIN, TUNING)
+
+    middle = box_at("pbox", chosen).center
+    assert chosen == BEYOND_THE_FACTORY
+    assert middle[0] >= 34 and math.dist(middle, BEYOND_THE_FACTORY) <= FRONT.defense_cluster_cells
+    assert cells.is_within(today, FRONT_YARD[1:], TUNING.defense_radius_cells)
+    assert choose_placement("pbox", world, NO_TERRAIN, placement_off()) == placement.PlacementChoice(today)
+
+
+@pytest.mark.parametrize("item", ["ftur", "pbox", "gun", "tsla", "hbox"])
+def test_second_defense_clusters_with_first(item):
+    first = ("pbox", 37, 20)
+    world = world_with(*CREPT_EAST, first, enemy_base=EAST_ENEMY)
+
+    chosen = preferred_cell(item, world, NO_TERRAIN, FRONT)
+
+    assert math.dist(box_at(item, chosen).center, first[1:]) <= 6
+    assert not box_at(item, chosen).overlaps(box_at("pbox", first[1:]).grown(FRONT.gap_cells))
+
+
+def test_second_defense_goes_halfway_between_the_point_and_the_front_defenses():
+    # A pillbox on the enemy's side by the yard pulls the goal halfway back from (36, 20) to its cell (24, 16): the
+    # point (30, 18).
+    world = world_with(*CREPT_EAST, ("pbox", 24, 16), enemy_base=EAST_ENEMY)
+
+    chosen = preferred_cell("pbox", world, NO_TERRAIN, FRONT)
+
+    assert chosen == (30, 18)
+
+
+# The enemy to the north of a yard at (40, 40), whose base grew south.
+NORTH_YARD = ("fact", 40, 40)
+NORTH_ORIGIN = (40, 41)
+NORTH_ENEMY = (40, 2)
+GREW_SOUTH = (NORTH_YARD, ("powr", 40, 46), ("weap", 40, 51))
+# The point 3 cells beyond the yard, the base's building farthest north, toward the enemy.
+NORTH_POINT = (40, 38)
+# One free place left north of the yard, farther from the point than free places south of it.
+LAST_NORTH_PLACE = (47, 33)
+
+
+def north_blocked(*kept: tuple[int, int]) -> Terrain:
+    """Ground with every cell of the map at the yard's middle row or north of it blocked, but those `kept`."""
+    return Terrain(blocked=[(x, y) for y in range(NORTH_ORIGIN[1] + 1) for x in range(96) if (x, y) not in kept])
+
+
+def test_never_far_side_with_room():
+    world = world_with(*GREW_SOUTH, enemy_base=NORTH_ENEMY)
+    one_left = north_blocked(LAST_NORTH_PLACE)
+
+    open_ground = preferred_cell("pbox", world, NO_TERRAIN, FRONT)
+    last_place = preferred_cell("pbox", world, one_left, FRONT)
+    none_north = preferred_cell("pbox", world, north_blocked(), FRONT)
+
+    south_places = [
+        cell
+        for cell in candidate_cells("pbox", world, one_left, FRONT)
+        if front_projection("pbox", cell, NORTH_ORIGIN, NORTH_ENEMY) < 0
+    ]
+    nearest_south = min(math.dist(box_at("pbox", cell).center, NORTH_POINT) for cell in south_places)
+    assert front_projection("pbox", open_ground, NORTH_ORIGIN, NORTH_ENEMY) >= 0
+    assert nearest_south < math.dist(LAST_NORTH_PLACE, NORTH_POINT)
+    assert last_place == LAST_NORTH_PLACE
+    assert none_north is not None and front_projection("pbox", none_north, NORTH_ORIGIN, NORTH_ENEMY) < 0
+
+
+GOAL_BASE = (YARD, ("powr", 26, 48), ("tent", 30, 48), ("weap", 35, 48))
+
+
+def placed_defense(tuning: PlacementTuning, goal: tuple[int, int] | None) -> list:
+    """The place orders of an agent with upkeep alone for a pillbox ready in the Defense queue, ordered toward a goal
+    (`MatchContext.defense_goals`, as base defense's extra defense and the harassment tower are) when one is given."""
+    agent = placing_agent(tuning, *GOAL_BASE, terrain=NO_TERRAIN)
+    if goal is not None:
+        agent.ctx.defense_goals["pbox"] = goal
+    state = situations.base_state(
+        "england", *GOAL_BASE, tick=1000, production=[situations.job("Defense", "pbox", ready=True)]
+    )
+    return situations.with_command(situations.ask(agent, state), "place")
+
+
+@pytest.mark.parametrize(
+    "goal", [(18, 56), (31, 44)], ids=["extra defense toward its threat", "harassment tower by an enemy refinery"]
+)
+def test_threat_goal_defenses_unchanged(goal):
+    assert placed_defense(FRONT, goal) == placed_defense(TUNING, goal)
+
+
+@pytest.mark.parametrize("item", ["agun", "sam"])
+def test_threat_goal_defenses_unchanged_aa_after_air_is_seen(item):
+    world = world_with(*CREPT_EAST, ("proc", 25, 26), enemy_base=EAST_ENEMY)
+
+    after_air = choose_placement(item, world, NO_TERRAIN, FRONT, aa_refinery_cells=AA_REACH)
+    before_air = preferred_cell(item, world, NO_TERRAIN, FRONT)
+    today = preferred_cell(item, world, NO_TERRAIN, TUNING)
+
+    assert after_air == choose_placement(item, world, NO_TERRAIN, TUNING, aa_refinery_cells=AA_REACH)
+    assert front_projection(item, before_air, FRONT_ORIGIN, EAST_ENEMY) > front_projection(
+        item, today, FRONT_ORIGIN, EAST_ENEMY
+    )
+
+
+def test_threat_goal_the_front_takes_the_pillbox_off_the_yard_s_point_on_the_upkeep_path():
+    front, today = placed_defense(FRONT, None), placed_defense(TUNING, None)
+
+    # The war factory's middle is (35, 48): 3 cells beyond it toward the enemy at (74, 48).
+    assert front == [{"cmd": "place", "item": "pbox", "at": [38, 48]}] and front != today
+
+
+@pytest.mark.parametrize("item", ["pbox", "gun", "agun", "proc", "powr"])
+def test_enemy_base_unknown_uses_old_goal(item):
+    world = world_with(*CREPT_EAST, enemy_base=None)
+
+    assert choose_placement(item, world, NO_TERRAIN, FRONT) == choose_placement(item, world, NO_TERRAIN, TUNING)
+
+
+@pytest.mark.parametrize("item", ["powr", "tent", "weap", "proc"])
+def test_front_buildings_but_defenses_are_placed_as_with_the_switch_off(item):
+    world = world_with(*CREPT_EAST, enemy_base=EAST_ENEMY)
+
+    assert choose_placement(item, world, NO_TERRAIN, FRONT) == choose_placement(item, world, NO_TERRAIN, TUNING)
+
+
+def test_front_with_two_yards_the_buildings_nearer_the_second_yard_are_not_the_first_base_s_front():
+    # The defense's point 5 cells from the first yard is nearest it, so the first yard's base is the one placed for;
+    # the power plant at (66, 20) is the second yard's.
+    world = world_with(FRONT_YARD, ("weap", 33, 20), ("fact", 60, 20), ("powr", 66, 20), enemy_base=(90, 20))
+
+    assert preferred_cell("pbox", world, NO_TERRAIN, FRONT) == BEYOND_THE_FACTORY
+
+
+def test_front_with_the_enemy_s_start_on_the_yard_s_middle_a_defense_is_placed_as_with_the_switch_off():
+    world = world_with(*CREPT_EAST, enemy_base=FRONT_ORIGIN)
+
+    assert choose_placement("pbox", world, NO_TERRAIN, FRONT) == choose_placement("pbox", world, NO_TERRAIN, TUNING)

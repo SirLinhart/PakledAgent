@@ -11,6 +11,9 @@ in a fixed order; the first that applies sets the plan:
   the lead is kept. With `finish_over_preserve` on, R6 comes first (see below).
 - R3: HOLD in the last three minutes when the balance is zero; R6 comes first
   in the same way.
+- R2E: with `endgame_lead_defenses` of [clock] on, PRESERVE in the last five
+  minutes when ahead by 1,000 or more in a stalemate of heavy armies, before
+  R2 to R4 and after R6 (see `endgame_lead` and below).
 - R4: PRESS in the last two minutes when the balance is negative; with the
   late-PRESS guard on, not while the base is under a major threat (see
   below).
@@ -80,6 +83,16 @@ timing stay as they are. The tuning file ships the guard on. With
 `[scouting] scout_slots` on, the designated scouts are left out of both
 figures: they scout for the whole match and never fight with the army.
 
+A lead on the time-limit tiebreak late in a stalemate of two heavy armies is
+won by not trading it away. So with `endgame_lead_defenses` of [clock] on,
+R2E sets PRESERVE when `endgame_lead.applies` (the last
+`endgame_lead_seconds`, a balance of `endgame_lead_margin` or more, our army
+of main, guard and escort and the enemy army estimate both worth
+`endgame_heavy_army_value` or more) and R6 does not apply; it comes after R6
+with `finish_over_preserve` on, as R2 and R3 do, and before them and R4. Once
+in force it stays, whatever the armies, until the balance has stood at 0 or
+below for `clock_switch_ticks` in a row, or R6 applies.
+
 The plan selector follows whether the enemy has committed its army, which
 holds for the rest of the match once it does: once a major threat on the
 base has been beaten off, or once what the agent has killed is worth 1,500
@@ -98,6 +111,17 @@ base being gone, or a STRIKE that has to be given up, or a major threat on the
 base, which ends a discretionary plan (and a plan a model chose that still
 stands) so that the decision table holds. And once FINISH is
 left, it is not taken up again for 30 seconds.
+
+**FINISH committed.** Live (shadowfiend-ii, rush, 12:20 to 14:15): FINISH
+opened by R6 twice, each time left by R7 the cycle its 30-second hold ran out
+(an enemy unit or two seen again, the ratio a shade under R6's), with the
+balance at +8,750 to +13,800: main never finished anything. With
+`finish_commit` of `[plan_rules]` on, a FINISH R6 opened stays at least
+finish_commit_seconds, whatever R6 and R7 say meanwhile, unless main's
+strength falls under finish_commit_value_share of what it was when FINISH
+opened, or base defense calls main home (a threat worth more than the home
+guard and defenses, see `base_defense`). The clock rules R1 to R4 and the
+enemy base gone end it as they end any plan.
 
 The enemy figures count only what the world model still trusts: remembered
 enemy units that are not stale, and remembered defenses.
@@ -240,8 +264,10 @@ from typing import Any, Iterable, Protocol
 from ucla_agent.core import records
 from ucla_agent.core.decide import USED, ChoiceRequest, ChoiceResult, Option
 from ucla_agent.core.match_meta import TESTING_CONTEXT
-from ucla_agent.games.redalert import cells, raid_targets, raids
+from ucla_agent.games.redalert import cells, endgame_lead, raid_targets, raids
 from ucla_agent.games.redalert.composition import FINISH, HOLD, OPENING, PRESERVE, PRESS, RAID, STRIKE
+from ucla_agent.games.redalert.endgame_lead import R2E
+from ucla_agent.games.redalert.enemy_estimate import EnemyArmyEstimate
 from ucla_agent.games.redalert.family import FAMILIES, WAR_FACTORY
 from ucla_agent.games.redalert.fight import estimate, is_counted, strength
 from ucla_agent.games.redalert.groups import MAIN, SCOUT
@@ -270,6 +296,8 @@ RAID_NOT_LAUNCHABLE = "raid_not_launchable"
 PRESS_TOO_EARLY = "press_too_early"
 ARMY_TOO_SMALL = "army_too_small"
 ARMY_NOT_AHEAD = "army_not_ahead"
+# PRESS's objective blocked by a failed attack there or by its defenses (see `failed_attack`).
+ATTACK_BLOCKED_FAILED = "attack_blocked_failed"
 # The tanks and long-range units: an army that ends a match by R6(a) has to break defenses, which infantry cannot.
 HEAVY_UNITS = frozenset({"1tnk", "2tnk", "3tnk", "4tnk", "arty", "v2rl", "ttnk"})
 # The production queue of the aircraft: an aircraft seen says nothing of the army that would meet main on the ground.
@@ -287,7 +315,7 @@ MAJOR_THREAT_CAUSE = "major_threat"
 # The rules the clock and the trade balance set late in the match, and those of them R6 comes before with
 # finish_over_preserve on.
 CLOCK_RULES = frozenset({R2, R3, R4})
-FINISH_FIRST_RULES = frozenset({R2, R3})
+FINISH_FIRST_RULES = frozenset({R2, R3, R2E})
 # The sides of zero a trade balance can stand on, by more than the clock rules' margin.
 AHEAD, BEHIND = 1, -1
 # The rules whose changes of plan are held for a while: all but R1 to R4, which the clock and the opening set.
@@ -387,6 +415,9 @@ class Situation:
     # How long ago an enemy unit of its army (one that fights on the ground, see `_is_army_unit`) was last in sight;
     # None while none has been.
     enemy_army_unseen_ticks: int | None = None
+    # With failed_attack_memory of [combat] on, PRESS's objective is blocked by a failed attack there or by its
+    # defenses, as the combat manager published it in the cycle before (see `failed_attack`).
+    press_blocked: bool = False
 
     def is_late(self, seconds: int) -> bool:
         """Whether at most `seconds` of the match are left; never while the clock is unknown."""
@@ -472,6 +503,7 @@ def observe(
         enemy_committed=enemy_committed,
         raid_launch_blocker=_launch_blocker(world, ctx, tuning, can_raid, raid_target_known),
         enemy_army_unseen_ticks=army_unseen_ticks,
+        press_blocked=ctx.press_blocked,
     )
 
 
@@ -771,6 +803,8 @@ class PlanRules:
         self._changed_tick = 0
         # The tick FINISH was last left at; None while it never was.
         self._left_finish_tick: int | None = None
+        # The tick the FINISH in force was opened at by R6, and main's strength then; None while none is in force.
+        self._finish_opened: tuple[int, float] | None = None
         # The last tick R6's conditions held, rest or not; None while they never have.
         self._finish_tick: int | None = None
         # The last tick an enemy unit that fights was in sight, and one of its army; None while none has been.
@@ -799,6 +833,11 @@ class PlanRules:
         self._requested: str | None = None
         # The rules a guard held back in the cycle under way, each with the guard's reason: each is then part of a block.
         self._blocks: set[tuple[str, str]] = set()
+        # The enemy army estimate the plan rules keep up to date for every rule that weighs the enemy army.
+        self._enemy_estimate = EnemyArmyEstimate()
+        # With endgame_lead_defenses on, the tick since which the trade balance has stood at 0 or below; None while it
+        # stands above.
+        self._lead_lost_tick: int | None = None
 
     def request(self, plan: str) -> bool:
         """Take a plan a shorthand `plan` line names, for the next cycle; False when it is not one of those open."""
@@ -812,7 +851,9 @@ class PlanRules:
 
     def select(self, world: World, ctx: MatchContext, choice: ChoiceResult | None) -> str:
         """The plan for this cycle; a change of plan is logged, and the rule in force published on the context, with
-        whether the big army faces an unseen enemy army (`is_big_army_unseen_enemy`)."""
+        whether the big army faces an unseen enemy army (`is_big_army_unseen_enemy`), and the enemy army estimate
+        (`enemy_estimate`)."""
+        ctx.enemy_army_estimate = self._enemy_estimate.update(world, ctx)
         in_sight = [record for record in world.enemy_memory.values() if record.visible and is_combat_unit(record)]
         if in_sight:
             self._enemy_seen_tick = world.tick
@@ -871,7 +912,9 @@ class PlanRules:
         elif plan != self._plan or self._rule not in DISCRETIONARY_RULES:
             self._chosen_tick = tick
         if self._rule == R6 and rule != R6:
-            self._left_finish_tick = tick
+            self._left_finish_tick, self._finish_opened = tick, None
+        if rule == R6 and self._rule != R6:
+            self._finish_opened = (tick, situation.main_strength)
         if plan != self._plan:
             self._changed_tick = tick
             _log_change(self._plan, plan, rule, situation, threat_level)
@@ -885,14 +928,14 @@ class PlanRules:
         self._is_opening_over = self._is_opening_over or situation.has_war_factory
         if not self._is_opening_over:
             return OPENING, R1
-        return self._clock(situation, ctx.threat_level) or self._after_clock(situation, world, ctx, choice)
+        return self._clock(situation, world, ctx) or self._after_clock(situation, world, ctx, choice)
 
     def _after_clock(
         self, situation: Situation, world: World, ctx: MatchContext, choice: ChoiceResult | None
     ) -> tuple[str, str]:
         """R5 to R7, the plan they changed to held for a while: R5 or R6 kept outright, R7's own choice within R7."""
         is_held = self._is_held_now(situation, world, ctx)
-        if is_held and self._rule not in DISCRETIONARY_RULES:
+        if (is_held and self._rule not in DISCRETIONARY_RULES) or self._is_finish_committed(situation, ctx):
             return self._plan, self._rule
         scripted = None if is_held else self._strike_or_finish(situation)
         return scripted or self._discretionary(situation, world, ctx, choice, is_held)
@@ -906,6 +949,19 @@ class PlanRules:
         is_given_up = self._plan == STRIKE and self._is_strike_excluded
         is_threatened = self._rule in DISCRETIONARY_RULES and ctx.threat_level == MAJOR_THREAT
         return self._is_held(situation) and not (is_given_up or is_threatened or self._is_held_raid_ended(situation))
+
+    def _is_finish_committed(self, situation: Situation, ctx: MatchContext) -> bool:
+        """Whether a FINISH R6 opened stays (see the module's note): finish_commit on, opened less than
+        finish_commit_seconds ago, main's strength at least finish_commit_value_share of what it was then, and main not
+        called home by base defense; never with the enemy base gone."""
+        rules = self._tuning.plan_rules
+        opened = self._finish_opened
+        if not rules.finish_commit or opened is None or self._rule != R6 or situation.is_enemy_base_destroyed:
+            return False
+        tick, opening_strength = opened
+        is_recent = situation.tick - tick < rules.finish_commit_seconds * TICKS_PER_SECOND
+        is_strong = situation.main_strength >= rules.finish_commit_value_share * opening_strength
+        return is_recent and is_strong and not ctx.groups.is_recalled(MAIN)
 
     def _is_held_raid_ended(self, situation: Situation) -> bool:
         """Whether the plan in force is a RAID a model's answer changed to, still held, that closed for want of a
@@ -921,18 +977,43 @@ class PlanRules:
         if side != self._balance_side:
             self._balance_side, self._balance_side_tick = side, situation.tick
 
-    def _clock(self, situation: Situation, threat_level: str) -> tuple[str, str] | None:
-        """R2 to R4, with hysteresis; an R4 the late-PRESS guard holds back gives way to the other rules.
+    def _clock(self, situation: Situation, world: World, ctx: MatchContext) -> tuple[str, str] | None:
+        """R2E and R2 to R4, with hysteresis; an R4 the late-PRESS guard holds back gives way to the other rules.
 
         Those are R2 or R3 when the balance calls for one, which an R4 the hysteresis kept may have stood in the way
-        of, else R5 to R7, for which this gives None. With finish_over_preserve on, R6 comes before R2 and R3.
+        of, else R5 to R7, for which this gives None. With finish_over_preserve on, R6 comes before R2E, R2 and R3.
         """
+        threat_level = ctx.threat_level
         called_for = _clock_rule(situation, self._tuning.plan_rules)
         clock = self._clock_in_force(situation, called_for)
         if self._is_late_press_blocked(clock, threat_level):
             self._blocks.add((R4, LATE_PRESS_BLOCK_REASON))
             clock = None if self._is_late_press_blocked(called_for, threat_level) else called_for
-        return self._finish_first(situation, clock)
+        return self._finish_first(situation, self._endgame_lead(situation, world, ctx, clock))
+
+    def _endgame_lead(
+        self, situation: Situation, world: World, ctx: MatchContext, clock: tuple[str, str] | None
+    ) -> tuple[str, str] | None:
+        """With endgame_lead_defenses on, R2E's PRESERVE in place of the clock's rule: while R2E is in force until the
+        balance has stood at 0 or below for clock_switch_ticks, else when it applies (`endgame_lead.applies`); never
+        while R6 applies. The clock's rule otherwise."""
+        lead, rules = self._tuning.clock, self._tuning.plan_rules
+        if not lead.endgame_lead_defenses:
+            return clock
+        tick = situation.tick
+        if situation.trade_balance > 0:
+            self._lead_lost_tick = None
+        elif self._lead_lost_tick is None:
+            self._lead_lost_tick = tick
+        if _finishes(situation, rules):
+            return clock
+        if self._rule == R2E:
+            has_lost = self._lead_lost_tick is not None and tick - self._lead_lost_tick >= rules.clock_switch_ticks
+            return clock if has_lost else (PRESERVE, R2E)
+        army = endgame_lead.army_value(world, ctx)
+        estimate = ctx.enemy_army_estimate
+        is_due = endgame_lead.applies(situation.remaining_seconds, situation.trade_balance, army, estimate, lead)
+        return (PRESERVE, R2E) if is_due else clock
 
     def _finish_first(self, situation: Situation, clock: tuple[str, str] | None) -> tuple[str, str] | None:
         """With finish_over_preserve on, R6 before the clock's R2 and R3: FINISH while R6 applies, or while a FINISH in
@@ -1192,12 +1273,14 @@ def _cleans_up(situation: Situation, rules: PlanRulesTuning) -> bool:
 def open_plans(situation: Situation, rules: PlanRulesTuning, is_press_in_force: bool = False) -> list[str]:
     """The discretionary plans open in a situation: HOLD always, RAID and PRESS when their conditions hold.
 
-    PRESS's are its own rules' and, under the early-attack guard, the early gate's, which a PRESS in force passes.
+    PRESS's are its own rules' and, under the early-attack guard, the early gate's, which a PRESS in force passes; and
+    PRESS is shut while its objective is blocked (`Situation.press_blocked`).
     """
     eligible = [HOLD]
     if situation.can_raid and situation.raid_target_known and situation.raid_launch_blocker is None:
         eligible.append(RAID)
-    if _press_opens(situation, rules) and not _is_early_press_gated(situation, rules, is_press_in_force):
+    gated = _is_early_press_gated(situation, rules, is_press_in_force) or situation.press_blocked
+    if _press_opens(situation, rules) and not gated:
         eligible.append(PRESS)
     return eligible
 
@@ -1237,6 +1320,7 @@ def press_blockers(situation: Situation, rules: PlanRulesTuning, is_press_in_for
     """What keeps PRESS shut in a situation: the early-attack gate, then, unless PRESS's own rules open it, each
     threshold of its ahead rule not met; none while PRESS is open."""
     gate = [EARLY_ATTACK_BLOCK_REASON] if _is_early_press_gated(situation, rules, is_press_in_force) else []
+    gate += [ATTACK_BLOCKED_FAILED] if situation.press_blocked else []
     return gate if _press_opens(situation, rules) else gate + _ahead_shortfalls(situation, rules)
 
 

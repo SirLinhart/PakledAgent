@@ -5,13 +5,15 @@ from __future__ import annotations
 import itertools
 import math
 from dataclasses import dataclass, replace
+from pathlib import Path
 
 import pytest
 
 from fake_game import FakeRedAlert, at_seconds
-from situations import ScriptedManager, ask, base_state, event, fixture_state, new_agent, tracked_items, with_command
-from switches_off import SWITCHES_OFF
-from ucla_agent.games.redalert import cells, finish_target, forward_staging, nuke, scouting
+import situations
+from situations import ScriptedManager, ask, base_state, event, fixture_state, tracked_items, with_command
+from switches_off import SWITCHES_OFF, crush_wave_off, safe_staging_off, screen_place_off, stepping_off
+from ucla_agent.games.redalert import cells, finish_target, forward_staging, nuke, reinforce_hold, scouting
 from ucla_agent.games.redalert.base_defense import BaseDefenseManager
 from ucla_agent.games.redalert.batch import Intent, Priority
 from ucla_agent.games.redalert.combat import ENGAGE, HOLD, RETREAT, CombatManager, distance_to_path, sweep_points
@@ -30,7 +32,7 @@ from ucla_agent.games.redalert.crush import (
     without,
 )
 from ucla_agent.games.redalert.fight import Estimate, centroid, estimate, ratio_against
-from ucla_agent.games.redalert.forward_hold import forward_point
+from ucla_agent.games.redalert.forward_hold import cover_point, forward_point
 from ucla_agent.games.redalert.groups import GUARD, MAIN, RAID
 from ucla_agent.games.redalert.items import TICKS_PER_SECOND
 from ucla_agent.games.redalert.placement import CreepTarget
@@ -52,7 +54,16 @@ from ucla_agent.games.redalert.tuning import CombatTuning, Tuning
 from ucla_agent.games.redalert.world import Unit, World
 from whole_match import COMPUTE_P95_MS, WHOLE_MATCH_STEPS, WholeMatch, play_whole_match
 
+
+def new_agent(*managers, tuning: Tuning | None = None, **more):
+    """`situations.new_agent` with main's stepped movement, the screened place, the crush wave and the safe staging off,
+    as these tests were worked out."""
+    tuning = safe_staging_off(crush_wave_off(screen_place_off(stepping_off(tuning))))
+    return situations.new_agent(*managers, tuning=tuning, **more)
+
+
 # A group of four light tanks around (40.5, 48.5).
+
 TANK_CELLS = ((40, 48), (41, 48), (40, 49), (41, 49))
 
 
@@ -299,6 +310,7 @@ def test_an_unarmed_aircraft_adds_nothing_to_the_estimate_and_with_air_targeting
 
 # -- engage, hold and retreat ----------------------------------------------------------------------
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
 YARD = ("fact", 22, 48)
 # 10 cells from the construction yard toward the enemy's start at (74, 48).
 STAGING = [32, 48]
@@ -1398,9 +1410,12 @@ def test_forward_hold_main_stands_forward_of_the_staging_point_for_most_of_the_h
 
 # -- the sticky attack target: choosing ------------------------------------------------------------
 
-STICKY = Tuning(combat=CombatTuning(sticky_attack_target=True))
+# The strike on an exposed expansion off: the targets 20 cells and more from the enemy's start would draw it.
+STICKY = Tuning(combat=CombatTuning(sticky_attack_target=True, strike_exposed_expansion=False))
 # The same with forward staging off, for a test whose main goes straight on to its target.
-STICKY_UNSTAGED = Tuning(combat=CombatTuning(sticky_attack_target=True, forward_staging=False))
+STICKY_UNSTAGED = Tuning(
+    combat=CombatTuning(sticky_attack_target=True, forward_staging=False, strike_exposed_expansion=False)
+)
 # main's centroid, and the tick of the latest state.
 MIDDLE = (40.0, 48.0)
 NOW_TICK = 6000
@@ -2092,8 +2107,8 @@ CLUSTER_AT_SECONDS, CLUSTER_KILLED_AT_SECONDS = 120, 180
 
 @pytest.fixture(scope="module")
 def crush_match() -> tuple[WholeMatch, list[int]]:
-    """A whole fake match with the shipped tuning, crush runs on, and a cluster of rifles in front of main's tanks, and
-    the tanks' ids."""
+    """A whole fake match with the shipped tuning but the crush wave, crush runs on, and a cluster of rifles in front of
+    main's tanks, and the tanks' ids."""
     tank_ids: list[int] = []
     rifle_ids: list[int] = []
 
@@ -2107,7 +2122,7 @@ def crush_match() -> tuple[WholeMatch, list[int]]:
         game.emit_event("enemy_killed", count=len(rifle_ids))
 
     scenario = [at_seconds(CLUSTER_AT_SECONDS, tanks_and_rifles), at_seconds(CLUSTER_KILLED_AT_SECONDS, rifles_killed)]
-    return play_whole_match(Tuning(), scenario=scenario), tank_ids
+    return play_whole_match(crush_wave_off(), scenario=scenario), tank_ids
 
 
 def test_crush_run_a_whole_fake_match_with_the_shipped_tuning_runs_without_an_error_or_a_refused_batch_in_budget(
@@ -2115,7 +2130,7 @@ def test_crush_run_a_whole_fake_match_with_the_shipped_tuning_runs_without_an_er
 ):
     match, _ = crush_match
 
-    assert match.agent.ctx.tuning == Tuning() and match.agent.ctx.tuning.combat.crush_runs
+    assert match.agent.ctx.tuning == crush_wave_off() and match.agent.ctx.tuning.combat.crush_runs
     assert len(match.compute_ms) == WHOLE_MATCH_STEPS and match.data_of("error") == []
     assert match.run.invalid_actions == 0 and match.game.invalid_actions == 0
     assert match.compute_p95_ms <= COMPUTE_P95_MS
@@ -2304,11 +2319,15 @@ def watched(world: World, watch: nuke.NukeWatch, tick: int, buildings=(), tuning
     return watch.is_spreading
 
 
+# The clock alone, with no spreading held past an expected launch.
+NO_FOLLOW_UP = replace(Tuning(), combat=replace(NUKE, nuke_follow_up=False))
+
+
 def test_nuke_spread_spreading_is_in_force_from_11500_to_13500_with_a_combat_event_at_each_end(world, match_record):
     watch = nuke.NukeWatch()
-    watched(world, watch, SILO_SEEN_TICK, [SILO])
+    watched(world, watch, SILO_SEEN_TICK, [SILO], NO_FOLLOW_UP)
 
-    spreading = [watched(world, watch, tick) for tick in (11_499, 11_500, 13_500, 13_501)]
+    spreading = [watched(world, watch, tick, tuning=NO_FOLLOW_UP) for tick in (11_499, 11_500, 13_500, 13_501)]
 
     assert spreading == [False, True, True, False]
     assert match_record("combat") == [
@@ -2335,6 +2354,35 @@ def test_nuke_spread_a_silo_destroyed_ends_spreading_at_once(world, match_record
     }
 
 
+def lost(deaths_cost: int) -> dict:
+    """The military figures of a state in which our side has lost so much in all."""
+    return {"military": {"kills_cost": 0, "deaths_cost": deaths_cost, "assets_value": 0, "army_value": 0}}
+
+
+def test_nuke_follow_up_spreading_holds_past_a_launch_that_did_not_come_until_an_impact_restarts_the_clock(
+    world, match_record
+):
+    watch = nuke.NukeWatch()
+    watched(world, watch, SILO_SEEN_TICK, [SILO], **lost(0))
+
+    held = [watched(world, watch, tick, **lost(500)) for tick in (11_500, 13_501, 20_000)]
+    # A nuke lands at 23,505: 10,100 lost in one state.
+    after_impact = watched(world, watch, 23_505, **lost(10_600))
+    next_window = [watched(world, watch, tick, **lost(10_600)) for tick in (35_504, 35_505)]
+
+    assert held == [True, True, True] and after_impact is False and next_window == [False, True]
+    impacts = [logged for logged in match_record("combat") if logged["reason"] == "nuke_impact"]
+    assert impacts == [{"tick": 23_505, "reason": "nuke_impact", "lost": 10_100, "next_launch": 37_005}]
+
+
+def test_nuke_follow_up_a_loss_under_3000_in_one_state_is_no_impact(world, match_record):
+    watch = nuke.NukeWatch()
+    watched(world, watch, SILO_SEEN_TICK, [SILO], **lost(0))
+
+    assert watched(world, watch, 13_600, **lost(2_999)) is True
+    assert [logged for logged in match_record("combat") if logged["reason"] == "nuke_impact"] == []
+
+
 def test_nuke_spread_with_the_switch_off_no_clock_is_kept_and_nothing_is_written(world, match_record):
     watch, off = nuke.NukeWatch(), replace(Tuning(), combat=replace(NUKE, nuke_spread=False))
     watched(world, watch, SILO_SEEN_TICK, [SILO], off)
@@ -2347,7 +2395,8 @@ def test_nuke_spread_the_combat_manager_keeps_the_clock_of_a_silo_it_has_seen(ma
     ask(agent, at(SILO_SEEN_TICK, buildings=[SILO]))
     ask(agent, at(11_500))
 
-    assert [(logged["tick"], logged["spreading"]) for logged in match_record("combat")] == [(11_500, True)]
+    spread = [logged for logged in match_record("combat") if logged["reason"] == "nuke_spread"]
+    assert [(logged["tick"], logged["spreading"]) for logged in spread] == [(11_500, True)]
 
 
 # -- the nuke: main spread around an expected launch -----------------------------------------------
@@ -2400,9 +2449,36 @@ def test_nuke_spread_main_standing_idle_at_its_places_is_sent_nowhere():
 
 @pytest.mark.parametrize("tick", [11_499, 13_501])
 def test_nuke_spread_outside_the_window_idle_main_gathers_at_the_staging_point_as_today(tick):
-    agent, _ = spread_agent()
+    agent, _ = spread_agent(tuning=NO_FOLLOW_UP)
 
     assert ask(agent, at(tick, astray())) == [{"cmd": "move", "units": list(range(300, 306)), "to": STAGING}]
+
+
+@pytest.mark.parametrize("tuning, spread", [(Tuning(), True), (NO_FOLLOW_UP, False)], ids=["follow-up on", "off"])
+def test_nuke_follow_up_the_idle_home_guard_spreads_around_its_post_too(tuning, spread):
+    agent, _ = spread_agent(tuning=tuning)
+    rifles = [own(250 + number, "e1", 28, 47 + number) for number in range(3)]
+    ask(agent, at(11_000, [*astray(), *rifles]))
+    for rifle in rifles:
+        agent.ctx.groups.assign(rifle["id"], GUARD)
+
+    orders = ask(agent, at(12_000, [*astray(), *rifles]))
+
+    guard_moves = [order for order in orders if order["cmd"] == "move" and set(order["units"]) & {250, 251, 252}]
+    assert bool(guard_moves) is spread
+    assert all(math.dist(order["to"], CLUSTER_CENTER) >= 12 for order in guard_moves)
+    assert agent.ctx.nuke_spreading is True
+
+
+def test_nuke_follow_up_a_silo_seen_once_long_ago_is_a_must_kill_target_of_the_strike(match_record):
+    agent, _ = spread_agent(tuning=NO_FOLLOW_UP)
+    ask(agent, at(5_000, astray()))
+    world, ctx = agent.world, agent.ctx
+
+    assert must_kill_targets(world, ctx) == []
+    ctx.tuning = Tuning()
+    (silo,) = must_kill_targets(world, ctx)
+    assert silo.id == SILO["id"] and world.tick - silo.last_seen_tick > 30 * TICKS_PER_SECOND
 
 
 def test_nuke_spread_with_the_switch_off_idle_main_gathers_at_the_staging_point():
@@ -2478,13 +2554,17 @@ def test_nuke_spread_a_silo_seen_100_s_ago_is_chosen_before_a_fresh_nearer_yard(
     assert finish_target.choose(MIDDLE, world, combat).id == chosen_id
 
 
+# The yard 21 cells from the enemy's start is an exposed expansion, which a strike would take first.
+NO_EXPOSED = {"strike_exposed_expansion": False}
+
+
 @pytest.mark.parametrize(
     "combat, target",
     [
-        (CombatTuning(sticky_attack_target=True), [70, 30]),
-        (CombatTuning(sticky_attack_target=False), [70, 30]),
-        (CombatTuning(sticky_attack_target=True, nuke_spread=False), [55, 40]),
-        (CombatTuning(sticky_attack_target=False, nuke_spread=False), [55, 40]),
+        (CombatTuning(sticky_attack_target=True, **NO_EXPOSED), [70, 30]),
+        (CombatTuning(sticky_attack_target=False, **NO_EXPOSED), [70, 30]),
+        (CombatTuning(sticky_attack_target=True, nuke_spread=False, **NO_EXPOSED), [55, 40]),
+        (CombatTuning(sticky_attack_target=False, nuke_spread=False, **NO_EXPOSED), [55, 40]),
     ],
     ids=["sticky", "nearest", "sticky without nuke_spread", "nearest without nuke_spread"],
 )
@@ -2595,14 +2675,17 @@ def test_strike_near_our_own_ground_defenses_near_our_refinery_are_never_must_ki
     assert strike_targets(world) == []
 
 
-def test_strike_near_a_target_unseen_for_30_s_is_none_and_the_nearest_to_our_base_comes_first():
+@pytest.mark.parametrize("by_defenses, later", [(False, []), (True, [600])], ids=["seen lately", "a building stands"])
+def test_strike_near_a_target_unseen_for_30_s_is_none_and_the_nearest_to_our_base_comes_first(by_defenses, later):
+    tuning = Tuning(combat=CombatTuning(strike_near_by_defenses=by_defenses))
     world = strike_world(enemies=[foe(500, "mcv", 34, 40)], buildings=[foe(600, "gun", 30, 44)])
     strike_world(1000 + 30 * TICKS_PER_SECOND - 1, earlier=world)
 
-    nearest_first = strike_targets(world)
+    nearest_first = strike_targets(world, tuning)
     strike_world(1000 + 30 * TICKS_PER_SECOND, earlier=world)
 
-    assert (nearest_first, strike_targets(world)) == ([600, 500], [])
+    # With strike_near_by_defenses on, the turret, a building, counts however long ago it was seen; the MCV does not.
+    assert (nearest_first, strike_targets(world, tuning)) == ([600, 500], later)
 
 
 # -- the strike near us: the strike force ----------------------------------------------------------
@@ -3172,18 +3255,19 @@ STAGING_PILLBOX_CELL = (66, 48)
 
 @pytest.fixture(scope="module")
 def staging_match() -> WholeMatch:
-    """A whole fake match with the shipped tuning, forward staging on, and a pillbox on main's way to the enemy."""
+    """A whole fake match with the shipped tuning but the stepped movement, which forward staging gives way to on a
+    stepped move, forward staging on, and a pillbox on main's way to the enemy."""
 
     def pillbox(game: FakeRedAlert) -> None:
         game.place_enemy("pbox", *STAGING_PILLBOX_CELL, visible=True)
 
-    return play_whole_match(Tuning(), scenario=[at_seconds(60, pillbox)])
+    return play_whole_match(stepping_off(), scenario=[at_seconds(60, pillbox)])
 
 
 def test_forward_staging_a_whole_fake_match_with_the_shipped_tuning_runs_without_an_error_or_a_refused_batch_in_budget(
     staging_match,
 ):
-    assert staging_match.agent.ctx.tuning == Tuning() and staging_match.agent.ctx.tuning.combat.forward_staging
+    assert staging_match.agent.ctx.tuning == stepping_off() and staging_match.agent.ctx.tuning.combat.forward_staging
     assert len(staging_match.compute_ms) == WHOLE_MATCH_STEPS and staging_match.data_of("error") == []
     assert staging_match.run.invalid_actions == 0 and staging_match.game.invalid_actions == 0
     assert staging_match.compute_p95_ms <= COMPUTE_P95_MS
@@ -3455,3 +3539,268 @@ def test_repair_near_the_mechanic_a_repairing_tank_goes_to_does_not_trail_main_u
     assert entering == [{"cmd": "move", "units": [601], "to": [38, 49]}]
     assert all(600 not in order["units"] for order in healing) and in_repair == frozenset({REPAIR_TANK})
     assert manager.repairing == frozenset() and any(600 in order["units"] for order in healed)
+
+
+# -- the rally covering the expansions -------------------------------------------------------------------------------
+
+COVER_RALLY = Tuning(combat=CombatTuning(expansion_cover_rally=True))
+# The cover tests' line: from the base at (20, 50) east to the enemy's start at (100, 50); halfway is 40 cells out.
+COVER_BASE, COVER_ENEMY = (20, 50), (100, 50)
+# The main yard, its middle (19, 50) by the base's center.
+COVER_MAIN_YARD = ("fact", 19, 49)
+
+
+def yard_at(middle: tuple[int, int]) -> tuple[str, int, int]:
+    """A construction yard whose middle cell is `middle`."""
+    return "fact", middle[0], middle[1] - 1
+
+
+def cover_world(*middles: tuple[int, int], enemy_buildings=()) -> World:
+    """The world of an Allied base with the main yard and expansion yards whose middles are given, on the line from
+    COVER_BASE to COVER_ENEMY."""
+    world = World(tracked_items())
+    yards = [yard_at(middle) for middle in middles]
+    world.update(base_state("england", COVER_MAIN_YARD, *yards, visible_enemy_buildings=list(enemy_buildings)))
+    world.base_center, world.enemy_base = COVER_BASE, COVER_ENEMY
+    return world
+
+
+def depth(cell: tuple[int, int]) -> float:
+    """How far along the cover tests' line a cell lies."""
+    return cell[0] - COVER_BASE[0]
+
+
+def test_cover_point_ahead_of_expansion_on_line():
+    world = cover_world((36, 56))
+
+    point = cover_point(world, COVER_RALLY)
+
+    # The yard's depth 16 and 6 cells more.
+    assert point == (42, 50) and math.dist(point, (36, 56)) <= 18
+
+
+def test_cover_point_pulled_back_out_of_defense_reach():
+    pillbox = foe(600, "pbox", 50, 50)
+    world = cover_world((36, 56), enemy_buildings=[pillbox])
+
+    point = cover_point(world, COVER_RALLY)
+
+    # A pillbox shoots 6 cells; with the margin of 4 the point stands back from (42, 50).
+    assert point[1] == 50 and point[0] < 42 and math.dist(point, (50, 50)) > 6 + 4
+    assert not is_covered(point, world.known_enemy_defenses, world.items, replace(Tuning().coverage, margin_cells=4))
+    assert math.dist(point, (36, 56)) <= 18
+
+
+def test_cover_point_within_reach_of_every_expansion():
+    world = cover_world((30, 40), (40, 50))
+
+    point = cover_point(world, COVER_RALLY)
+
+    # 26 cells out, (46, 50) lies 18.9 cells from (30, 40): the point steps back to the first cell within 18 of both.
+    assert point[1] == 50 and 44 <= point[0] <= 45
+    assert all(math.dist(point, middle) <= 18 for middle in ((30, 40), (40, 50)))
+
+
+def test_cover_point_fallback_far_apart_expansions():
+    world = cover_world((25, 25), (40, 75))
+
+    point = cover_point(world, COVER_RALLY)
+
+    # No cell of the line lies within 18 of both: 6 cells from the farther-forward yard toward the enemy's start.
+    assert math.dist((25, 25), (40, 75)) > 50
+    assert point == cells.toward((40, 75), COVER_ENEMY, 6)
+
+
+def test_never_past_halfway():
+    world = cover_world((58, 50))
+
+    point = cover_point(world, COVER_RALLY)
+
+    assert point == (60, 50) and depth(point) <= 40
+
+
+def test_cover_point_none_without_expansion_or_switch_off():
+    assert cover_point(cover_world(), COVER_RALLY) is None
+
+
+# In the agent's state, the base at (22, 48) and the enemy's start at (74, 48): an expansion yard whose middle is
+# (35, 52), 13 cells out, and the cover point 6 cells beyond it on the line.
+EXPANSION = yard_at((35, 52))
+COVER = (41, 48)
+
+
+def worth_800(x: int = 32, y: int = 48) -> list[dict]:
+    """A jeep and a rocket soldier, 800 in a fight together, at a cell and beside it."""
+    return [own(320, "jeep", x, y), own(321, "e3", x + 1, y)]
+
+
+def cover_at(tick: int, units=(), enemies=(), *more_buildings) -> dict:
+    """A state of an Allied base with the expansion yard and the buildings given, at that tick, with these own units
+    and these enemies in sight."""
+    shown = {"units": list(units), "visible_enemies": list(enemies)}
+    return base_state("england", YARD, EXPANSION, *more_buildings, tick=tick, **shown)
+
+
+@pytest.mark.parametrize("plan", ["HOLD", "RAID"])
+def test_cover_rally_main_gathers_at_the_cover_point_whatever_its_strength(plan, match_record):
+    agent, _ = hold_agent(plan=plan, tuning=COVER_RALLY)
+
+    sent = ask(agent, cover_at(1000, worth_800()))
+
+    assert agent.ctx.gather_point == COVER and moved_to(sent, COVER) == {320, 321}
+    assert match_record("hold_position") == [
+        {"tick": 1000, "cell": list(COVER), "reason": "cover_expansions", "strength": 800}
+    ]
+
+
+def test_cover_rally_under_opening_waits_for_the_war_factory():
+    agent, _ = hold_agent(plan="OPENING", tuning=COVER_RALLY)
+
+    ask(agent, cover_at(1000, worth_800()))
+    without = agent.ctx.gather_point
+    ask(agent, cover_at(1005, worth_800(), (), ("weap", 15, 48)))
+
+    assert (without, agent.ctx.gather_point) == (None, COVER)
+
+
+def test_no_expansion_rally_unchanged(match_record):
+    agent, _ = hold_agent(tuning=COVER_RALLY)
+
+    sent = ask(agent, at(1000, worth_2000(43, 48)))
+
+    assert sent == [{"cmd": "move", "units": [300, 301, 302], "to": STAGING}] and agent.ctx.gather_point is None
+    assert match_record("hold_position") == []
+
+
+def test_attack_plans_unchanged():
+    agent, _ = hold_agent(plan="PRESS", tuning=COVER_RALLY)
+
+    sent = ask(agent, cover_at(1000, worth_800()))
+
+    assert agent.ctx.gather_point is None and moved_to(sent, COVER) == set()
+
+
+def test_switch_off_rally_as_before(match_record):
+    agent, _ = hold_agent(tuning=Tuning(combat=CombatTuning(expansion_cover_rally=False)))
+
+    sent = ask(agent, cover_at(1000, worth_800()))
+
+    assert agent.ctx.gather_point is None and moved_to(sent, COVER) == set()
+    assert match_record("hold_position") == []
+
+
+# -- reinforcements held home while main is away (reinforce_hold_home) -------------------------------------------------
+
+# main of six medium tanks gone forward 45 cells east of the staging point.
+AWAY_MAIN = [own(300 + n, "2tnk", 76 + n % 3, 47 + n // 3) for n in range(6)]
+AT_STAGING = [own(300 + n, "2tnk", 31 + n % 3, 47 + n // 3) for n in range(6)]
+# Main back 23 cells from the staging point.
+BACK_MAIN = [own(300 + n, "2tnk", 54 + n % 3, 47 + n // 3) for n in range(6)]
+
+
+# The hold on, which ships off.
+HOLD_ON = Tuning(combat=CombatTuning(reinforce_hold_home=True))
+
+
+def held_home_agent(tuning: Tuning | None = None):
+    """A combat agent whose main of six medium tanks went forward from the staging point at tick 1000, the hold on."""
+    manager = CombatManager()
+    agent = situations.new_agent(manager, tuning=tuning or stepping_off(screen_place_off(HOLD_ON)))
+    agent.ctx.min_attack_strength = lambda plan: 3000
+    ask(agent, at(1000, AT_STAGING))
+    assert agent.ctx.army == frozenset(range(300, 306))
+    return agent, manager
+
+
+def new_tanks(count: int, first: int = 400) -> list[dict]:
+    """Medium tanks made at the staging point (850 each), numbered from `first`."""
+    return [own(first + n, "2tnk", 32 + n % 2, 48 + n // 2) for n in range(count)]
+
+
+def test_reinforce_hold_held_while_away_two_tanks_get_no_order_toward_main_for_60_s(match_record):
+    agent, _ = held_home_agent()
+    made = new_tanks(2)
+
+    cycles = [ask(agent, at(1005 + 25 * n, [*AWAY_MAIN, *made])) for n in range(61)]
+
+    sent = [order for orders in cycles for order in naming(orders, {400, 401})]
+    assert all(math.dist(order["to"], STAGING) <= 6 for order in sent)
+    assert not {400, 401} & agent.ctx.army
+    (held,) = [data for data in match_record("combat") if data["reason"] == "reinforce"]
+    assert (held["phase"], held["count"], held["distance"]) == ("held", 2, 45.0)
+
+
+def test_reinforce_hold_group_of_own_sets_out_together_by_steps_with_a_sent_event(match_record):
+    agent, _ = held_home_agent(screen_place_off(HOLD_ON))
+    made = [own(400 + n, "2tnk", x, y) for n, (x, y) in enumerate([(31, 48), (33, 48), (32, 47), (32, 49)])]
+
+    orders = ask(agent, at(1005, [*AWAY_MAIN, *made]))
+
+    (going,) = naming(orders, {400, 401, 402, 403})
+    assert sorted(going["units"]) == [400, 401, 402, 403] and 9 <= math.dist(going["to"], STAGING) <= 11
+    assert going["to"][0] > STAGING[0]
+    sent = [data for data in match_record("combat") if data["reason"] == "reinforce" and data["phase"] == "sent"]
+    assert [(data["count"], data["value"]) for data in sent] == [(4, 3400)]
+
+
+def test_reinforce_hold_a_group_that_reached_main_joins_it():
+    agent, _ = held_home_agent()
+    ask(agent, at(1005, [*AWAY_MAIN, *new_tanks(4)]))
+    arrived = [own(400 + n, "2tnk", 75, 46 + n) for n in range(4)]
+
+    ask(agent, at(1010, [*AWAY_MAIN, *arrived]))
+
+    assert {400, 401, 402, 403} <= agent.ctx.army
+
+
+def test_reinforce_hold_army_back_within_25_cells_the_held_tanks_join_by_today_s_rule():
+    agent, _ = held_home_agent()
+    ask(agent, at(1005, [*AWAY_MAIN, *new_tanks(2)]))
+
+    orders = ask(agent, at(1010, [*BACK_MAIN, *new_tanks(2)]))
+
+    # 1,700 together, over reinforcement_strength: both attack-move to main's centroid as one group.
+    assert naming(orders, {400, 401}) == [{"cmd": "attack_move", "units": [400, 401], "to": [55, 48]}]
+
+
+def test_reinforce_hold_staging_joiners_held_with_the_staging_cell_40_cells_away():
+    far_pillbox = foe(600, "pbox", 81, 48)
+    agent, _ = strong_main(tuning=Tuning(combat=CombatTuning(vehicle_repair=False, reinforce_hold_home=True)))
+    ask(agent, at(1000, five_tanks(5), buildings=[far_pillbox]))
+    at_far_cell = [own(300 + number, "1tnk", 71 + number % 2, 47 + number // 2) for number in range(5)]
+    ask(agent, at(1005, at_far_cell, buildings=[far_pillbox]))
+    # A light tank, a rocket soldier and two rifles: 1,200 together.
+    joiners = [own(400, "1tnk", 32, 48), own(401, "e3", 33, 48), own(402, "e1", 32, 49), own(403, "e1", 33, 49)]
+
+    cycles = [ask(agent, at(tick, [*at_far_cell, *joiners], buildings=[far_pillbox])) for tick in (1010, 1765, 1800)]
+
+    sent = [order for orders in cycles for order in naming(orders, {400, 401, 402, 403})]
+    assert all(order["cmd"] != "attack_move" and math.dist(order["to"], STAGING) <= 6 for order in sent)
+
+
+def test_reinforce_hold_switch_off_the_two_tanks_go_after_main_at_once():
+    agent, _ = held_home_agent(stepping_off(SWITCHES_OFF))
+
+    orders = ask(agent, at(1005, [*AWAY_MAIN, *new_tanks(2)]))
+
+    assert naming(orders, {400, 401}) == [{"cmd": "attack_move", "units": [400, 401], "to": [77, 48]}]
+
+
+def test_reinforce_hold_home_point_is_the_forward_gather_point_while_one_is_published():
+    hold = reinforce_hold.HomeHold()
+    world = seen(World(tracked_items()), 1000, units=new_tanks(2))
+    joining = list(world.combat_units.values())
+
+    verdict = hold.follow(joining, (90.0, 40.0), reinforce_hold.home_point((50, 40), (32, 48)), world, HOLD_ON)
+
+    assert reinforce_hold.home_point(None, (32, 48)) == (32, 48)
+    assert verdict.held == joining and verdict.group == [] and verdict.target == (90, 40)
+    assert hold.follow(joining, (60.0, 40.0), (50, 40), world, HOLD_ON) is None
+
+
+def test_reinforce_hold_keys_ship_off_and_the_tracked_file_holds_the_built_in_values():
+    combat = CombatTuning()
+    keys = (combat.reinforce_hold_home, combat.reinforce_away_cells, combat.reinforce_group_min_value)
+
+    assert keys == (False, 30, 3000)
+    assert Tuning.from_file(REPO_ROOT).combat == combat and not SWITCHES_OFF.combat.reinforce_hold_home

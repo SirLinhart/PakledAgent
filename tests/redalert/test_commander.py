@@ -19,7 +19,8 @@ import situations
 import whole_match
 from fake_game import FakeRedAlert, at_seconds
 from local_chain import build_local_chain
-from situations import ask, base_state, new_agent
+from situations import ask, base_state
+from switches_off import APPROACH_OFF, reinforce_hold_off, safe_staging_off, screen_place_off, stepping_off
 from ucla_agent.core.config import ConfigError
 from ucla_agent.core.decide import TIMEOUT, USED, ChainSource, ChoiceResult, local
 from ucla_agent.core.decide import journal
@@ -52,6 +53,7 @@ from ucla_agent.games.redalert.command_threat import ClosingWatch
 from ucla_agent.games.redalert.commander import Commander, TaskPick
 from ucla_agent.games.redalert.compact_prompt import prompt_chars
 from ucla_agent.games.redalert.exposed_trucks import ExposedTrucks
+from ucla_agent.games.redalert.failed_attack import FailedAttack
 from ucla_agent.games.redalert.glossary import Glossary
 from ucla_agent.games.redalert.groups import MAIN
 from ucla_agent.games.redalert.ledger import LedgerEntry
@@ -64,16 +66,32 @@ from ucla_agent.games.redalert.terrain import OrePatch, Terrain
 from ucla_agent.games.redalert.tuning import TUNING_FILE, CommanderTuning, RoutingTuning, ScoutingTuning, Tuning
 from ucla_agent.games.redalert.world import Unit
 
+
+def new_agent(*managers, tuning: Tuning | None = None, **more):
+    """`situations.new_agent` with main's stepped movement, the screened place of the long-range units, the safe
+    staging and the commander's continue option off, as these tests were worked out."""
+    given = safe_staging_off(screen_place_off(stepping_off(tuning)))
+    commander = dataclasses.replace(given.commander, continue_option=False)
+    return situations.new_agent(*managers, tuning=dataclasses.replace(given, commander=commander), **more)
+
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 # The fake arena's two starts, ours by the base at (22, 48).
 TWO_STARTS = {"rules": {"maps": {"fake-arena": {"bounds": [0, 0, 96, 96], "spawns": [[22, 48], [74, 48]]}}}}
 # The scout slots and their missions on, the wide berth off: a danger reaches a unit's range and 3 cells; and the
 # careful scouts off, so that a seen enemy building is no danger and the enemy main's edge stays where it is. The rush
 # scout's pass and post off, which keep the first slot's scout from the commander for the first 300 s.
+# The watch posts as the scout question's tests were worked out on: the main's edge at its edge cell (see
+# test_watch_posts for the posts in sight).
 SCOUTING = dataclasses.replace(
     Tuning(),
     scouting=ScoutingTuning(
-        scout_slots=True, scout_missions=True, scout_wide_berth=False, scout_cautious=False, rush_scout_direct=False
+        scout_slots=True,
+        scout_missions=True,
+        scout_wide_berth=False,
+        scout_cautious=False,
+        rush_scout_direct=False,
+        watch_posts_in_sight=False,
     ),
 )
 YARD, POWER, BARRACKS = ("fact", 22, 48), ("powr", 19, 52), ("tent", 18, 44)
@@ -120,7 +138,8 @@ def test_commander_settings_the_switch_ships_on_is_off_built_in_and_the_table_ho
         ),
         ("attack_min_army_share = 0.5\n", "", "attack_min_army_share in [commander]"),
         ("attack_min_army_share = 0.5", "attack_min_army_share = -0.5", "attack_min_army_share in [commander]"),
-        ("resume_ratio = 1.2\n", "", "resume_ratio in [commander]"),
+        # [combat] has a met_resume_ratio of 1.2: the line of [commander] is the one that starts with the key.
+        ("\nresume_ratio = 1.2\n", "\n", "resume_ratio in [commander]"),
         ("target_reach_cells = 20\n", "", "target_reach_cells in [commander]"),
         ("target_group_cells = 4", "target_group_cells = 4.5", "target_group_cells in [commander]"),
         ("targets_max = 4", "targets_max = -1", "targets_max in [commander]"),
@@ -333,7 +352,8 @@ def test_scout_prompt_the_lines_say_the_clock_the_bases_the_scout_the_dangers_an
     lines = scout_scene(scout=(50, 40), picks=FOUR_PICKS, confirmed=True, **busy).lines
 
     bases = lines.index("our_base=(22,48) enemy_base=(74,48) confirmed")
-    assert lines[bases + 1] == "scout=jeep hp=100% at (50,40) sight=6"
+    # The jeep's own sight, 7 cells, as the item table gives it (sight_by_type).
+    assert lines[bases + 1] == "scout=jeep hp=100% at (50,40) sight=7"
     assert lines[bases + 2].startswith("danger_now: 2 e1 at (56,36) dist=7 (range 5)")
     assert lines[bases + 3].startswith("known_defense: pbox (66,44) range 6")
     intel = lines[bases + 4]
@@ -1845,7 +1865,12 @@ class Commanding:
 SIX_UNITS = tanks(6, 30, 47, unit_type="2tnk")
 
 
-def commanding(tuning: CommanderTuning = CommanderTuning()) -> Commanding:
+# The commander these tests were worked out on: no continue option, a scout pick kept commit_seconds like any other,
+# and no script fallback for the stub chooser's silence.
+LEGACY_SCOUT = CommanderTuning(continue_option=False, scout_commit=False, script_fallback=False)
+
+
+def commanding(tuning: CommanderTuning = LEGACY_SCOUT) -> Commanding:
     """A commander over a stub chooser, before its first cycle, with a scout's question to ask."""
     chooser = AnsweringChooser()
     agent = new_agent(tuning=SCOUTING)
@@ -1966,7 +1991,7 @@ def test_commander_core_after_the_handover_an_answer_to_the_scout_s_question_is_
 
 def test_commander_core_the_last_4_picks_are_kept_the_oldest_dropped_first():
     # A pick is kept against no answer: each of these answers is taken.
-    scene = commanding(CommanderTuning(commit_seconds=0))
+    scene = commanding(CommanderTuning(commit_seconds=0, scout_commit=False))
     tick = 1000
     letters = [scene.question.actions[index].id for index in (0, 1, 2, 0, 1)]
     for letter in letters:
@@ -2107,8 +2132,9 @@ def test_scout_control_with_the_rush_scout_on_the_commander_steers_the_second_sl
     monkeypatch,
 ):
     batches = recorded_batches(monkeypatch)
-    rush_scout = dataclasses.replace(SCOUTING, scouting=dataclasses.replace(SCOUTING.scouting, rush_scout_direct=True))
-    scene = scout_command(rush_scout)
+    # The pass straight at the enemy's start, not the infantry run's entry leg (see test_scout_run_through).
+    scouting = dataclasses.replace(SCOUTING.scouting, rush_scout_direct=True, infantry_scout_run_through=False)
+    scene = scout_command(dataclasses.replace(SCOUTING, scouting=scouting))
     scene.cycle(1000)
     scene.answer_second()
 
@@ -3113,10 +3139,20 @@ class GatedMain:
         self.chooser.answer(next(option.id for option in options if VERBS[option.description.split()[0]] == kind))
 
 
-def gated_main(*, peak: command_army.EnemyPeak | None = None, exposed_trucks=(), tuning: Tuning = ARMY) -> GatedMain:
+# The stub chooser answers only when a test says: no script fallback for its silence but in the tests of the fallback.
+SILENT_STUB = CommanderTuning(script_fallback=False)
+
+
+def gated_main(
+    *,
+    peak: command_army.EnemyPeak | None = None,
+    exposed_trucks=(),
+    tuning: Tuning = ARMY,
+    commanding: CommanderTuning | None = None,
+) -> GatedMain:
     chooser = AnsweringChooser()
     agent = new_agent(CombatManager(), tuning=tuning, plan_selector=FixedPlan("PRESS"))
-    commander = Commander(chooser, CommanderTuning(), NAMES)
+    commander = Commander(chooser, commanding or SILENT_STUB, NAMES)
     commander.role = "main"
     commander.peak = peak or command_army.EnemyPeak()
     agent.ctx.commander = commander
@@ -3413,6 +3449,42 @@ def test_no_home_regroup_the_gate_closes_for_a_regroup_once_main_as_a_whole_fall
     assert (near.is_open, near.reason, near.measure.value) == (False, "regroup", 3695)
 
 
+@pytest.mark.parametrize("capped, opens", [(True, True), (False, False)], ids=["on", "off"])
+def test_gate_capped_estimate_an_estimate_grown_to_6850_with_1200_seen_lets_main_of_4750_through(capped, opens):
+    # Four rocket soldiers in sight, 1,200: the estimate held to 1.5 times that, 1,800, against the 6,850 grown unseen.
+    rockets = [{"id": 700 + n, "type": "e3", "x": 60, "y": 40 + n, "hp": 100} for n in range(4)]
+    scene = army_scene(tanks(2), visible_enemies=rockets)
+    world, ctx = scene.agent.world, scene.agent.ctx
+    ctx.enemy_army_estimate = 6850.0
+    tuning = CommanderTuning(gate_capped_estimate=capped)
+    main = [own(1, "4tnk", 40), own(2, "4tnk", 41), own(3, "2tnk", 42)]
+
+    enemy = Commander(None, tuning)._gate_estimate(6850, False, world, ctx)
+    change = command_gate.ForwardGate().follow(command_gate.measure(main, enemy, False, world, ctx), False, tuning)
+
+    assert enemy == (1800 if capped else 6850)
+    assert (change is not None and change.is_open) is opens
+
+
+@pytest.mark.parametrize("counts_away, expected", [(True, None), (False, "regroup")], ids=["on", "off"])
+def test_gate_counts_away_main_s_units_out_on_a_detachment_are_no_value_lost(counts_away, expected):
+    # The gate opened on the front and the heavy tanks, 20,057; the heavy tanks then left on a detachment.
+    scene = army_scene(tanks(2))
+    world, ctx = scene.agent.world, scene.agent.ctx
+    tuning = CommanderTuning(gate_counts_away=counts_away)
+    gate, commander = command_gate.ForwardGate(), Commander(None, tuning)
+    opening = gate.split([*WINNING_FRONT, *WINNING_SPENT], 1000)
+    gate.follow(command_gate.measure(opening, 4750, False, world, ctx), False, tuning)
+    world.combat_units.update({unit.id: unit for unit in WINNING_SPENT})
+    away = frozenset(unit.id for unit in WINNING_SPENT)
+    front = gate.split(WINNING_FRONT, 1005, away)
+
+    counted = commander._counted(gate.joining_near(), away, world)
+    change = gate.follow(command_gate.measure(front, 4750, False, world, ctx, counted), False, tuning)
+
+    assert (None if change is None else change.reason) == expected
+
+
 def test_no_home_regroup_the_gate_keeps_its_body_share_test_and_whole_main_over_0_8_of_the_estimate_stays_open():
     scene = army_scene(tanks(2))
     world, ctx = scene.agent.world, scene.agent.ctx
@@ -3577,6 +3649,27 @@ def overridden(match_record) -> list[tuple]:
     ]
 
 
+@pytest.mark.parametrize(
+    "force, offered",
+    [(5000, ["gather", "flank"]), (3000, ["gather", "flank", "advance"])],
+    ids=["the same force", "1.5x the failed force"],
+)
+def test_failed_attack_memory_an_advance_on_the_start_main_failed_at_is_not_offered_but_its_flank_is(
+    match_record, force, offered
+):
+    scene = opened_gate()
+    scene.chooser.answer(None, TIMEOUT)
+    # main of 5,000 failed on the enemy start; the combat manager publishes its memory at the end of each cycle.
+    for tick in (1005, 1010):
+        scene.agent.ctx.failed_attacks = (FailedAttack((74, 48), force, 1000, "direct", 1000, frozenset()),)
+        scene.cycle(tick, FIVE_THOUSAND)
+
+    assert scene.offered() == offered
+    blocked = [event for event in match_record("combat") if event["reason"] == "attack_blocked_failed"]
+    expected = [("advance", "failed_here")] if force == 5000 else []
+    assert [(event["user"], event["why"]) for event in blocked] == expected
+
+
 def test_retreat_override_a_fight_at_0_5_for_25_ticks_moves_main_to_the_staging_point_through_the_commander_slot(
     monkeypatch, match_record
 ):
@@ -3717,11 +3810,13 @@ def test_retreat_override_the_army_request_s_system_text_values_regrouping():
 AWAY = command_prompt.Situation((0, 0), False)
 
 
-def picked_then_answered(answer_tick: int, index: int = 2, situation=AWAY, offered=None) -> Commanding:
+def picked_then_answered(
+    answer_tick: int, index: int = 2, situation=AWAY, offered=None, tuning: CommanderTuning = LEGACY_SCOUT
+) -> Commanding:
     """The scout's second action picked at tick 1005, then a question asked 20 ticks before `answer_tick` and answered
     at `answer_tick` with the letter of its action at `index`, taken against the actions offered in the situation
     given."""
-    scene = commanding()
+    scene = commanding(tuning)
     letter = scene.question.actions[index].id
     scene.cycle(1000, situation=AWAY)
     scene.chooser.answer(scene.question.actions[1].id)
@@ -3759,6 +3854,34 @@ def test_commitment_the_same_answer_8_s_after_the_pick_is_carried_out(answer_tic
 
     assert scene.commander.standing == scene.question.actions[2 if taken else 1]
     assert scene.commander.committed_answers == (0 if taken else 1)
+
+
+# The stub chooser is silent between the answers a test gives: no script fallback.
+SCOUT_COMMIT = CommanderTuning(continue_option=False, script_fallback=False)
+
+
+@pytest.mark.parametrize(
+    "answer_tick, taken", [(1205, False), (1504, False), (1505, True)], ids=["8 s", "19.96 s", "20 s"]
+)
+def test_scout_commit_a_scout_pick_with_a_destination_is_kept_20_s_and_told_as_scout_commit(
+    match_record, answer_tick, taken
+):
+    scene = picked_then_answered(answer_tick, tuning=SCOUT_COMMIT)
+
+    assert scene.commander.standing == scene.question.actions[2 if taken else 1]
+    reasons = [event["reason"] for event in match_record("fallback")]
+    assert ("scout_commit" in reasons) is (not taken)
+
+
+def test_scout_commit_an_answer_naming_a_back_off_is_carried_out_at_once():
+    actions = commanding().question.actions
+    backing_off = tuple(
+        dataclasses.replace(action, kind="back_off") if action == actions[2] else action for action in actions
+    )
+
+    scene = picked_then_answered(1080, offered=backing_off, tuning=SCOUT_COMMIT)
+
+    assert scene.commander.standing.kind == "back_off"
 
 
 def test_commitment_an_answer_3_s_after_a_pick_is_carried_out_once_the_scout_is_within_3_cells_of_its_destination():
@@ -4492,10 +4615,18 @@ def task_events(match_record, kind: str) -> list[dict]:
     return [event for event in commander_events(match_record) if event["kind"] == kind]
 
 
-def detached_main(units: list[dict], kind: str, *, tick: int = 1000, tuning: Tuning = ARMY, **observation) -> GatedMain:
+def detached_main(
+    units: list[dict],
+    kind: str,
+    *,
+    tick: int = 1000,
+    tuning: Tuning = ARMY,
+    commanding: CommanderTuning | None = None,
+    **observation,
+) -> GatedMain:
     """main of these units commanded, its question asked at `tick` and answered with its option of a task kind, which
     the cycle 5 ticks later takes: a detachment is out."""
-    scene = gated_main(tuning=tuning)
+    scene = gated_main(tuning=tuning, commanding=commanding)
     scene.cycle(tick, units, **observation)
     scene.answer(kind)
     scene.cycle(tick + 5, units, **observation)
@@ -4634,6 +4765,26 @@ def test_task_detachment_the_retreat_override_moves_the_detachment_with_main_to_
     assert [(end["task"], end["reason"]) for end in task_events(match_record, "task_end")] == [
         ("kill_defense", "pulled_back")
     ]
+
+
+# Four medium tanks west of main's V2 launchers: those alone weigh 0.83 against them, with the rocket soldiers out on
+# the hit 1.21.
+WEST_MEDIUM = [enemy(700 + n, "2tnk", 35 + n % 3, 45 + n // 3) for n in range(4)]
+
+
+@pytest.mark.parametrize("counts, pulled_back", [(True, False), (False, True)], ids=["switch on", "switch off"])
+def test_override_counts_detachments_main_left_light_by_a_hit_is_weighed_with_it_and_not_pulled_back(
+    match_record, counts, pulled_back
+):
+    commanding = dataclasses.replace(CommanderTuning(), override_counts_detachments=counts)
+    scene = detached_main(L_MAIN, "hit_group", commanding=commanding, visible_enemies=HALF_LIGHT)
+
+    for tick in range(1010, 1065, 5):
+        scene.cycle(tick, L_MAIN, visible_enemies=[*HALF_LIGHT, *WEST_MEDIUM])
+
+    assert scene.commander.retreat.is_active is pulled_back
+    ended = [(end["task"], end["reason"]) for end in task_events(match_record, "task_end")]
+    assert ended == ([("hit_group", "pulled_back")] if pulled_back else [])
 
 
 def wrecked(enemies: list[dict]) -> list[dict]:
@@ -5094,11 +5245,81 @@ def test_regroup_gather_ends_when_another_picked_action_is_carried_out_or_the_ga
     picked.answer("attack")
     picked.cycle(1020, deep_tanks(80), **seen)
     opened, _ = regrouped()
+    # The counterattack off: with it, main gathered at staging in the regroup would strike out instead.
+    ctx = opened.agent.ctx
+    ctx.tuning = dataclasses.replace(ctx.tuning, combat=dataclasses.replace(ctx.tuning.combat, counterattack=False))
     # The four tanks back by the staging point with four more: 8,280, all of it gathered.
     opened.cycle(1010, [*tanks(4, 33, 46, hp=80), *EIGHT_HOME[4:]])
 
     assert (picked.commander.standing.kind, picked.commander.is_regrouping) == ("attack", False)
     assert (opened.commander.gate.is_open, opened.commander.is_regrouping) == (True, False)
+
+
+def test_regroup_gather_over_at_staging_main_ahead_counterattacks_the_enemy_yard_no_defense_reaches(match_record):
+    scene, _ = regrouped()
+
+    # The four tanks back by the staging point with four more, 8,280, against two rifles seen: the regroup is over.
+    orders = scene.cycle(1010, [*tanks(4, 33, 46, hp=80), *EIGHT_HOME[4:]])
+
+    (manager,) = [manager for manager in scene.agent.managers if isinstance(manager, CombatManager)]
+    counter = [data for data in match_record("combat") if data["reason"] == "counterattack"]
+    assert manager._strike.target_id == 640 and [data["phase"] for data in counter] == ["start", "due"]
+    assert counter[1]["why"] == "regrouped"
+    assert [order for order in orders if order["cmd"] == "attack_move" and order["to"] == [74, 48]]
+
+
+def silent_main(script_fallback: bool = True) -> GatedMain:
+    """main's gate opened on EIGHT_HOME at tick 1000 under PRESS, the enemy yard known, and the model silent since."""
+    scene = gated_main(commanding=CommanderTuning(script_fallback=script_fallback))
+    scene.cycle(1000, EIGHT_HOME, visible_enemy_buildings=[ENEMY_YARD])
+    assert scene.commander.gate.is_open
+    return scene
+
+
+def test_script_fallback_after_8_s_without_a_model_answer_main_takes_a_forward_action_by_script(match_record):
+    scene = silent_main()
+    scene.cycle(1000 + 8 * 25 - 5, EIGHT_HOME)
+    before = (scene.commander.is_scripted, scene.commander.standing.kind)
+
+    scene.cycle(1000 + 8 * 25, EIGHT_HOME)
+
+    commander = scene.commander
+    assert before == (False, "gather")
+    assert commander.is_scripted and commander.standing.kind in ("attack_expansion", "advance", "attack")
+    events = [event for event in commander_events(match_record) if event["kind"] in ("script_fallback", "action")]
+    assert events[0] == {"kind": "script_fallback", "phase": "start", "role": "main", "tick": 1200}
+    assert events[1]["source"] == "script"
+
+
+def test_script_fallback_a_model_answer_used_ends_it(match_record):
+    scene = silent_main()
+    scene.cycle(1200, EIGHT_HOME)
+    # The answer to the question of tick 1000 is too old to be carried out, but the model is heard from again.
+    scene.answer("gather")
+
+    scene.cycle(1205, EIGHT_HOME)
+
+    assert scene.commander.is_scripted is False
+    phases = [event["phase"] for event in commander_events(match_record) if event["kind"] == "script_fallback"]
+    assert phases == ["start", "end"]
+
+
+def test_script_fallback_with_the_switch_off_main_keeps_its_gather():
+    scene = silent_main(script_fallback=False)
+
+    scene.cycle(1200, EIGHT_HOME)
+
+    assert (scene.commander.is_scripted, scene.commander.standing.kind) == (False, "gather")
+
+
+def test_script_fallback_under_hold_the_script_picks_gather_or_hold():
+    hold = gated_main(commanding=CommanderTuning())
+    hold.agent._plan_selector = FixedPlan("HOLD")
+    hold.cycle(1000, EIGHT_HOME, visible_enemy_buildings=[ENEMY_YARD])
+
+    hold.cycle(1200, EIGHT_HOME)
+
+    assert hold.commander.is_scripted and hold.commander.standing.kind in ("gather", "hold")
 
 
 # -- a whole match with the task options answered ------------------------------------------------------------------
@@ -5129,6 +5350,12 @@ TARGETS_AT_SECONDS = 300
 RIFLE_BLOCK = [(dx, dy) for dy in range(3) for dx in range(3) if (dx, dy) != (1, 1)]
 
 
+def three_guard_rifles(tuning: Tuning) -> Tuning:
+    """A tuning with the lean opening's guard of three rifles, the economy the task match's targets were placed for:
+    with one rifle main meets no hit group in it."""
+    return dataclasses.replace(tuning, opening=dataclasses.replace(tuning.opening, lean_guard_rifles=3))
+
+
 def task_targets(game: FakeRedAlert) -> None:
     for n in range(4):
         game.place_enemy("1tnk", 46, 46 + n, hp=50, visible=True)
@@ -5140,14 +5367,21 @@ def task_targets(game: FakeRedAlert) -> None:
 
 @pytest.fixture(scope="module")
 def tasked_match() -> CommandedMatch:
-    """One whole 20-minute fake match for the Allied start with the shipped tuning, the model commander on, the
-    targets of TARGETS_AT_SECONDS placed, and the stand-in model answering the first task option whenever one is
-    offered."""
+    """One whole 20-minute fake match for the Allied start with the shipped tuning but the reinforcements held home
+    (with which main meets no group to hit in this match), the attack's approach and the commit when the armies cross
+    and the military recovery (the match these task options were worked out on), the model commander on, the targets
+    of TARGETS_AT_SECONDS placed, and the stand-in model answering the first task option whenever one is offered."""
     model = TaskFirstModel()
     scenario = [at_seconds(TARGETS_AT_SECONDS, task_targets)]
+    shipped = Tuning()
+    tuning = dataclasses.replace(
+        shipped,
+        combat=dataclasses.replace(shipped.combat, **APPROACH_OFF),
+        upkeep=dataclasses.replace(shipped.upkeep, military_recovery=False),
+    )
     with pytest.MonkeyPatch.context() as patch:
         patch.setattr(situations, "own_agent", functools.partial(_commanded_agent, model))
-        played = whole_match.play_whole_match(Tuning(), scenario=scenario)
+        played = whole_match.play_whole_match(reinforce_hold_off(three_guard_rifles(tuning)), scenario=scenario)
     return CommandedMatch(played, model)
 
 
@@ -5286,3 +5520,192 @@ def test_forward_staging_joining_units_worth_1000_at_the_staging_cell_go_on_toge
 
     assert naming(alone, {500}) == []
     assert naming(together, {500, 501}) == [("attack_move", [500, 501], [43, 46])]
+
+
+# -- step commit: the commander's picks and the retreat override with main's stepped movement -------------------------
+
+# The shipped stepped movement and step commit on, march_when_clear and vehicle_repair off as in ARMY.
+STEPPED_ARMY = ARMY
+# An enemy war factory 40 cells east of the staging point: the advance's objective, far enough to step.
+FAR_FACTORY = {"visible_enemy_buildings": [enemy(641, "weap", 72, 48)]}
+FIRST_STEP = (42, 48)
+
+
+def stepped_command(monkeypatch, tuning: Tuning = STEPPED_ARMY) -> tuple[MainCommand, CombatManager]:
+    """A commanded main over a stub chooser with the combat manager, its stepped movement as the tuning gives it."""
+    batches = recorded_batches(monkeypatch)
+    chooser = AnsweringChooser()
+    combat = CombatManager()
+    agent = situations.new_agent(
+        combat, tuning=tuning, settings=COMMANDER_ON, commander_chooser=chooser, plan_selector=FixedPlan("HOLD")
+    )
+    return MainCommand(agent, chooser, batches), combat
+
+
+def tanks_near(x: int, y: int, *, idle: bool = True) -> list[dict]:
+    """main's six medium tanks in a block around a cell."""
+    return tanks(6, x - 1, y - 1, unit_type="2tnk", idle=idle)
+
+
+def advancing(monkeypatch, tuning: Tuning = STEPPED_ARMY, **more) -> tuple[MainCommand, CombatManager]:
+    """main picked to advance on the war factory and sent on its first step, at tick 1005."""
+    scene, combat = stepped_command(monkeypatch, tuning)
+    scene.cycle(1000, units=tanks_near(32, 48), **FAR_FACTORY, **more)
+    scene.answer("advance")
+    scene.cycle(1005, units=tanks_near(32, 48), **FAR_FACTORY, **more)
+    return scene, combat
+
+
+def step_orders(batch: list, cell) -> list[dict]:
+    return [intent.order for intent in batch if intent.order.get("to") == list(cell)]
+
+
+def step_events(match_record) -> list[dict]:
+    return [event for event in match_record("combat") if event["reason"] == "step"]
+
+
+def fallbacks(match_record) -> list[str]:
+    return [event["reason"] for event in match_record(journal.FALLBACK_KIND)]
+
+
+def test_step_commit_held_until_release_a_gather_mid_step_waits_for_the_step_s_release(monkeypatch, match_record):
+    scene, combat = advancing(monkeypatch)
+    scene.cycle(1010, units=tanks_near(37, 48, idle=False), **FAR_FACTORY)
+    scene.answer("gather")
+
+    scene.cycle(1015, units=tanks_near(38, 48, idle=False), **FAR_FACTORY)
+    held = scene.agent.ctx.commander.standing.kind
+    scene.cycle(1020, units=tanks_near(*FIRST_STEP), **FAR_FACTORY)
+
+    assert held == "advance" and scene.agent.ctx.commander.standing.kind == "gather"
+    assert "step_commit" in fallbacks(match_record)
+
+
+def test_step_commit_same_destination_keeps_plan_an_answer_naming_the_advance_mid_step_changes_nothing(
+    monkeypatch, match_record
+):
+    scene, combat = advancing(monkeypatch)
+    scene.cycle(1010, units=tanks_near(37, 48, idle=False), **FAR_FACTORY)
+    scene.answer("advance")
+
+    scene.cycle(1015, units=tanks_near(38, 48, idle=False), **FAR_FACTORY)
+
+    move = combat._stepper.move
+    assert (move.index, move.point, move.ordered_tick) == (1, FIRST_STEP, 1005)
+    assert step_orders(scene.batches[-1], FIRST_STEP) == []
+    assert [event["phase"] for event in step_events(match_record)] == ["start"]
+    assert "step_commit" not in fallbacks(match_record)
+
+
+# A heavy tank 18 cells north of the base's center, beyond its alarm radius and far from main: an enemy army closing,
+# which offers hold.
+CLOSING_NORTH = {"visible_enemies": [enemy(701, "3tnk", 22, 30)]}
+
+
+def test_step_commit_hold_at_step_point_a_hold_mid_step_stops_nobody_before_the_release(monkeypatch):
+    scene, combat = advancing(monkeypatch, **CLOSING_NORTH)
+    scene.cycle(1010, units=tanks_near(37, 48, idle=False), **CLOSING_NORTH, **FAR_FACTORY)
+    scene.answer("hold")
+
+    before = scene.cycle(1015, units=tanks_near(38, 48, idle=False), **CLOSING_NORTH, **FAR_FACTORY)
+    held = scene.agent.ctx.commander.standing.kind
+    at_point = scene.cycle(1020, units=tanks_near(*FIRST_STEP), **CLOSING_NORTH, **FAR_FACTORY)
+
+    assert [order for order in before if order["cmd"] == "stop"] == [] and held == "advance"
+    assert scene.agent.ctx.commander.standing.kind == "hold"
+    assert [order for order in at_point if order["cmd"] in ("move", "attack_move")] == []
+
+
+def test_step_commit_override_steps_back_to_the_step_start_and_leaves_the_gate_open(monkeypatch, match_record):
+    scene, combat = advancing(monkeypatch)
+    heavy = {"visible_enemies": [enemy(700 + n, "3tnk", 46 + n % 2, 47 + n // 2) for n in range(8)]}
+    for tick in range(1010, 1045, 5):
+        scene.cycle(tick, units=tanks_near(36, 48, idle=False), **heavy, **FAR_FACTORY)
+
+    (override,) = [event for event in commander_events(match_record) if event["kind"] == "override_retreat"]
+    gates = [event for event in commander_events(match_record) if event["kind"] == "gate"]
+    assert override["step_back"] is True and override["cell"] == [32, 48]
+    assert [gate["open"] for gate in gates] == [True]
+    moved_back = [order for batch in scene.batches for order in step_orders(batch, (32, 48))]
+    assert moved_back and all(order["cmd"] == "move" for order in moved_back)
+
+
+def test_step_commit_off_the_override_sends_main_to_the_staging_point_and_closes_the_gate(monkeypatch, match_record):
+    off = dataclasses.replace(STEPPED_ARMY, commander=dataclasses.replace(STEPPED_ARMY.commander, step_commit=False))
+    scene, combat = advancing(monkeypatch, off)
+    heavy = {"visible_enemies": [enemy(700 + n, "3tnk", 46 + n % 2, 47 + n // 2) for n in range(8)]}
+    for tick in range(1010, 1045, 5):
+        scene.cycle(tick, units=tanks_near(36, 48, idle=False), **heavy, **FAR_FACTORY)
+
+    (override,) = [event for event in commander_events(match_record) if event["kind"] == "override_retreat"]
+    gates = [event for event in commander_events(match_record) if event["kind"] == "gate"]
+    assert "step_back" not in override
+    assert [(gate["open"], gate["reason"]) for gate in gates][:2] == [(True, None), (False, "pulled_back")]
+
+
+def test_step_commit_threat_change_immediate_a_base_threat_mid_step_lets_retreat_home_be_taken_at_once(monkeypatch):
+    scene, combat = advancing(monkeypatch)
+    scene.cycle(1010, units=tanks_near(37, 48, idle=False), **THREAT, **FAR_FACTORY)
+    scene.answer("retreat home")
+
+    scene.cycle(1015, units=tanks_near(38, 48, idle=False), **THREAT, **FAR_FACTORY)
+
+    assert scene.agent.ctx.commander.standing.kind == "retreat_home"
+
+
+def test_step_commit_tuning_ships_on_built_in_and_in_the_tracked_file():
+    assert CommanderTuning().step_commit is True and Tuning.from_file(REPO_ROOT).commander.step_commit is True
+
+
+# -- reinforcements held home while main is away (reinforce_hold_home) -------------------------------------------------
+
+# FIVE_THOUSAND moved 29 cells east: main's centroid (72.2, 46.4), 40 cells from the staging point (32, 48).
+FAR_FIVE_THOUSAND = [{**tank, "x": tank["x"] + 29} for tank in FIVE_THOUSAND]
+# Four light tanks at the staging point, 2,800 together: short of a group of their own.
+LIGHT_SQUAD = [unit(500 + n, "1tnk", 31 + n % 2, 47 + n // 2) for n in range(4)]
+LIGHT_IDS = {tank["id"] for tank in LIGHT_SQUAD}
+
+
+def opened_hold_gate() -> GatedMain:
+    """`opened_gate` with the hold on, which ships off."""
+    on = dataclasses.replace(ARMY, combat=dataclasses.replace(ARMY.combat, reinforce_hold_home=True))
+    scene = gated_main(tuning=on)
+    scene.cycle(1000, FIVE_THOUSAND)
+    assert scene.commander.gate.is_open
+    return scene
+
+
+def combat_of(scene: GatedMain) -> CombatManager:
+    return next(manager for manager in scene.agent.managers if isinstance(manager, CombatManager))
+
+
+def test_reinforce_hold_gate_joiners_four_at_the_staging_point_are_not_sent_to_main_40_cells_away_after_30_s():
+    scene = opened_hold_gate()
+    scene.cycle(1005, [*FAR_FIVE_THOUSAND, *LIGHT_SQUAD])
+
+    cycles = [scene.cycle(tick, [*FAR_FIVE_THOUSAND, *LIGHT_SQUAD]) for tick in (1010, 1760, 1765, 1800)]
+
+    assert not any(command == "attack_move" for orders in cycles for command, _, _ in naming(orders, LIGHT_IDS))
+    assert scene.commander.gate.joiners.ids == LIGHT_IDS
+
+
+def test_reinforce_hold_gate_joiners_gather_at_the_forward_gather_point_while_one_is_published():
+    scene = opened_hold_gate()
+    combat_of(scene)._hold.cell = (40, 40)
+
+    orders = scene.cycle(1005, [*FAR_FIVE_THOUSAND, *LIGHT_SQUAD])
+
+    assert naming(orders, LIGHT_IDS) == [("move", sorted(LIGHT_IDS), [40, 40])]
+
+
+def test_reinforce_hold_gate_joiners_worth_3000_set_out_and_join_main_once_within_6_cells():
+    scene = opened_hold_gate()
+    heavy = [unit(500 + n, "3tnk", 31 + n % 2, 47 + n // 2) for n in range(3)]
+    scene.cycle(1005, [*FAR_FIVE_THOUSAND, *heavy])
+    arrived = [unit(500 + n, "3tnk", 71 + n, 46) for n in range(3)]
+
+    scene.cycle(1010, [*FAR_FIVE_THOUSAND, *arrived])
+    scene.cycle(1015, [*FAR_FIVE_THOUSAND, *arrived])
+
+    # 3,450 together: they set out as a group, and once within 6 cells of main's centroid they are main.
+    assert scene.commander.gate.joiners.ids == frozenset()

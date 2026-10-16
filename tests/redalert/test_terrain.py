@@ -51,6 +51,21 @@ def test_ore_gems_and_mines_that_touch_form_one_patch_with_its_center():
     assert [patch.size for patch in terrain.ore_patches] == [4, 3, 2]
 
 
+def test_mines_counted_per_field():
+    # A field of ore with two mines apart (the second of two touching cells), and a field of gems and ore with none.
+    rows = ["M$$$MM.....", "$$$$$$..$*$", "...........", "M.........."]
+
+    terrain = Terrain.from_game_config(reference(rows, [0, 0]), "arena")
+
+    assert [(patch.size, patch.mines) for patch in terrain.ore_patches] == [(12, 2), (3, 0), (1, 1)]
+    # The mines say nothing of which field a patch is.
+    assert terrain.ore_patches[1] == OrePatch(center=(9, 1), cells=frozenset({(8, 1), (9, 1), (10, 1)}))
+
+
+def test_mines_a_patch_made_by_hand_has_none():
+    assert OrePatch(center=(1, 1), cells=frozenset({(1, 1)})).mines == 0
+
+
 def test_cells_that_touch_only_at_a_corner_belong_to_one_patch():
     terrain = Terrain.from_game_config(reference(["$..", ".$.", "..*"], [0, 0]), "arena")
 

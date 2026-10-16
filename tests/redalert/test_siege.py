@@ -14,7 +14,9 @@ import pytest
 
 from combat_sim import GUARD, ORDERS_EVERY_TICKS, OURS, THEIRS, Actor, CombatSim, actor
 from fake_game import MAP_ID, FakeRedAlert, at_seconds
-from situations import StubChooser, ask, base_state, fixture_state, new_agent, tracked_items
+import situations
+from situations import StubChooser, ask, base_state, fixture_state, tracked_items
+from switches_off import screen_place_off, stepping_off
 from switches_off import SWITCHES_OFF
 from ucla_agent.core.config import ConfigError
 from ucla_agent.games.redalert.batch import Limits, Priority, pack
@@ -36,11 +38,24 @@ from ucla_agent.games.redalert.siege import (
     march_slot_line,
     screen_front,
     screen_line,
+    fallback_cell,
     slot_cells,
 )
+from ucla_agent.games.redalert import screen_place
+from ucla_agent.games.redalert.screen_place import ScreenPlacer
+from ucla_agent.games.redalert.terrain import Terrain
+from ucla_agent.games.redalert.command_army import ADVANCE
+from ucla_agent.games.redalert.command_prompt import Action
 from ucla_agent.games.redalert.tuning import FRONTAL, SCREENED, TUNING_FILE, SiegeTuning, Tuning
 from ucla_agent.games.redalert.world import World
 from whole_match import COMPUTE_P95_MS, WHOLE_MATCH_STEPS, WholeMatch, play_whole_match
+
+
+def new_agent(*managers, tuning: Tuning | None = None, **more):
+    """`situations.new_agent` with main's stepped movement and the screened place off, as these tests were worked
+    out."""
+    return situations.new_agent(*managers, tuning=screen_place_off(stepping_off(tuning)), **more)
+
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ITEMS = tracked_items()
@@ -1541,3 +1556,167 @@ def test_artillery_slots_after_30_s_of_the_march_the_artillery_s_centroid_is_wit
     print(f"front at x {front:.1f}, the artillery's centroid {behind:.2f} cells behind it, band depth {depth}")
     assert front == 20 + (SLOT_MARCH_TICKS - ORDERS_EVERY_TICKS) / TICKS_PER_SECOND
     assert 0 < behind <= depth + SLOT_LAG_CELLS
+
+
+# -- the screened place (artillery_screen_place) -----------------------------------------------------------------------
+
+SHIPPED = Tuning()
+OPEN = Terrain()
+# The screen's centroid stands at (40, 40); the two artillery pieces out of contact a few cells west of it.
+PLACE_SCREEN = [own(320, "2tnk", 40, 39), own(321, "2tnk", 40, 41)]
+PLACE_ARTILLERY = [own(300, "arty", 35, 39), own(301, "arty", 35, 41)]
+
+
+def place_world(enemies=(), artillery=PLACE_ARTILLERY, tick: int = 100, world: World | None = None) -> World:
+    """A world with the screen at (40, 40), the artillery given, and these enemies in sight."""
+    return seen([*PLACE_SCREEN, *artillery], enemies, tick=tick, world=world)
+
+
+def placed_moves(placement) -> dict[int, tuple[int, int]]:
+    """The cell each unit of a placement is moved to."""
+    return {intent.order["units"][0]: tuple(intent.order["to"]) for intent in placement.intents}
+
+
+def place_once(placer: ScreenPlacer, world: World, **more):
+    """The placement of the world's artillery behind its screen."""
+    units = unit_list(world)
+    long_range = [unit for unit in units if unit.type == "arty"]
+    screen = [unit for unit in units if unit.type != "arty"]
+    return placer.place(long_range, screen, world, OPEN, SHIPPED, **more)
+
+
+def test_screened_place_behind_screen_east_threat_two_artillery_go_to_37_39_and_37_41():
+    world = place_world([foe(500, "2tnk", 50, 39), foe(501, "2tnk", 50, 41)])
+
+    placement = place_once(ScreenPlacer(), world)
+
+    assert placed_moves(placement) == {300: (37, 39), 301: (37, 41)}
+    assert all(intent.priority == Priority.CONTACT and intent.order["cmd"] == "move" for intent in placement.intents)
+
+
+def test_screened_place_pursuers_from_behind_turn_the_artillery_is_reordered_to_x_43_in_that_cycle():
+    placer = ScreenPlacer()
+    place_once(placer, place_world([foe(500, "2tnk", 50, 39), foe(501, "2tnk", 50, 41)]))
+    at_places = [own(300, "arty", 37, 39), own(301, "arty", 37, 41)]
+    behind = place_world([foe(500, "2tnk", 30, 39), foe(501, "2tnk", 30, 41)], at_places, tick=125)
+
+    placement = place_once(placer, behind)
+
+    moved = placed_moves(placement)
+    assert set(moved) == {300, 301} and all(abs(cell[0] - 43) <= 1 for cell in moved.values())
+
+
+def test_screened_place_side_threat_from_the_south_puts_the_places_at_y_37():
+    # The artillery stands north-west of the screen, out of the enemy's reach.
+    artillery = [own(300, "arty", 35, 33), own(301, "arty", 37, 33)]
+    world = place_world([foe(500, "2tnk", 39, 50), foe(501, "2tnk", 41, 50)], artillery)
+
+    moved = placed_moves(place_once(ScreenPlacer(), world))
+
+    assert set(moved) == {300, 301} and all(abs(cell[1] - 37) <= 1 for cell in moved.values())
+
+
+def test_screened_place_home_move_no_enemy_at_a_step_point_from_50_40_puts_the_artillery_at_x_37():
+    # main stands at the step point (40, 40) of a move home toward (10, 40) that started at (50, 40): the enemy lies
+    # behind, toward the move's start, so the artillery stands on the home side.
+    artillery = [own(300, "arty", 44, 39), own(301, "arty", 44, 41)]
+    world = place_world((), artillery)
+
+    placement = place_once(ScreenPlacer(), world, center=(40, 40), hint=(50, 40))
+
+    moved = placed_moves(placement)
+    assert set(moved) == {300, 301} and all(abs(cell[0] - 37) <= 1 for cell in moved.values())
+
+
+def test_screened_place_small_turn_no_reorder_a_30_degree_turn_moving_the_places_under_3_cells_gives_no_order():
+    placer = ScreenPlacer()
+    first = place_once(placer, place_world([foe(500, "2tnk", 53, 40)]))
+    places = placed_moves(first)
+    at_places = [own(unit_id, "arty", *cell) for unit_id, cell in places.items()]
+    # The enemy 13 cells off turned by 32 degrees round the screen's centroid, two seconds later.
+    turned = place_world([foe(500, "2tnk", 51, 47)], at_places, tick=150)
+
+    again = place_once(placer, turned)
+
+    assert again.intents == []
+    assert all(math.dist(placer.places[unit_id], cell) < 3 for unit_id, cell in places.items())
+
+
+def test_screened_place_a_45_degree_turn_reorders_and_none_is_sent_within_a_second_of_its_last_order():
+    placer = ScreenPlacer()
+    first = place_once(placer, place_world([foe(500, "2tnk", 50, 40)]))
+    at_places = [own(unit_id, "arty", *cell) for unit_id, cell in placed_moves(first).items()]
+
+    # The enemy now south of the screen, a turn of 90 degrees.
+    soon = place_once(placer, place_world([foe(500, "2tnk", 40, 53)], at_places, tick=110))
+    later = place_once(placer, place_world([foe(500, "2tnk", 40, 53)], at_places, tick=125))
+
+    assert soon.intents == [] and set(placed_moves(later)) == {300, 301}
+
+
+def test_screened_place_no_place_lies_in_a_known_ground_defense_s_range_and_none_without_a_screen_near():
+    pillbox = seen([*PLACE_SCREEN, *PLACE_ARTILLERY], [foe(500, "2tnk", 50, 40)], [foe(600, "pbox", 33, 40)])
+    no_screen = seen([own(320, "2tnk", 60, 40), *PLACE_ARTILLERY], [foe(500, "2tnk", 50, 40)])
+    artillery = [unit for unit in unit_list(pillbox) if unit.type == "arty"]
+    east = screen_place.Threat((50, 40), (1.0, 0.0), screen_place.ENEMY)
+
+    places = screen_place.place_cells(artillery, (40, 40), east, pillbox, OPEN, SHIPPED)
+
+    # The pillbox's range is 6: the places (37, 39) and (37, 41) would lie in it, and are moved out of it.
+    assert set(places) == {300, 301} and len(set(places.values())) == 2
+    assert all(math.dist(cell, (33, 40)) >= 6 for cell in places.values())
+    assert place_once(ScreenPlacer(), no_screen) is None
+
+
+def test_screened_place_switch_off_places_nothing_and_a_fall_back_goes_toward_the_base():
+    world = place_world([foe(500, "2tnk", 50, 40)])
+    off = screen_place_off(SHIPPED)
+    units = unit_list(world)
+
+    placement = ScreenPlacer().place(units[2:], units[:2], world, OPEN, off)
+    kite = seen([own(300, "arty", 37, 40)], [foe(500, "e1", 39, 40)])
+    kite.base_center = (60, 40)
+    cell = fallback_cell(kite.combat_units[300], [kite.enemy_memory[500]], kite, off.siege)
+
+    assert placement is None and cell == (41, 40)
+
+
+def test_screened_place_kite_away_from_enemy_an_artillery_at_37_40_steps_to_33_40_not_toward_the_base_east():
+    world = seen([own(300, "arty", 37, 40)], [foe(500, "e1", 39, 40)])
+    world.base_center = (60, 40)
+    piece = world.combat_units[300]
+    rifle = world.enemy_memory[500]
+
+    cell = fallback_cell(piece, [rifle], world, SHIPPED.siege)
+
+    assert math.dist(cell, (33, 40)) <= 1
+
+
+def test_screened_place_kite_never_steps_nearer_to_another_enemy_and_turns_off_the_straight_way():
+    world = seen([own(300, "arty", 37, 40)], [foe(500, "e1", 39, 40), foe(501, "2tnk", 31, 40)])
+    piece = world.combat_units[300]
+
+    cell = fallback_cell(piece, [world.enemy_memory[500]], world, SHIPPED.siege)
+
+    assert math.dist(cell, (31, 40)) >= math.dist((37, 40), (31, 40)) and math.dist(cell, (37, 40)) <= 5
+
+
+def test_screened_place_a_stepped_advance_with_an_enemy_to_the_north_places_the_artillery_south_of_the_step_point():
+    manager = CombatManager()
+    agent = situations.new_agent(manager, tuning=SHIPPED)
+    manager.command(Action(ADVANCE, (ADVANCE, (60, 20)), "advance", "advance to (60, 20)", cell=(60, 20)))
+    units = [own(302 + n, "2tnk", 19 + n % 3, 19 + n // 3) for n in range(6)]
+    units += [own(300, "arty", 18, 20), own(301, "arty", 18, 21)]
+
+    orders = ask(agent, at(1000, units, [foe(500, "2tnk", 26, 6)]))
+
+    moved = {order["units"][0]: order["to"] for order in orders if order["units"][0] in (300, 301)}
+    assert set(moved) == {300, 301} and all(cell[1] > 20 for cell in moved.values())
+
+
+def test_screened_place_keys_ship_on_and_the_tracked_file_holds_the_built_in_values():
+    built_in = Tuning().siege
+    keys = ("artillery_screen_place", "artillery_offset_cells", "artillery_threat_cells", "artillery_turn_degrees")
+
+    assert tuple(getattr(built_in, key) for key in keys) == (True, 3, 15, 45)
+    assert Tuning.from_file(REPO_ROOT).siege == built_in and not SWITCHES_OFF.siege.artillery_screen_place

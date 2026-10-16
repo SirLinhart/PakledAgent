@@ -26,18 +26,35 @@ for scout_retreat_seconds from then; the scout is sent anew away from the
 nearest enemy in sight when that is another enemy or it has reached the cell
 it was sent to. Once over, the scout takes up its mission again.
 
+With `retreat_to_kill_zone` on, a scout chased within KILL_ZONE_BASE_CELLS of
+our base's centre leads its chasers into our kill zone instead (`kill_zone`):
+toward the cell KILL_ZONE_FRONT_CELLS in front of our ground defense nearest
+it (of the main base), on the enemy's side, else in front of main's middle,
+else the cell KILL_ZONE_EDGE_CELLS from our base's centre toward the enemy's
+start; never round the back of the base. In the live games of 20261016 a
+baiting scout ran behind our base and dragged the enemy into a flank that
+cost us buildings.
+
 The retreat's move is a flight: it is the most urgent of the scouts' moves,
 and counts within scout_orders_per_batch. Each retreat begun is one
 `scout_slot` event of kind `retreat` (see `scout_slots`).
+
+A scout that another rule sends at the enemy on purpose (see
+`scout_attacks`) takes neither cause while that lasts. When that rule ends
+with a retreat of its own cause, the retreat is begun for it (`begin`) and
+sent as any other, the scout's health of the last state taken to be its
+health then, so that what it lost on purpose does not count as a hit again.
 """
 
 from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass
-from typing import Mapping
+from typing import Collection, Mapping
 
 from ucla_agent.games.redalert import cells, fight
+from ucla_agent.games.redalert.defense_cap import GROUND_DEFENSES, MAIN_BASE_CELLS
+from ucla_agent.games.redalert.groups import MAIN
 from ucla_agent.games.redalert.items import TICKS_PER_SECOND
 from ucla_agent.games.redalert.managers import MatchContext
 from ucla_agent.games.redalert.scout_report import is_combat_unit
@@ -47,6 +64,12 @@ from ucla_agent.games.redalert.world import DEFENSE_TYPES, Cell, EnemyRecord, Un
 # The causes of a retreat.
 HIT = "hit"
 OUTCLASSED = "outclassed"
+# With retreat_to_kill_zone on: a scout chased within this many cells of our base's centre leads its chasers into our
+# kill zone, to this many cells in front of a defense or main's middle on the enemy's side, or this far out from the
+# base's centre toward the enemy's start when we have neither.
+KILL_ZONE_BASE_CELLS = 35
+KILL_ZONE_FRONT_CELLS = 2
+KILL_ZONE_EDGE_CELLS = 8
 # The speed a scout is taken to have when the item table gives none, in cells a second: no faster than a rifleman.
 UNKNOWN_SPEED_CELLS_PER_SECOND = 1.0
 
@@ -84,10 +107,12 @@ class Retreats:
         self._trail: dict[int, deque[tuple[int, Cell]]] = {}
 
     def update(
-        self, scouts: Mapping[int, Unit], world: World, ctx: MatchContext
+        self, scouts: Mapping[int, Unit], world: World, ctx: MatchContext, suspended: Collection[int] = ()
     ) -> tuple[dict[int, Move], list[Begun]]:
         """Bring the retreats of the slots' scouts in the field (`scouts`, by slot number) up to date: the move of each
-        scout that retreats in this cycle, by its slot, and the retreats begun in it."""
+        scout that retreats in this cycle, by its slot, and the retreats begun in it. The scouts `suspended` (by unit
+        id), which another rule has go at the enemy on purpose (see `scout_attacks`), take neither cause: their health
+        and way are noted all the same."""
         tuning, tick = ctx.tuning.scouting, world.tick
         lasting = tuning.scout_retreat_seconds * TICKS_PER_SECOND
         live = {scout.id for scout in scouts.values()}
@@ -96,7 +121,7 @@ class Retreats:
         moves: dict[int, Move] = {}
         begun: list[Begun] = []
         for number, scout in scouts.items():
-            retreat = self._retreat(scout, world, ctx)
+            retreat = self._retreat(scout, world, ctx, is_suspended=scout.id in suspended)
             if retreat is not None and retreat is not self._active.get(scout.id):
                 begun.append(Begun(number, retreat))
             self._note(scout, tick, lasting)
@@ -107,12 +132,28 @@ class Retreats:
             moves[number] = Move(retreat.to, FLEE_URGENCY)
         return moves, begun
 
-    def _retreat(self, scout: Unit, world: World, ctx: MatchContext) -> Retreat | None:
-        """The scout's retreat in this cycle: begun or kept on for a cause that holds, else kept until it is over; None
-        while it does not retreat."""
+    def begin(self, number: int, scout: Unit, cause: str, world: World, ctx: MatchContext) -> Begun:
+        """Begin a retreat of the scout of slot `number` for a cause another rule found as it let the scout go (see
+        `scout_attacks`), sent as a retreat `update` begins is; the scout's health of the last state is taken to be its
+        health now, so that what it lost on purpose is not a hit again. `update` then keeps it as its own."""
+        until = world.tick + ctx.tuning.scouting.scout_retreat_seconds * TICKS_PER_SECOND
+        enemy = _nearest_threat((scout.x, scout.y), world)
+        enemy_id, enemy_cell = _identity(enemy)
+        retreat = Retreat(cause, self._away(scout, enemy, world, ctx), until, enemy_id, enemy_cell)
+        self._active[scout.id] = retreat
+        self._hp[scout.id] = scout.hp
+        return Begun(number, retreat)
+
+    def last_hp(self, unit_id: int) -> int | None:
+        """A scout's health in the last state; None before its first."""
+        return self._hp.get(unit_id)
+
+    def _retreat(self, scout: Unit, world: World, ctx: MatchContext, *, is_suspended: bool) -> Retreat | None:
+        """The scout's retreat in this cycle: begun or kept on for a cause that holds, which none does for a scout
+        `is_suspended`, else kept until it is over; None while it does not retreat."""
         tuning, tick, position = ctx.tuning.scouting, world.tick, (scout.x, scout.y)
         until = tick + tuning.scout_retreat_seconds * TICKS_PER_SECOND
-        retreat, cause = self._active.get(scout.id), self._cause(scout, world, ctx)
+        retreat, cause = self._active.get(scout.id), None if is_suspended else self._cause(scout, world, ctx)
         if cause is None:
             return None if retreat is None or tick >= retreat.until_tick else retreat
         enemy = _nearest_threat(position, world)
@@ -138,7 +179,10 @@ class Retreats:
         goes in scout_retreat_seconds, inside the map."""
         position = (scout.x, scout.y)
         reach = _speed(scout.type, world) * ctx.tuning.scouting.scout_retreat_seconds
-        if enemy is not None:
+        zone = kill_zone(position, world, ctx, scout.id) if enemy is not None else None
+        if zone is not None:
+            to = cells.toward(position, zone, min(reach, cells.distance(position, zone)))
+        elif enemy is not None:
             to = cells.toward(position, (enemy.x, enemy.y), -reach)
         else:
             to = cells.toward(position, self._way_back(scout, world, ctx), reach)
@@ -163,6 +207,30 @@ class Retreats:
         trail.append((tick, (scout.x, scout.y)))
         while trail and tick - trail[0][0] > lasting:
             trail.popleft()
+
+
+def kill_zone(position: Cell, world: World, ctx: MatchContext, scout_id: int | None = None) -> Cell | None:
+    """With retreat_to_kill_zone on, where a scout (`scout_id`, never main's middle itself) chased at a cell within
+    KILL_ZONE_BASE_CELLS of our base's centre leads its chasers (see the module's note); None farther out, with the
+    switch off, or while the base or the enemy's start is not known."""
+    base, enemy = world.base_center, world.enemy_base
+    if not ctx.tuning.scouting.retreat_to_kill_zone or base is None or enemy is None:
+        return None
+    if not cells.is_within(position, base, KILL_ZONE_BASE_CELLS):
+        return None
+    defenses = [
+        (building.x, building.y)
+        for building in world.buildings.values()
+        if building.type in GROUND_DEFENSES and cells.is_within((building.x, building.y), base, MAIN_BASE_CELLS)
+    ]
+    if defenses:
+        anchor = min(defenses, key=lambda cell: cells.distance(cell, position))
+    else:
+        main = [world.combat_units[unit_id] for unit_id in ctx.groups.members(MAIN) if unit_id != scout_id]
+        anchor = cells.nearest_cell(*fight.centroid(main)) if main else None
+    if anchor is None:
+        return cells.clamped(cells.toward(base, enemy, KILL_ZONE_EDGE_CELLS), world.map_bounds)
+    return cells.clamped(cells.toward(anchor, enemy, KILL_ZONE_FRONT_CELLS), world.map_bounds)
 
 
 def is_outclassed(scout: Unit, world: World, ctx: MatchContext) -> bool:

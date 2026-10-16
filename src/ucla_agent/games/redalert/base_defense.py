@@ -90,6 +90,38 @@ unless the threat is worth more than the home guard and the own standing
 defenses within the threat area of its cell together. One that is worth more
 takes main as without the commander, whatever main was commanded.
 
+With `commit_on_cross` of `[combat]` on, main committed to the base trade
+once the armies crossed (see `cross_commit`) is never taken nor called home,
+whatever the threat is worth, and answers no harvester threat. The canary
+(see `canary`) answers no threat.
+
+With `canary_alarm` of `[upkeep]` on, base defense keeps the canary alarm
+(see `canary_alarm`) right after it has published the threat, and while the
+alarm is in force orders a defense whenever the Defense queue is free, after
+its own extra defense: the anti-infantry or the anti-armor one by what the
+enemy combat units seen in the last minute were mostly worth, the anti-armor
+one when none was seen, placed toward the alarm's goal cell on the side of
+the base facing the enemy's start. A Tesla coil that would leave less power
+than upkeep's power target waits, the power plant ordered first.
+
+With `keep_mcv_escort` on and `mcv_escort_reliance` of [expansion], the
+escort of an MCV on its way to its site is not drawn into a threat on the
+base, however near the base it passes: taken off it, the MCV waits for an
+escort it no longer has (in the live games of 20261016 a travelling MCV and
+its escort stopped and turned back when the base was hit). Only a base truly
+losing takes it: no other unit answers the threat, and the own defenses near
+the threat are worth less than escort_needed_ratio of it. A `base_defense`
+event of reason `escort_kept` says so, at most once every ESCORT_KEPT_SECONDS.
+
+With `approach_alarm` on, base defense keeps the approach alarm (see
+`approach_alarm`) right after the canary alarm: an enemy army seen coming for
+the base from up to approach_alarm_cells out, before any threat is declared.
+While it is in force and the canary alarm is not, a defense is ordered whenever
+the Defense queue is free, as many as the group's worth calls for: the
+anti-infantry one against an infantry-led group, else the anti-armor one, a
+Tesla coil waiting for its power plant, placed toward the alarm's goal cell on
+the side of the base facing the group.
+
 Far from the base, main is kept out of a rescue it would lose (see
 `far_rescue`): a threat more than far_rescue_cells from the centre of the
 base, where main is estimated under far_rescue_min_ratio or a known enemy
@@ -115,7 +147,11 @@ or more, an infantry threat (infantry more than half of what its enemies that
 are infantry or vehicles are worth) gets no counter and the Infantry queue is
 given up: tanks crush infantry, and rifles bought against rifles starve them of
 money. One `base_defense` event with reason `counter_skipped_tanks` says so for
-each threat. While the rush watch says rush and main holds fewer than
+each threat. While the enemy is infantry-heavy and `infantry_counter_lift` of
+[composition] is on, that block is lifted: the threat gets the family's
+counter infantry, the Soviet flamethrower while it is on offer, and a
+`base_defense` event with reason `counter_lifted_infantry_heavy` for each
+threat instead (see `counter_units`). While the rush watch says rush and main holds fewer than
 rush_min_tanks tanks (`[opening]`), the counter is trained all the same: the
 rush wave comes before the tanks do. The Defense queue adds a defense of the
 kind the threat calls for, at most one a minute, so that a long siege does
@@ -134,6 +170,10 @@ switch it back and forth.
 With `harass_tower` on, the manager also puts up a cheap ground defense in
 range of a known enemy building that stands near the base (see
 `harass_tower`), after what answers a threat has had the Defense queue.
+
+With `stepped_return` of `[combat]` on, main called home from 15 cells or
+more comes home in steps (see `stepping`): its units are moved to each step
+point in turn rather than in one long move, so that it arrives together.
 """
 
 from __future__ import annotations
@@ -143,15 +183,27 @@ from dataclasses import dataclass
 from typing import Any, Iterable, Mapping
 
 from ucla_agent.core import records
-from ucla_agent.games.redalert import cells, kite, targeting
+from ucla_agent.games.redalert import (
+    approach_alarm,
+    canary_alarm,
+    cells,
+    defense_cap,
+    kite,
+    stepping,
+    targeting,
+    truck_retreat,
+    truck_shares,
+)
 from ucla_agent.games.redalert.batch import ACTIVITY_COMMANDS, Intent, Priority
 from ucla_agent.games.redalert.commander import MAIN_ROLE
 from ucla_agent.games.redalert.composition import FINISH, PRESS, STRIKE
+from ucla_agent.games.redalert.counter_units import is_counter_lifted, lifted_infantry_counter
 from ucla_agent.games.redalert.crush import TANK_ROLE
-from ucla_agent.games.redalert.family import FAMILIES, HARVESTER, RIFLE_INFANTRY, ROCKET_INFANTRY, WAR_FACTORY
+from ucla_agent.games.redalert.expansion import ESCORT
+from ucla_agent.games.redalert.family import FAMILIES, HARVESTER, MCV, RIFLE_INFANTRY, ROCKET_INFANTRY, WAR_FACTORY
 from ucla_agent.games.redalert.far_rescue import BASE_DEFENSE_EVENT, FarRescue
 from ucla_agent.games.redalert.fight import centroid
-from ucla_agent.games.redalert.groups import GUARD, MAIN, RAID, SCOUT, SIEGE_TYPES
+from ucla_agent.games.redalert.groups import CANARY, GUARD, MAIN, RAID, SCOUT, SIEGE_TYPES
 from ucla_agent.games.redalert.harass_tower import HarassTowers
 from ucla_agent.games.redalert.harvester_crush import HarvesterCrush
 from ucla_agent.games.redalert.harvester_response import HarvesterResponse
@@ -168,6 +220,8 @@ from ucla_agent.games.redalert.world import DEFENSE_TYPES, Building, Cell, Enemy
 
 MANAGER_NAME = "base_defense"
 UNDER_ATTACK_EVENT = "under_attack"
+# What tells main's stepped way home while it is called home apart (see `stepping`).
+CALLED_HOME = "called_home"
 # The groups that may be called home from afar to defend the base.
 RECALLABLE_GROUPS = (MAIN, RAID)
 # With `keep_attack_army` on: the plans under which main is on the attack, and the groups called home while main is
@@ -182,11 +236,22 @@ _COUNTERS = {INFANTRY_QUEUE: (RIFLE_INFANTRY,), VEHICLE_QUEUE: (ROCKET_INFANTRY,
 _POWER_HUNGRY_DEFENSES = frozenset({"tsla"})
 # How near a threat's ground enemies our ground strength counts against theirs, for an extra defense.
 LOCAL_STRENGTH_CELLS = 12
+# With home_defenses_in_reach on, a defense holds the base for main only where its weapon range and this many cells
+# reach an enemy of the threat: one a cell or so short of them may still be closed on.
+HOME_DEFENSE_REACH_MARGIN_CELLS = 1
 # The fewest combat units main holds for a tank army to be left the answer to an infantry threat: a base with no army
 # yet still trains counter rifles against a rush.
 COUNTER_MIN_MAIN_UNITS = 4
 # The reason of the `base_defense` event written when an infantry threat's counters are left to the tank army.
 COUNTER_SKIPPED_TANKS = "counter_skipped_tanks"
+# And the reason written when that is lifted, the enemy being infantry-heavy, and the counter infantry is trained.
+COUNTER_LIFTED = "counter_lifted_infantry_heavy"
+# The reason of the `base_defense` event of an MCV's escort kept on its way, and how often it is written.
+ESCORT_KEPT = "escort_kept"
+ESCORT_KEPT_SECONDS = 30
+# The rules base defense orders defenses by, as a `defense_capped` event names them (see `defense_cap`).
+EXTRA_DEFENSE_RULE = "extra_defense"
+APPROACH_RULE = "approach_alarm"
 
 
 @dataclass
@@ -367,9 +432,18 @@ class CombatResponse:
         self._sent: dict[int, Cell | int] = {}
         # Whether main is kept out of a far rescue it would lose; shared with main's answer to a harvester threat.
         self._far_rescue = far_rescue
+        # main's way home in steps while it is called home (see `stepping`).
+        self._home_steps = stepping.Stepper()
 
     def intents(self, threat: Threat | None, world: World, ctx: MatchContext) -> list[Intent]:
         """The orders that answer the threat in force, or give back what the groups called home were doing."""
+        self._home_steps.begin_cycle()
+        orders = self._answer(threat, world, ctx)
+        self._home_steps.end_cycle()
+        return orders
+
+    def _answer(self, threat: Threat | None, world: World, ctx: MatchContext) -> list[Intent]:
+        """The orders of `intents`, main's way home in steps followed in the cycles it is called home."""
         if threat is None:
             self._sent = {}
             return self._release(world, ctx)
@@ -416,7 +490,10 @@ class CombatResponse:
         arriving = [
             unit.id
             for unit in responders.values()
-            if unit.id not in firing and unit.type not in SIEGE_TYPES and not _has_arrived(unit, threat.cell, tuning)
+            if unit.id not in firing
+            and unit.type not in SIEGE_TYPES
+            and not _has_arrived(unit, threat.cell, tuning)
+            and not self._keeps_attacking(unit.id, world, tuning)
         ]
         point = cells.staging_point(world, ctx.tuning.upkeep.staging_distance_cells) or threat.cell
         moving_in = self._not_yet_sent(arriving, threat.cell, tuning)
@@ -425,7 +502,28 @@ class CombatResponse:
             *taken,
             *attacks,
             *_unit_order("attack_move", moving_in, threat.cell),
-            *_unit_order("move", self._not_yet_sent(called_home, point, tuning), point),
+            *self._home_moves(called_home, point, world, ctx),
+        ]
+
+    def _home_moves(self, called_home: list[int], point: Cell, world: World, ctx: MatchContext) -> list[Intent]:
+        """The emergency moves to the staging point of the units called home that are not yet sent there: with
+        stepped_return of `[combat]` on, main's from afar in steps, each step to its step point (see `stepping`)."""
+        tuning = ctx.tuning
+        main = [world.combat_units[unit_id] for unit_id in called_home if ctx.groups.group_of(unit_id) == MAIN]
+        move = None
+        if tuning.combat.stepped_return and main:
+            plan = stepping.Plan((CALLED_HOME, point), stepping.HOME, point)
+            move = self._home_steps.follow(plan, main, world, ctx.terrain, tuning)
+        if move is None:
+            return _unit_order("move", self._not_yet_sent(called_home, point, tuning.base_defense), point)
+        group = [unit for unit in main if unit.id in move.group]
+        going = move.due(
+            dict.fromkeys((unit.id for unit in group), move.point), group, world.tick, tuning.combat.step_arrive_cells
+        )
+        rest = [unit_id for unit_id in called_home if unit_id not in move.group]
+        return [
+            *_unit_order("move", going, move.point),
+            *_unit_order("move", self._not_yet_sent(rest, point, tuning.base_defense), point),
         ]
 
     def _main_answers_here(self, threat: Threat, world: World, ctx: MatchContext) -> tuple[bool, list[int]]:
@@ -458,10 +556,13 @@ class CombatResponse:
         given = focus.orders(engaged, centroid(engaged), world, ctx.tuning, chase=False, crushing=crushing)
         attacks = []
         for intent in given:
-            target = intent.order["target"]
-            fresh = self._not_yet_sent(list(intent.order["units"]), target, tuning)
+            order = intent.order
+            # A tank charging an enemy artillery piece or V2 is given a move to its cell, not an attack on it (see
+            # `targeting.charging`).
+            aim = order["target"] if order["cmd"] == "attack" else tuple(order["to"])
+            fresh = self._not_yet_sent(list(order["units"]), aim, tuning)
             if fresh:
-                attacks.append(Intent(Priority.EMERGENCY, {"cmd": "attack", "units": fresh, "target": target}))
+                attacks.append(Intent(Priority.EMERGENCY, {**order, "units": fresh}))
         return [*steps, *attacks], stepping.union(unit_id for intent in given for unit_id in intent.order["units"])
 
     def _step_back(
@@ -474,6 +575,16 @@ class CombatResponse:
         for unit_id in stepping:
             self._sent.pop(unit_id, None)
         return steps, stepping
+
+    def _keeps_attacking(self, unit_id: int, world: World, tuning: BaseDefenseTuning) -> bool:
+        """With keep_attack_in_sight on, whether a unit was last sent at an enemy that is still in sight: it keeps
+        that attack rather than be sent back to the threatened cell. Walking to its target takes it out of arrival and
+        of contact, and a move back there followed by a fresh attack once it arrived had it walk to and fro."""
+        target = self._sent.get(unit_id)
+        if not tuning.keep_attack_in_sight or not isinstance(target, int):
+            return False
+        record = world.enemy_memory.get(target)
+        return record is not None and record.visible
 
     def _not_yet_sent(self, unit_ids: list[int], aim: Cell | int, tuning: BaseDefenseTuning) -> list[int]:
         """The units not yet sent where `aim` says in this threat, noted as sent there from now on.
@@ -566,14 +677,41 @@ def _responders(threat: Threat, main_answers: bool, world: World, ctx: MatchCont
     `main_answers`; and of a raid of aircraft alone, only the units that may answer it."""
     groups, reach = ctx.groups, ctx.tuning.base_defense.response_radius_cells
     centre = world.base_center or threat.cell
-    kept_out = {SCOUT if ctx.tuning.scouting.scout_slots else None, None if main_answers else MAIN}
-    return {
+    # The canary holds its post whatever the base faces (see `canary`).
+    kept_out = {SCOUT if ctx.tuning.scouting.scout_slots else None, None if main_answers else MAIN, CANARY}
+    found = {
         unit_id: unit
         for unit_id, unit in world.combat_units.items()
         if (groups.group_of(unit_id) == GUARD or cells.is_within((unit.x, unit.y), centre, reach))
         and groups.group_of(unit_id) not in kept_out
         and _may_answer(unit_id, threat, world, ctx)
     }
+    escort = {unit_id for unit_id in found if groups.group_of(unit_id) == ESCORT}
+    if escort and _keeps_escort(threat, len(found) - len(escort), world, ctx):
+        return {unit_id: unit for unit_id, unit in found.items() if unit_id not in escort}
+    return found
+
+
+def _keeps_escort(threat: Threat, others: int, world: World, ctx: MatchContext) -> bool:
+    """Whether the escort of an MCV on its way stays with it rather than answer a threat (see the module's note):
+    keep_mcv_escort and mcv_escort_reliance are on, an MCV of ours is out, and the base is not truly losing (`others`
+    units answer it, or the defenses near its cell are worth escort_needed_ratio of it). Writes the `escort_kept`
+    event, at most once every ESCORT_KEPT_SECONDS."""
+    tuning = ctx.tuning
+    is_on = tuning.base_defense.keep_mcv_escort and tuning.expansion.mcv_escort_reliance
+    if not is_on or not any(unit.type == MCV for unit in world.units.values()):
+        return False
+    defenses = _home_strength(threat, world, ctx)
+    if others == 0 and defenses < tuning.base_defense.escort_needed_ratio * threat.size:
+        return False
+    last = ctx.escort_kept_tick
+    if last is None or world.tick - last >= ESCORT_KEPT_SECONDS * TICKS_PER_SECOND:
+        ctx.escort_kept_tick = world.tick
+        records.log(
+            BASE_DEFENSE_EVENT,
+            {"tick": world.tick, "reason": ESCORT_KEPT, "threat_size": threat.size, "others": others},
+        )
+    return True
 
 
 def _engaged(responders: list[Unit], threat: Threat, world: World, tuning: BaseDefenseTuning) -> list[Unit]:
@@ -619,24 +757,39 @@ def _main_answers(threat: Threat, world: World, ctx: MatchContext) -> bool:
     under a plan that keeps main at home; under PRESS, STRIKE and FINISH only when the threat is worth more than the
     guard and the defenses near it, which hold the base on their own while main attacks. While the model commander
     commands main, under every plan, as under those three."""
+    if ctx.main_committed:
+        # main committed to the base trade once the armies crossed is never taken nor called home (see `cross_commit`).
+        return False
     commander = ctx.commander
     is_commanded = commander is not None and commander.role == MAIN_ROLE
     is_attacking = ctx.tuning.base_defense.keep_attack_army and ctx.plan in ATTACK_PLANS
     if not (is_commanded or is_attacking):
         return True
-    return threat.size > _home_strength(threat.cell, world, ctx)
+    return threat.size > _home_strength(threat, world, ctx)
 
 
-def _home_strength(cell: Cell, world: World, ctx: MatchContext) -> float:
-    """What the home guard and the own standing defenses within threat_area_cells of a cell are worth in a fight."""
-    reach = ctx.tuning.base_defense.threat_area_cells
+def _home_strength(threat: Threat, world: World, ctx: MatchContext) -> float:
+    """What the home guard and the own standing defenses within threat_area_cells of the threat's cell are worth in a
+    fight; with home_defenses_in_reach on, only the defenses that reach one of its enemies (see
+    `_reaches_an_enemy`)."""
+    tuning = ctx.tuning.base_defense
     guard = [world.combat_units[unit_id] for unit_id in ctx.groups.members(GUARD)]
     defenses = [
         building
         for building in world.buildings.values()
-        if building.type in DEFENSE_TYPES and cells.is_within((building.x, building.y), cell, reach)
+        if building.type in DEFENSE_TYPES
+        and cells.is_within((building.x, building.y), threat.cell, tuning.threat_area_cells)
+        and (not tuning.home_defenses_in_reach or _reaches_an_enemy(building, threat.enemies, world))
     ]
     return strength(guard, world) + strength(defenses, world)
+
+
+def _reaches_an_enemy(defense: Building, enemies: Iterable[EnemyRecord], world: World) -> bool:
+    """Whether a defense's weapon range and HOME_DEFENSE_REACH_MARGIN_CELLS reach an enemy: five defenses 8 cells off
+    the enemies killing a power plant, out of their range, held the base for main by their cost alone and never
+    fired."""
+    reach = world.items.damage.get(defense.type).range + HOME_DEFENSE_REACH_MARGIN_CELLS
+    return any(cells.distance((defense.x, defense.y), (enemy.x, enemy.y)) <= reach for enemy in enemies)
 
 
 def _has_arrived(unit: Unit, cell: Cell, tuning: BaseDefenseTuning) -> bool:
@@ -678,16 +831,22 @@ def _is_in_force_activity(order: Mapping[str, Any], status: str) -> bool:
 
 
 class HarvesterFlight:
-    """Sends a harvester with an enemy at its heels to shelter, and back to work once the enemy has gone."""
+    """Sends a harvester with an enemy at its heels to shelter, and back to work once the enemy has gone; with
+    `truck_retreat` on, a truck only from threats it cannot crush, away from them (see `truck_retreat`)."""
 
     def __init__(self) -> None:
         # Fleeing harvester id -> the last tick an enemy unit that fights was in sight near it.
         self._last_chased: dict[int, int] = {}
         # Fleeing harvester id -> the shelter it was sent to.
         self._shelter_of: dict[int, Cell] = {}
+        self._retreat = truck_retreat.TruckRetreat()
 
-    def intents(self, world: World, ctx: MatchContext) -> list[Intent]:
-        """The moves to shelter and the returns to work of this cycle; publishes which harvesters are fleeing."""
+    def intents(self, world: World, ctx: MatchContext, attacked: frozenset[int] = frozenset()) -> list[Intent]:
+        """The moves to shelter and the returns to work of this cycle, the harvesters `attacked` in the threat in force
+        threatened by their attackers wherever they stand with `truck_retreat` on; publishes which harvesters are
+        fleeing."""
+        if truck_retreat.is_on(ctx):
+            return self._retreat.intents(world, ctx, attacked)
         tuning = ctx.tuning.base_defense
         enemy_cells = [_cell_of(enemy) for enemy in enemy_combat_units(world)]
         harvesters = [unit for unit in world.units.values() if unit.type == HARVESTER]
@@ -701,7 +860,7 @@ class HarvesterFlight:
             tuning,
         )
         ctx.fleeing_harvesters = frozenset(self._last_chased)
-        harvest = [Intent(Priority.EMERGENCY, {"cmd": "harvest", "units": back})] if back else []
+        harvest = truck_shares.harvest_orders(back, world, ctx, Priority.EMERGENCY) if back else []
         return [*self._to_shelter(chased, world, tuning), *harvest]
 
     def _to_shelter(self, harvesters: list[Unit], world: World, tuning: BaseDefenseTuning) -> list[Intent]:
@@ -752,8 +911,10 @@ class CounterProduction:
         self._extra_defense_at: int | None = None
         # Whether an extra defense was ordered for the threat in force, which gets one at the most.
         self._is_threat_served = False
-        # Whether the threat in force had its counters left to the tank army, which is written once a threat.
-        self._is_skip_logged = False
+        # The reasons written of the threat in force's counters (left to the tank army, or lifted), once a threat each.
+        self._logged: set[str] = set()
+        # Whether the threat in force's counters are trained because the tank army's block is lifted, this cycle.
+        self._is_lifted = False
 
     def intents(self, threat: Threat | None, world: World, ctx: MatchContext, holds_counters: bool) -> list[Intent]:
         """The orders that answer a major threat, but for counter infantry while `holds_counters` (see
@@ -761,7 +922,7 @@ class CounterProduction:
         with no major threat in force, nothing, and the Infantry queue given up."""
         if threat is None:
             self._is_threat_served = False
-            self._is_skip_logged = False
+            self._logged = set()
         if threat is None or not threat.is_major:
             ctx.claims.release(INFANTRY_QUEUE, MANAGER_NAME)
             self._threat_class = None
@@ -774,27 +935,35 @@ class CounterProduction:
             ctx.claims.release(INFANTRY_QUEUE, MANAGER_NAME)
         if self._threat_class is None:
             return []
-        counters = _counters(self._threat_class, world, ctx) if trains_counters else []
+        counters = _counters(self._threat_class, world, ctx, self._is_lifted) if trains_counters else []
         return [*counters, *self._extra_defense(threat, self._threat_class, world, ctx)]
 
     def _leaves_to_tanks(self, threat: Threat, world: World, ctx: MatchContext) -> bool:
         """Whether the threat in force is an infantry threat left to the tank army, with no counter trained for it (see
-        `_has_tank_army`). Writes the `base_defense` event of it the first time for a threat."""
+        `_has_tank_army`), but while the counter is lifted (`is_counter_lifted`). Writes the `base_defense` event of
+        either the first time for a threat."""
+        self._is_lifted = False
         if self._threat_class != INFANTRY_QUEUE or not _has_tank_army(world, ctx):
             return False
-        if not self._is_skip_logged:
-            self._is_skip_logged = True
-            records.log(
-                BASE_DEFENSE_EVENT,
-                {
-                    "reason": COUNTER_SKIPPED_TANKS,
-                    "tick": world.tick,
-                    "threat_cell": list(threat.cell),
-                    "threat_size": threat.size,
-                    "main_units": len(ctx.groups.members(MAIN)),
-                },
-            )
-        return True
+        self._is_lifted = is_counter_lifted(world, ctx)
+        self._log_once(COUNTER_LIFTED if self._is_lifted else COUNTER_SKIPPED_TANKS, threat, world, ctx)
+        return not self._is_lifted
+
+    def _log_once(self, reason: str, threat: Threat, world: World, ctx: MatchContext) -> None:
+        """Write the `base_defense` event of the threat's counters with `reason`, unless the threat had it written."""
+        if reason in self._logged:
+            return
+        self._logged.add(reason)
+        records.log(
+            BASE_DEFENSE_EVENT,
+            {
+                "reason": reason,
+                "tick": world.tick,
+                "threat_cell": list(threat.cell),
+                "threat_size": threat.size,
+                "main_units": len(ctx.groups.members(MAIN)),
+            },
+        )
 
     def _extra_defense(self, threat: Threat, threat_class: str, world: World, ctx: MatchContext) -> list[Intent]:
         """The defense the threat calls for (see `_calls_for_defense`), when the Defense queue is free, none was
@@ -810,7 +979,7 @@ class CounterProduction:
         if self._is_threat_served or not (self._is_due(world, ctx) and can_start):
             return []
         facing = _calls_for_defense(threat, world, ctx.tuning.base_defense)
-        if facing is None:
+        if facing is None or not defense_cap.allows(item, EXTRA_DEFENSE_RULE, world, ctx, facing):
             return []
         if item in _POWER_HUNGRY_DEFENSES and not production.can_power(item, power_target(world, ctx)):
             return power_plant_when_free(world, ctx)
@@ -924,10 +1093,54 @@ def _extra_defense_item(threat_class: str, family: str) -> str:
     return names.anti_infantry_defense if threat_class == INFANTRY_QUEUE else names.anti_armor_defense
 
 
-def _counters(threat_class: str, world: World, ctx: MatchContext) -> list[Intent]:
-    """The training of the counter to a threat's class, so many at a time, when the Infantry queue is free."""
+def _alarm_defense(world: World, ctx: MatchContext) -> list[Intent]:
+    """While the canary alarm is in force (see `canary_alarm`), the defense it orders when the Defense queue is free:
+    the one against the class the enemy combat units seen lately were mostly worth, the anti-armor one when none was
+    seen, on offer, placed toward the alarm's goal cell; a Tesla coil that would leave less than the power target
+    waits for the power plant, ordered first."""
     production = ctx.production
-    item = next((item for item in _COUNTERS[threat_class] if item in world.available_production), None)
+    if not ctx.canary_alarm or not production.is_queue_free(DEFENSE_QUEUE):
+        return []
+    threat_class = largest_class(canary_alarm.seen_enemies(world), world) or VEHICLE_QUEUE
+    item = _extra_defense_item(threat_class, world.family)
+    goal = canary_alarm.goal_cell(world, ctx)
+    if item not in world.available_production or not defense_cap.allows(
+        item, canary_alarm.CANARY_ALARM, world, ctx, goal
+    ):
+        return []
+    if item in _POWER_HUNGRY_DEFENSES and not production.can_power(item, power_target(world, ctx)):
+        return power_plant_when_free(world, ctx)
+    ctx.defense_goals[item] = goal
+    return [production.build(item, Priority.EMERGENCY)]
+
+
+def _approach_defense(world: World, ctx: MatchContext, alarm: approach_alarm.ApproachAlarm) -> list[Intent]:
+    """While the approach alarm is in force and the canary alarm, which orders a defense on every free Defense queue
+    itself, is not (see `approach_alarm`): the defense it still calls for when the Defense queue is free, the
+    anti-infantry one against an infantry-led group, else the anti-armor one, on offer, placed toward the alarm's goal
+    cell; a Tesla coil that would leave less than the power target waits for the power plant, ordered first."""
+    production = ctx.production
+    if not ctx.approach_alarm or ctx.canary_alarm or not alarm.is_defense_due():
+        return []
+    if not production.is_queue_free(DEFENSE_QUEUE):
+        return []
+    item = _extra_defense_item(INFANTRY_QUEUE if ctx.approach_alarm_infantry else VEHICLE_QUEUE, world.family)
+    goal = approach_alarm.goal_cell(world, ctx)
+    if item not in world.available_production or not defense_cap.allows(item, APPROACH_RULE, world, ctx, goal):
+        return []
+    if item in _POWER_HUNGRY_DEFENSES and not production.can_power(item, power_target(world, ctx)):
+        return power_plant_when_free(world, ctx)
+    alarm.ordered += 1
+    ctx.defense_goals[item] = goal
+    return [production.build(item, Priority.EMERGENCY)]
+
+
+def _counters(threat_class: str, world: World, ctx: MatchContext, is_lifted: bool) -> list[Intent]:
+    """The training of the counter to a threat's class, so many at a time, when the Infantry queue is free: while the
+    tank army's block `is_lifted`, the family's counter infantry (`lifted_infantry_counter`)."""
+    production = ctx.production
+    items = (lifted_infantry_counter(world),) if is_lifted else _COUNTERS[threat_class]
+    item = next((item for item in items if item in world.available_production), None)
     if item is None or not production.is_queue_free(INFANTRY_QUEUE):
         return []
     return [production.train(item, ctx.tuning.base_defense.counter_at_a_time, Priority.EMERGENCY)]
@@ -983,6 +1196,10 @@ class BaseDefenseManager:
         self._harass = HarassTowers()
         # A harvester run over enemy infantry at the base under a rush (see `harvester_crush`).
         self._harvester_crush = HarvesterCrush()
+        # The money turned to defenses while the enemy's army heads for our base (see `canary_alarm`).
+        self._alarm = canary_alarm.CanaryAlarm()
+        # The defenses ordered while an enemy army is seen coming for the base (see `approach_alarm`).
+        self._approach = approach_alarm.ApproachAlarm()
 
     @property
     def threat(self) -> Threat | None:
@@ -1005,12 +1222,16 @@ class BaseDefenseManager:
         ctx.defense_goals = {item: cell for item, cell in ctx.defense_goals.items() if ctx.production.pending(item)}
         if _is_ground_building_hit(threat, world):
             ctx.ground_hit_tick = world.tick
-        main_answer = self._harvester_response.intents(threat, world, ctx)
+        self._alarm.follow(world, ctx)
+        self._approach.follow(world, ctx)
+        main_answer = None if ctx.main_committed else self._harvester_response.intents(threat, world, ctx)
         holds_counters = self._harvester_response.holds_counters(threat, world, ctx)
         return [
             *(self._response.intents(threat, world, ctx) if main_answer is None else main_answer),
-            *self._flight.intents(world, ctx),
+            *self._flight.intents(world, ctx, frozenset(() if threat is None else threat.attacked)),
             *self._production.intents(threat, world, ctx, holds_counters),
+            *_alarm_defense(world, ctx),
+            *_approach_defense(world, ctx, self._approach),
             *self._harass.intents(world, ctx),
             *_repairs(threat, world, ctx),
             *self._harvester_crush.intents(world, ctx),

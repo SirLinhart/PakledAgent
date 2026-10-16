@@ -85,6 +85,11 @@ there, or holds where it is for three seconds, in place of following its
 route, which it takes up again once the commander no longer steers it. A
 scout withdrawing from danger goes on withdrawing whatever the model says,
 and the mission ends as it would without the commander.
+
+With `[scouting] canary_post` on, the manager first keeps the canary (see
+`canary`), the one rifleman posted on the line between the bases on every
+attack, before the slots or the missions: the rush watch's exit-post
+rifleman it takes leaves its slot, and no slot or mission takes the canary.
 """
 
 from __future__ import annotations
@@ -94,13 +99,14 @@ from dataclasses import dataclass
 from ucla_agent.core import records
 from ucla_agent.games.redalert import cells, command_scout, coverage, raid_routes, scout_route
 from ucla_agent.games.redalert.batch import Intent, Order, Priority
+from ucla_agent.games.redalert.canary import Canary
 from ucla_agent.games.redalert.command_prompt import Action
 from ucla_agent.games.redalert.commander import SCOUT_ROLE, STOP
 from ucla_agent.games.redalert.composition import PRESERVE
 from ucla_agent.games.redalert.expansion import ESCORT
 from ucla_agent.games.redalert.exposed_trucks import ExposedTruckWatch
 from ucla_agent.games.redalert.family import RIFLE_INFANTRY
-from ucla_agent.games.redalert.groups import GUARD, MAIN, RAID, SCOUT
+from ucla_agent.games.redalert.groups import CANARY, GUARD, MAIN, RAID, SCOUT
 from ucla_agent.games.redalert.items import ALLIES, SOVIET, TICKS_PER_SECOND
 from ucla_agent.games.redalert.managers import MAJOR_THREAT, MatchContext
 from ucla_agent.games.redalert.rescout import STALE_BASE, ScoutTrainer, StaleIntel
@@ -133,8 +139,8 @@ WAYPOINT = "waypoint"
 DONE = "done"
 LOST = "lost"
 # The groups a new scout is never taken from: the escort of the MCV on its way to a second yard and the rush
-# watcher among them.
-_NOT_SCOUTING = frozenset({GUARD, RAID, SCOUT, ESCORT, WATCH})
+# watcher and the canary among them.
+_NOT_SCOUTING = frozenset({GUARD, RAID, SCOUT, ESCORT, WATCH, CANARY})
 _ERROR_SOURCE = "redalert.scouting"
 
 
@@ -200,6 +206,8 @@ class ScoutingManager:
         self._planner = MissionPlanner()
         # The raid opportunities seen, kept while `exposed_trucks` is on.
         self._trucks = ExposedTruckWatch()
+        # The canary rifleman posted on every attack, while `canary_post` is on.
+        self._canary = Canary()
 
     def intents(self, world: World, ctx: MatchContext) -> list[Intent]:
         """Publish the cycle's scout report, keep the scout slots with `scout_slots` on or else find a scout when one is
@@ -209,7 +217,10 @@ class ScoutingManager:
         self._observe(world, ctx)
         if not _is_map_known(world):
             return []
-        orders = (
+        canary = self._canary.intents(world, ctx, self._slots.rush_post_unit if tuning.scout_slots else None)
+        if self._canary.unit_id is not None:
+            self._slots.give_up(self._canary.unit_id)
+        orders = canary + (
             self._slots.intents(world, ctx, self._stale.sight) if tuning.scout_slots else self._missions(world, ctx)
         )
         return orders + self._rush_watch.watcher_intents(world, ctx) if tuning.rush_detection else orders
@@ -231,7 +242,7 @@ class ScoutingManager:
         published on the match context."""
         tuning = ctx.tuning.scouting
         if tuning.rescout or tuning.indirect_route or tuning.scout_slots:
-            self._stale.observe(world)
+            self._stale.observe(world, tuning.sight_by_type)
         if tuning.rush_detection:
             ctx.rush_verdict = self._rush_watch.observe(world, ctx)
             ctx.rush_warning = self._rush_watch.warning

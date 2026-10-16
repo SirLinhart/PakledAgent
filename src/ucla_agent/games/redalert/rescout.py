@@ -64,9 +64,10 @@ class StaleIntel:
         # The last tick an enemy unit that fights was in sight.
         self._army_seen_tick: int | None = None
 
-    def observe(self, world: World) -> None:
-        """Take in what our units have in sight in the cycle's state, and whether an enemy unit that fights is."""
-        self.sight.observe(world)
+    def observe(self, world: World, sight_by_type: bool = False) -> None:
+        """Take in what our units have in sight in the cycle's state, each as far as it sees with `sight_by_type`
+        (see `sight`), and whether an enemy unit that fights is."""
+        self.sight.observe(world, sight_by_type)
         if self._first_tick is None:
             self._first_tick = world.tick
         if any(record.visible and is_combat_unit(record) for record in world.enemy_memory.values()):

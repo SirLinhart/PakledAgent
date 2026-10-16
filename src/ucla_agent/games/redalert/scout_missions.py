@@ -34,6 +34,16 @@ the script knows. There are five kinds:
   scout_enemy_base_cells, a cell and the flee distance from every remembered
   enemy building but a wall: a scout can stand and watch there without
   fleeing. It stays where it was when no such cell lies short of our base;
+- with `watch_posts_in_sight` on, the posts of the two watches above are
+  placed where a scout sees what it watches (`watch_post`): the field's
+  center for a home field, for the main's edge the remembered enemy building
+  (not a wall) nearest the edge cell, else the edge cell. The post lies
+  FALLBACK_SIGHT_CELLS less 1 from it toward our base (a rifleman's sight,
+  the shortest of the scouts', so that every scout sees it from there), moved
+  on toward our base to the first cell outside every known enemy defense's
+  reach; the keep-off ground of the enemy's buildings does not apply to it. In
+  the live games of 20261016 a dog at the main's edge post saw nothing of the
+  base: the posts were sized for a sight of 6 and the keep-off ground;
 - our expansion approach: halfway between our main yard and the site of our
   next yard, when there is one (the further MCV's site of `mcv_repeat`, else
   the field `mcv_reserve_field` keeps for the MCV), where a raid on the new
@@ -82,7 +92,7 @@ import math
 from dataclasses import dataclass
 from typing import Collection, Iterable, Sequence
 
-from ucla_agent.games.redalert import cells
+from ucla_agent.games.redalert import cells, coverage
 from ucla_agent.games.redalert.family import BARRACKS_TYPES, CONSTRUCTION_YARD, WAR_FACTORY
 from ucla_agent.games.redalert.items import TICKS_PER_SECOND
 from ucla_agent.games.redalert.managers import MatchContext
@@ -90,7 +100,7 @@ from ucla_agent.games.redalert.own_fields import is_own
 from ucla_agent.games.redalert.scout_berth import flee_cells
 from ucla_agent.games.redalert.scout_stance import is_cautious
 from ucla_agent.games.redalert.scout_steering import LINE_TOLERANCE_CELLS, Dangers, enemy_base_cells, route
-from ucla_agent.games.redalert.sight import SightGrid
+from ucla_agent.games.redalert.sight import FALLBACK_SIGHT_CELLS, SightGrid
 from ucla_agent.games.redalert.tuning import ScoutingTuning
 from ucla_agent.games.redalert.world import Cell, Unit, World
 
@@ -112,6 +122,8 @@ WATCH_FIELD_UNSEEN_SECONDS = 60
 # from a standoff cell at most HOME_FIELD_STANDOFF_MAX_CELLS from its center.
 HOME_FIELD_UNSEEN_SECONDS = 120
 HOME_FIELD_STANDOFF_MAX_CELLS = 20
+# The main's edge watch watches the enemy building nearest the edge cell within this many cells of it.
+EDGE_BUILDING_CELLS = 12
 # The priority of each kind, and the higher one of the main's edge and of the lane while what they watch for is
 # unknown or has not been seen for LANE_UNSEEN_ARMY_SECONDS.
 EXPANSION_WATCH_PRIORITY = 3
@@ -238,7 +250,10 @@ def _home_field_watches(start: Cell, world: World, ctx: MatchContext, sight: Sig
         center = cells.clamped(patch.center, world.map_bounds)
         if not cells.is_within(center, start, WATCH_FIELD_FROM_ENEMY_CELLS):
             continue
-        cell = _standoff(center, dangers, world, ctx.tuning.scouting)
+        if ctx.tuning.scouting.watch_posts_in_sight:
+            cell = watch_post(center, world, ctx)
+        else:
+            cell = _standoff(center, dangers, world, ctx.tuning.scouting)
         if cell is None:
             continue
         seen = max(
@@ -277,10 +292,33 @@ def _main_edge(start: Cell, world: World, ctx: MatchContext, sight: SightGrid) -
     `scout_cautious` on, moved out of the ground of the enemy's bases."""
     tuning = ctx.tuning.scouting
     cell = _edge_cell(start, tuning.scout_view_cells, world, tuning)
-    if is_cautious(tuning):
+    if tuning.watch_posts_in_sight:
+        cell = watch_post(_edge_watched(cell, world), world, ctx)
+    elif is_cautious(tuning):
         cell = _off_base_ground(start, cell, world, tuning)
     priority = MAIN_EDGE_PRIORITY if _is_production_known(world) else MAIN_EDGE_UNKNOWN_PRODUCTION_PRIORITY
     return Mission(MAIN_EDGE, cell, priority, sight.last_seen(cell))
+
+
+def watch_post(watched: Cell, world: World, ctx: MatchContext) -> Cell:
+    """Where a scout stands to see a cell (see the module's note): FALLBACK_SIGHT_CELLS less 1 from it toward our
+    base, moved on toward our base to the first cell outside every known enemy defense's reach; that first cell when
+    none short of our base is."""
+    near = max(1, FALLBACK_SIGHT_CELLS - 1)
+    base, defenses = world.base_center, world.known_enemy_defenses
+    first = cells.clamped(cells.toward(watched, base, near), world.map_bounds)
+    for along in range(near, math.ceil(cells.distance(watched, base)) + 1):
+        post = cells.clamped(cells.toward(watched, base, along), world.map_bounds)
+        if not coverage.is_covered(post, defenses, world.items, ctx.tuning.coverage):
+            return post
+    return first
+
+
+def _edge_watched(edge: Cell, world: World) -> Cell:
+    """What the main's edge watch watches: the remembered enemy building, not a wall, nearest the edge cell within
+    EDGE_BUILDING_CELLS of it; the edge cell while none is."""
+    near = [cell for cell in enemy_base_cells(world) if cells.is_within(cell, edge, EDGE_BUILDING_CELLS)]
+    return min(near, key=lambda cell: cells.distance(cell, edge), default=edge)
 
 
 def _edge_cell(start: Cell, along_cells: float, world: World, tuning: ScoutingTuning) -> Cell:

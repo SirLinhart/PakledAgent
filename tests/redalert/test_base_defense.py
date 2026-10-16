@@ -20,6 +20,7 @@ from ucla_agent.games.redalert.combat import CombatManager
 from ucla_agent.games.redalert.fight import ratio_against
 from ucla_agent.games.redalert.groups import GUARD, MAIN, RAID, SCOUT
 from ucla_agent.games.redalert.production import INFANTRY_QUEUE
+from ucla_agent.games.redalert.terrain import OrePatch, Terrain
 from ucla_agent.games.redalert.tuning import TUNING_FILE, Tuning
 from ucla_agent.games.redalert.upkeep import UpkeepManager, power_target
 
@@ -605,6 +606,49 @@ def test_contact_focus_a_responder_is_told_to_attack_its_target_once_and_again_o
     assert with_command(first, "attack") and with_command(again, "attack", "attack_move") == []
 
 
+KEEP_ATTACK_ON = dataclasses.replace(
+    FOCUS_ON, base_defense=dataclasses.replace(FOCUS_ON.base_defense, keep_attack_in_sight=True)
+)
+
+
+@pytest.mark.parametrize(
+    "tuning, in_sight, sent_back",
+    [(KEEP_ATTACK_ON, True, False), (KEEP_ATTACK_ON, False, True), (FOCUS_ON, True, True)],
+    ids=["target in sight keeps the attack", "target out of sight", "switch off"],
+)
+def test_keep_attack_in_sight_a_responder_walking_to_its_target_is_sent_back_to_the_cell_only_once_it_is_gone(
+    tuning, in_sight, sent_back
+):
+    agent = new_agent(BaseDefenseManager(), tuning=tuning)
+    first = ask(agent, base(units=[situations.unit(300, "e1", 22, 49)], visible_enemies=rifles_at(30)))
+    # On its way to 505 the rifle is no longer idle, and the enemies stepped back to 8 cells: out of contact.
+    walking = [situations.unit(300, "e1", 23, 49, idle=False)]
+    enemies = [record for record in rifles_at(31) if in_sight or record["id"] != 505]
+
+    then = ask(agent, base(tick=1005, units=walking, visible_enemies=enemies))
+
+    assert with_command(first, "attack") == [{"cmd": "attack", "units": [300], "target": 505}]
+    expected = [{"cmd": "attack_move", "units": [300], "to": [22, 48]}] if sent_back else []
+    assert with_command(then, "attack", "attack_move") == expected
+
+
+CHARGE_ON = tuning_off(combat=combat_off(contact_focus=True, tank_charge_artillery=True))
+
+
+def test_contact_focus_a_tank_on_the_threatened_cell_charges_an_enemy_artillery_piece_with_one_emergency_move():
+    agent = new_agent(BaseDefenseManager(), tuning=CHARGE_ON)
+    tank = [situations.unit(300, "2tnk", 22, 49)]
+    shelling = [enemy(500, "arty", 28, 49), enemy(501, "e1", 30, 52)]
+
+    first = ask(agent, base(units=tank, visible_enemies=shelling))
+    again = ask(agent, base(tick=1005, units=tank, visible_enemies=shelling))
+
+    # A charge is a move to the piece's cell, an order with no target, sent once like an attack.
+    assert with_command(first, "attack", "attack_move", "move") == [{"cmd": "move", "units": [300], "to": [28, 49]}]
+    assert set(priorities(agent, "move")) == {Priority.EMERGENCY}
+    assert with_command(again, "attack", "attack_move", "move") == []
+
+
 def test_contact_focus_off_a_responder_in_contact_under_a_major_threat_is_sent_to_the_cell():
     agent, _ = defense_agent()
 
@@ -1133,6 +1177,98 @@ def test_tank_army_counters_are_trained_as_before_against_vehicles_before_a_war_
     assert [event for event in match_record("base_defense") if event["reason"] == "counter_skipped_tanks"] == []
 
 
+# -- infantry counters through the war-factory block while the enemy is infantry-heavy -----------------------------
+
+# The tank army with the infantry counter lift on, the rest of the shipped switches off.
+LIFT_ON = dataclasses.replace(
+    TANK_ARMY, composition=dataclasses.replace(TANK_ARMY.composition, infantry_counter_lift=True)
+)
+TRAIN_FLAMERS_3 = {"cmd": "train", "item": "e4", "count": 3}
+
+
+def far_tanks(count: int) -> list[dict]:
+    """`count` enemy medium tanks seen far out in the field, east of the base: counted, but no part of the threat."""
+    return [enemy(700 + number, "2tnk", 80, 60 + number) for number in range(count)]
+
+
+def lift_events(match_record) -> list[str]:
+    """The reasons of the `base_defense` events about counters left to the tank army or lifted."""
+    reasons = ("counter_skipped_tanks", "counter_lifted_infantry_heavy")
+    return [event["reason"] for event in match_record("base_defense") if event["reason"] in reasons]
+
+
+def soviet_base(*more, tick: int = 1000, **observation) -> dict:
+    """A Soviet base with a barracks and a war factory, with what the test adds."""
+    return base_state("russia", YARD, POWER, ("barr", 18, 44), WAR_FACTORY, *more, tick=tick, **observation)
+
+
+def test_war_factory_blocks_rifle_counters_when_not_infantry_heavy(match_record):
+    agent = new_agent(BaseDefenseManager(), tuning=LIFT_ON)
+
+    # The 20 rifles of the threat are 20 of the 51 enemy units seen: 39 percent, not infantry-heavy.
+    orders = counter_orders(agent, [*TWENTY_RIFLES, *far_tanks(31)], WAR_FACTORY, units=tank_main(8))
+
+    assert orders == []
+    assert lift_events(match_record) == ["counter_skipped_tanks"]
+
+
+def test_infantry_heavy_lifts_base_defense_block(match_record):
+    agent = new_agent(BaseDefenseManager(), tuning=LIFT_ON)
+
+    first = counter_orders(agent, [*TWENTY_RIFLES, *far_tanks(4)], WAR_FACTORY, units=tank_main(8))
+    later = counter_orders(agent, [*TWENTY_RIFLES, *far_tanks(4)], WAR_FACTORY, units=tank_main(8), tick=1005)
+
+    # The three of the first cycle are still on their way to the Infantry queue; the event is written once a threat.
+    assert (first, later) == ([TRAIN_RIFLES_3], [])
+    assert lift_events(match_record) == ["counter_lifted_infantry_heavy"]
+
+
+@pytest.mark.parametrize(
+    "more, counter",
+    [((("ftur", 27, 46),), TRAIN_FLAMERS_3), ((), TRAIN_RIFLES_3)],
+    ids=["a flame tower standing: flamers", "no flame tower: rifles"],
+)
+def test_infantry_heavy_lifts_the_soviet_block_with_flamers_or_rifles_never_grenadiers(more, counter):
+    agent = new_agent(BaseDefenseManager(), tuning=LIFT_ON)
+    state = soviet_base(*more, units=tank_main(8), visible_enemies=[*TWENTY_RIFLES, *far_tanks(4)])
+
+    orders = trains(ask(agent, state))
+
+    assert orders == [counter]
+    assert "e2" not in [order["item"] for order in orders]
+
+
+def test_vehicle_threat_still_gets_rockets():
+    agent = new_agent(BaseDefenseManager(), tuning=LIFT_ON)
+
+    assert counter_orders(agent, tanks_at(32, 4), WAR_FACTORY, units=tank_main(8)) == [TRAIN_ROCKETS_3]
+
+
+def test_no_war_factory_counters_as_before(match_record):
+    agent = new_agent(BaseDefenseManager(), tuning=LIFT_ON)
+
+    assert counter_orders(agent, [*TWENTY_RIFLES, *far_tanks(31)], units=tank_main(8)) == [TRAIN_RIFLES_3]
+    assert lift_events(match_record) == []
+
+
+def test_few_main_units_exception_kept(match_record):
+    agent = new_agent(BaseDefenseManager(), tuning=LIFT_ON)
+
+    orders = counter_orders(agent, [*TWENTY_RIFLES, *far_tanks(31)], WAR_FACTORY, units=tank_main(3))
+
+    assert orders == [TRAIN_RIFLES_3]
+    assert lift_events(match_record) == []
+
+
+def test_switch_off_keeps_block(match_record):
+    agent = new_agent(BaseDefenseManager(), tuning=TANK_ARMY)
+
+    orders = counter_orders(agent, [*TWENTY_RIFLES, *far_tanks(4)], WAR_FACTORY, units=tank_main(8))
+
+    assert orders == []
+    assert lift_events(match_record) == ["counter_skipped_tanks"]
+
+
 # -- repair under attack ---------------------------------------------------------------------------
 
 REPAIR_POWER = {"cmd": "repair", "building": POWER_ID, "on": True}
@@ -1574,6 +1710,35 @@ def test_keep_attack_army_a_threat_the_guard_and_the_pillbox_outweigh_takes_no_u
     assert (agent.ctx.threat_level, sent_to_the_threat(agent, orders)) == ("major", GUARD_IDS)
     assert main_orders and not agent.ctx.groups.is_recalled(MAIN)
     assert not any(agent.ctx.groups.is_overridden(unit_id) for unit_id in (MAIN_NEAR, MAIN_FAR))
+
+
+IN_REACH_ON = dataclasses.replace(
+    KEEP_ATTACK_ARMY,
+    base_defense=dataclasses.replace(KEEP_ATTACK_ARMY.base_defense, home_defenses_in_reach=True),
+)
+# A pillbox 5 cells from the nearest of the eight rifles, within its range.
+NEAR_PILLBOX = ("pbox", 27, 48)
+
+
+@pytest.mark.parametrize(
+    "tuning, pillbox, main_sent",
+    [
+        (IN_REACH_ON, HOME_PILLBOX, True),
+        (IN_REACH_ON, NEAR_PILLBOX, False),
+        (KEEP_ATTACK_ARMY, HOME_PILLBOX, False),
+    ],
+    ids=["pillbox out of reach", "pillbox in reach", "switch off"],
+)
+def test_home_defenses_in_reach_a_pillbox_out_of_range_of_the_threat_does_not_hold_the_base_for_main(
+    tuning, pillbox, main_sent
+):
+    agent = new_agent(BaseDefenseManager(), CombatManager(), tuning=tuning, plan_selector=FixedPlan("FINISH"))
+
+    orders = ask(agent, base(pillbox, units=[*guard_rifles(), *ATTACKING_MAIN], visible_enemies=SMALL_THREAT))
+
+    # The rifles' 800 against the guard's 500, and the pillbox's 600 only where it reaches them.
+    assert (MAIN_NEAR in sent_to_the_threat(agent, orders)) is main_sent
+    assert agent.ctx.groups.is_overridden(MAIN_NEAR) is main_sent
 
 
 def test_keep_attack_army_under_finish_main_keeps_its_combat_orders_while_the_guard_answers():
@@ -2217,3 +2382,210 @@ def test_far_rescue_in_the_whole_match_main_is_never_called_to_the_far_yard_and_
     declined = [data for data in match.data_of("base_defense") if data.get("reason") == "far_rescue_declined"]
     assert recalled and not any(recalled)
     assert [(data["threat_cell"], data["enemy_building"]["type"]) for data in declined] == [([22, 18], "fact")]
+
+
+# -- trucks retreat from threats they cannot crush ---------------------------------------------------------------------
+
+RETREAT = dataclasses.replace(
+    tuning_off(), base_defense=dataclasses.replace(tuning_off().base_defense, truck_retreat=True)
+)
+# A refinery by the pillbox on the base's east side; one by a pillbox east of the truck's field, toward the threat; and
+# one by an AA gun south-west of the field, which shoots only aircraft, so that its refinery is no shelter.
+DEFENDED_REFINERY = ("proc", 26, 44)
+EAST_REFINERY, EAST_PILLBOX = ("proc", 45, 38), ("pbox", 47, 37)
+AA_REFINERY, AA_GUN = ("proc", 38, 48), ("agun", 40, 49)
+TRUCK_AT = (40, 40)
+
+
+def retreat_agent(tuning=RETREAT):
+    """An agent with the base-defense manager alone under a tuning, the truck retreat on by default."""
+    return new_agent(BaseDefenseManager(), tuning=tuning)
+
+
+def at_work(tick: int, *buildings, enemies=(), truck_at=TRUCK_AT, hp: int = 100, idle: bool = False, **more) -> dict:
+    """The base with the pillbox and the refinery by it and the buildings given, its truck at a cell and the enemies
+    in sight."""
+    truck = situations.unit(HARVESTER_ID, "harv", *truck_at, idle=idle, hp=hp)
+    return base(PILLBOX, DEFENDED_REFINERY, *buildings, tick=tick, units=[truck], visible_enemies=list(enemies), **more)
+
+
+def truck_orders(orders: list[dict]) -> list[dict]:
+    return naming(orders, [HARVESTER_ID])
+
+
+def test_truck_retreats_from_tank_at_range(match_record):
+    tank = enemy(500, "2tnk", 48, 40)
+    hit = {"events": [under_attack(30, HARVESTER_ID, "harv", *TRUCK_AT)]}
+    on, off = retreat_agent(), retreat_agent(tuning_off())
+
+    retreated = truck_orders(ask(on, at_work(1000, enemies=[tank], **hit)))
+    stayed = truck_orders(ask(off, at_work(1000, enemies=[tank], **hit)))
+
+    assert retreated == [{"cmd": "move", "units": [HARVESTER_ID], "to": list(DEFENDED_REFINERY[1:])}]
+    assert stayed == [] and HARVESTER_ID in on.ctx.fleeing_harvesters
+    (event,) = [event for event in match_record("base_defense") if event["reason"] == "truck_retreat"]
+    assert (event["harvester"], event["threats"], event["shelter"]) == (HARVESTER_ID, ["vehicle"], [26, 44])
+
+
+def test_truck_retreats_from_enemy_defense():
+    # The gun turret's range of 6.5 and a cell reach the truck 7 cells off; nothing else is near.
+    gun = {"visible_enemy_buildings": [enemy(900, "gun", 47, 40)]}
+    agent = retreat_agent()
+
+    orders = truck_orders(ask(agent, at_work(1000, **gun)))
+
+    assert agent.world.items.get("gun").range == 6.5
+    assert orders == [{"cmd": "move", "units": [HARVESTER_ID], "to": list(DEFENDED_REFINERY[1:])}]
+
+
+def test_truck_ignores_lone_rifleman():
+    rifleman = enemy(500, "e1", 44, 40)
+    on, off = retreat_agent(), retreat_agent(tuning_off())
+
+    ignored = truck_orders(ask(on, at_work(1000, enemies=[rifleman])))
+    fled = truck_orders(ask(off, at_work(1000, enemies=[rifleman])))
+
+    assert ignored == [] and HARVESTER_ID not in on.ctx.fleeing_harvesters
+    assert with_command(fled, "move")
+
+
+@pytest.mark.parametrize(
+    "harasser_max, hp, retreats",
+    [(400, 100, True), (600, 100, False), (600, 40, True)],
+    ids=["a jeep is worth 400 or more", "a cheaper harasser at full health", "a cheaper harasser below half health"],
+)
+def test_truck_ignores_a_lone_harasser_only_while_it_has_half_its_health(harasser_max, hp, retreats):
+    upkept = dataclasses.replace(RETREAT.base_defense, truck_harasser_max_value=harasser_max)
+    agent = retreat_agent(dataclasses.replace(RETREAT, base_defense=upkept))
+
+    orders = truck_orders(ask(agent, at_work(1000, enemies=[enemy(500, "jeep", 44, 40)], hp=hp)))
+
+    assert agent.world.items.get("jeep").cost == 500
+    assert bool(with_command(orders, "move")) is retreats
+
+
+@pytest.mark.parametrize("count, retreats", [(3, False), (5, True)], ids=["3 rifles", "5 rifles"])
+def test_truck_retreats_from_five_infantry(count, retreats):
+    rifles = [enemy(500 + number, "e1", 48, 36 + 2 * number) for number in range(count)]
+    agent = retreat_agent()
+
+    orders = truck_orders(ask(agent, at_work(1000, enemies=rifles)))
+
+    assert bool(with_command(orders, "move")) is retreats
+
+
+def test_truck_retreats_from_two_rocket_soldiers():
+    rockets = [enemy(500, "e3", 47, 40), enemy(501, "e3", 47, 42)]
+
+    orders = truck_orders(ask(retreat_agent(), at_work(1000, enemies=rockets)))
+
+    assert with_command(orders, "move")
+
+
+def test_shelter_is_away_from_threat():
+    # A tank 9 cells east of the truck: the east refinery, nearest the truck, lies nearer the tank than the truck does;
+    # the AA gun's refinery, nearer the truck than the base's, is no shelter.
+    tank = enemy(500, "2tnk", 49, 40)
+    buildings = (EAST_REFINERY, EAST_PILLBOX, AA_REFINERY, AA_GUN)
+
+    orders = truck_orders(ask(retreat_agent(), at_work(1000, *buildings, enemies=[tank])))
+
+    assert cells.distance(EAST_REFINERY[1:], TRUCK_AT) < cells.distance(AA_REFINERY[1:], TRUCK_AT)
+    assert cells.distance(AA_REFINERY[1:], TRUCK_AT) < cells.distance(DEFENDED_REFINERY[1:], TRUCK_AT)
+    assert orders == [{"cmd": "move", "units": [HARVESTER_ID], "to": list(DEFENDED_REFINERY[1:])}]
+
+
+def test_shelter_the_base_center_is_the_last_resort():
+    # Only the AA gun's refinery, no shelter, stands away from the tank east of the truck.
+    tank = enemy(500, "2tnk", 46, 40)
+    agent = retreat_agent()
+    state = base(AA_REFINERY, AA_GUN, tick=1000, units=[harvester(*TRUCK_AT)], visible_enemies=[tank])
+
+    orders = truck_orders(ask(agent, state))
+
+    assert orders == [{"cmd": "move", "units": [HARVESTER_ID], "to": list(agent.world.base_center)}]
+
+
+def test_truck_returns_to_its_field_after_8s(match_record):
+    field = OrePatch(center=(41, 40), cells=frozenset((x, y) for x in (40, 41, 42) for y in (39, 40, 41)))
+    agent = retreat_agent()
+    ask(agent, base(tick=990))
+    agent.ctx.terrain = Terrain((field,), field.cells)
+    ask(agent, at_work(1000, enemies=[enemy(500, "2tnk", 46, 40)]))
+    sheltered = [truck_orders(ask(agent, at_work(tick, truck_at=(27, 45)))) for tick in (1005, 1199)]
+
+    returned = truck_orders(ask(agent, at_work(1200, truck_at=(27, 45))))
+
+    # 200 ticks, 8 s, after the tank was last near the truck.
+    assert sheltered == [[], []]
+    (order,) = returned
+    assert order["cmd"] == "harvest" and tuple(order["to"]) in field.cells
+    assert HARVESTER_ID not in agent.ctx.fleeing_harvesters
+    returns = [event for event in match_record("base_defense") if event["reason"] == "truck_return"]
+    assert [(event["harvester"], event["field_center"]) for event in returns] == [(HARVESTER_ID, [41, 40])]
+
+
+def test_truck_retreat_a_retreating_truck_idle_short_of_its_shelter_is_sent_again_every_3_s():
+    tank = enemy(500, "2tnk", 46, 40)
+    agent = retreat_agent()
+    ask(agent, at_work(1000, enemies=[tank]))
+
+    again = [truck_orders(ask(agent, at_work(tick, enemies=[tank], idle=True))) for tick in (1074, 1075)]
+
+    assert again[0] == [] and again[1] == [{"cmd": "move", "units": [HARVESTER_ID], "to": [26, 44]}]
+
+
+@pytest.mark.parametrize("is_attacked", [True, False], ids=["attacked", "not attacked"])
+def test_truck_retreat_an_attacked_truck_retreats_from_artillery_beyond_10_cells_whose_weapon_reaches_it(is_attacked):
+    # Artillery's range of 12 and a cell reach the truck 12 cells off, beyond truck_threat_cells.
+    artillery = enemy(500, "arty", 52, 40)
+    hit = {"events": [under_attack(30, HARVESTER_ID, "harv", *TRUCK_AT)]} if is_attacked else {}
+    agent = retreat_agent()
+
+    orders = truck_orders(ask(agent, at_work(1000, enemies=[artillery], **hit)))
+
+    assert agent.world.items.get("arty").range == 12
+    expected = [{"cmd": "move", "units": [HARVESTER_ID], "to": list(DEFENDED_REFINERY[1:])}] if is_attacked else []
+    assert orders == expected
+
+
+@pytest.mark.parametrize("hp, shelter", [(100, [34, 40]), (40, [26, 44])], ids=["fit", "below fit_hp"])
+def test_shelter_main_s_middle_away_from_the_threat_while_it_has_a_unit_fit_to_fight(hp, shelter):
+    # Main's tank 6 cells west of the truck, nearer it than the defended refinery and farther from the enemy tank.
+    main_tank = situations.unit(600, "2tnk", 34, 40, hp=hp)
+    truck = situations.unit(HARVESTER_ID, "harv", *TRUCK_AT, idle=False)
+    agent = retreat_agent()
+    ask(agent, base(PILLBOX, DEFENDED_REFINERY, tick=995, units=[truck, main_tank]))
+    agent.ctx.groups.assign(600, MAIN)
+
+    state = base(PILLBOX, DEFENDED_REFINERY, units=[truck, main_tank], visible_enemies=[enemy(500, "2tnk", 48, 40)])
+    orders = truck_orders(ask(agent, state))
+
+    assert agent.ctx.tuning.raids.fit_hp == 60
+    assert orders == [{"cmd": "move", "units": [HARVESTER_ID], "to": shelter}]
+
+
+def test_truck_retreat_a_truck_whose_field_went_dry_returns_to_harvest_wherever_it_finds_ore():
+    field = OrePatch(center=(41, 40), cells=frozenset((x, y) for x in (40, 41, 42) for y in (39, 40, 41)))
+    agent = retreat_agent()
+    ask(agent, base(tick=990))
+    agent.ctx.terrain = Terrain((field,), field.cells)
+    ask(agent, at_work(1000, enemies=[enemy(500, "2tnk", 46, 40)]))
+    agent.ctx.dry_fields = frozenset({field})
+
+    returned = truck_orders(ask(agent, at_work(1200, truck_at=(27, 45))))
+
+    assert returned == [{"cmd": "harvest", "units": [HARVESTER_ID]}]
+
+
+def test_truck_retreat_a_lone_aircraft_worth_less_than_the_harasser_value_is_no_harasser(match_record):
+    # With the harasser value above a Yak's 1350, only its being an aircraft makes the truck retreat.
+    upkept = dataclasses.replace(RETREAT.base_defense, truck_harasser_max_value=2000)
+    agent = retreat_agent(dataclasses.replace(RETREAT, base_defense=upkept))
+
+    orders = truck_orders(ask(agent, at_work(1000, enemies=[enemy(500, "yak", 44, 40)])))
+
+    assert agent.world.items.get("yak").cost == 1350
+    assert with_command(orders, "move")
+    (event,) = [event for event in match_record("base_defense") if event["reason"] == "truck_retreat"]
+    assert event["threats"] == ["aircraft"]

@@ -34,6 +34,7 @@ agent with its first state.
 
 from __future__ import annotations
 
+import dataclasses
 import functools
 from collections import Counter, deque
 from dataclasses import dataclass
@@ -44,8 +45,9 @@ from ucla_agent.games.redalert import cells
 from ucla_agent.games.redalert.tuning import TerrainTuning
 from ucla_agent.games.redalert.world import Cell
 
-# The picture's characters for ore, gems and ore mines, as the platform's legend gives them.
+# The picture's characters for ore, gems and ore mines, as the platform's legend gives them, and the ore mine's alone.
 ORE_CHARACTERS = frozenset("$*M")
+MINE_CHARACTERS = frozenset("M")
 # Water, rock, trees and rough ground: with the ore, the ground known to be one a building cannot be placed on.
 BLOCKED_CHARACTERS = ORE_CHARACTERS | frozenset("~^T,")
 # Water, rock or cliff, and trees: the ground no unit can walk on.
@@ -78,6 +80,10 @@ class OrePatch:
     # The cells of the field at the start of the match: where a refinery has to stand near for its harvesters'
     # sake, whatever has been harvested from them since.
     cells: frozenset[Cell]
+    # How many ore mines the field holds: groups of mine cells that touch, also at a corner, read from the picture. A
+    # mine grows the ore back, so it is what a field's harvesters are counted by. It says nothing of which field a
+    # patch is, so two patches of the same cells are the same field whatever their mines.
+    mines: int = dataclasses.field(default=0, compare=False)
 
     @property
     def size(self) -> int:
@@ -125,11 +131,13 @@ class Terrain:
         if not isinstance(rows, list) or not isinstance(origin, (list, tuple)) or len(origin) != 2:
             return cls()
         ore = _cells_showing(rows, origin, ORE_CHARACTERS)
+        mines = _patches(_cells_showing(rows, origin, MINE_CHARACTERS))
+        patches = [_with_mines(patch, mines) for patch in _patches(ore)]
         shown = Counter("".join(str(row) for row in rows))
         blocking = frozenset(shown) - (frozenset(buildable_characters) - ORE_CHARACTERS)
         unknown = {character: shown[character] for character in sorted(blocking - BLOCKED_CHARACTERS)}
         impassable = _cells_showing(rows, origin, IMPASSABLE_CHARACTERS)
-        return cls(_patches(ore), _cells_showing(rows, origin, blocking), unknown, sum(shown.values()), impassable)
+        return cls(patches, _cells_showing(rows, origin, blocking), unknown, sum(shown.values()), impassable)
 
     def unknown_characters_error(self, warn_share: float) -> TerrainUnknownCharacters | None:
         """The error to report when the unknown characters together cover more than `warn_share` of the picture.
@@ -170,6 +178,33 @@ class Terrain:
         of it lies within `depth` steps, as when a cliff keeps it from the ore."""
         distances = self.walk_distances(patch, depth)
         return min((distances[cell] for cell in footprint if cell in distances), default=None)
+
+    def walk_steps(self, start: Cell, end: Cell, max_steps: int) -> int | None:
+        """The fewest steps from `start` to `end` by walking: a step to any of the eight cells around, over passable
+        cells only, `end` itself taken as reached whatever it is; None when it is not reached within `max_steps`, so
+        that no search floods farther than that."""
+        if not self.impassable:
+            # On open ground the fewest steps of eight directions is the larger of the two spans.
+            steps = max(abs(end[0] - start[0]), abs(end[1] - start[1]))
+            return steps if steps <= max_steps else None
+        if start == end:
+            return 0
+        steps_to = {start: 0}
+        frontier = deque([start])
+        while frontier:
+            x, y = frontier.popleft()
+            steps = steps_to[(x, y)] + 1
+            for dx, dy in _NEIGHBOURS:
+                cell = (x + dx, y + dy)
+                if cell == end:
+                    return steps
+                # A cell from which `end` lies farther than the steps left is no use: the search keeps to the cells
+                # that can still be on a walk within the cap, never the whole map.
+                is_hopeless = steps + max(abs(end[0] - cell[0]), abs(end[1] - cell[1])) > max_steps
+                if cell not in steps_to and cell not in self.impassable and not is_hopeless:
+                    steps_to[cell] = steps
+                    frontier.append(cell)
+        return None
 
 
 @functools.lru_cache(maxsize=_WALK_MAPS_KEPT)
@@ -233,6 +268,12 @@ def _take_field(start: Cell, unsorted: set[Cell]) -> list[Cell]:
         field += touching
         frontier += touching
     return field
+
+
+def _with_mines(patch: OrePatch, mines: list[OrePatch]) -> OrePatch:
+    """The patch with the count of the mines given that lie in it: a mine's cells are ore, so each lies in one patch."""
+    held = sum(1 for mine in mines if not mine.cells.isdisjoint(patch.cells))
+    return dataclasses.replace(patch, mines=held)
 
 
 def _patch_of(field: list[Cell]) -> OrePatch:

@@ -42,6 +42,18 @@ refinery, and the idle rule leaves them alone. A harvester that flees from an
 enemy, or waits where parking has put it, is not sent: base defense and
 parking come first.
 
+With `dry_field_guard` on, three things more. A field with an ore mine is
+never marked dry: the mine grows the ore back, and its trucks idle there
+waiting for it. A send back to harvest of a truck that was retreating within
+the last RETREAT_GRACE_SECONDS (see `truck_retreat`) is not counted: the
+truck coming back from shelter to the ore cell it left, mined out meanwhile,
+is no sign of a dry field. And no truck is sent to a field no refinery of ours
+serves (`harvester_room.served_fields`): it would mine where nothing of ours
+unloads, far from cover. In the live games of 20261016 the trucks of a home
+field with 2 mines were moved off it as dry right as they came back from a
+retreat, three times in the match, each time farther, to fields with no
+refinery of ours, where they died.
+
 A field is no longer dry once an own harvester has stood on one of its ore
 cells for three states in a row: there was ore on it after all.
 
@@ -60,14 +72,16 @@ so the share and the field room agree on which refineries serve a field. With
 no field below its share, a harvester goes to the field it would go to with
 the switch off, and the limit of harvesters to a field does not apply. One
 `harvesters_moved` event is written for each dry field the harvesters leave in
-a cycle, with the field each of them goes to (`to_field_centers`).
+a cycle, with the field each of them goes to (`to_field_centers`). With
+`truck_shares_by_mines` on, an active field's share is its truck share (see
+`truck_shares`).
 """
 
 from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass
-from typing import Iterable
+from typing import Iterable, Mapping
 
 from ucla_agent.core import records
 from ucla_agent.games.redalert import cells, coverage, creep, placement, refinery_fields
@@ -80,6 +94,8 @@ from ucla_agent.games.redalert.terrain import OrePatch
 from ucla_agent.games.redalert.world import Building, Cell, EnemyRecord, Unit, World
 
 HARVESTERS_MOVED_EVENT = "harvesters_moved"
+# With dry_field_guard on, a truck seen retreating this lately is no sign of a dry field when sent back to harvest.
+RETREAT_GRACE_SECONDS = 10
 # The reason a `harvesters_moved` event gives: the field the harvesters left had run dry.
 DRY_REASON = "dry"
 # A field with an own refinery this close to one of its cells is preferred: its harvesters unload nearby.
@@ -112,6 +128,8 @@ class FreshOre:
         self._mined_states: Counter[OrePatch] = Counter()
         # Harvester id -> the field it was sent to.
         self._sent: dict[int, OrePatch] = {}
+        # Truck id -> the last tick it was seen retreating (see `truck_retreat`).
+        self._retreated_at: dict[int, int] = {}
 
     @property
     def dry_fields(self) -> frozenset[OrePatch]:
@@ -129,15 +147,18 @@ class FreshOre:
         world: World,
         ctx: MatchContext,
         room: FieldRoom | None = None,
+        shares: Mapping[OrePatch, int] | None = None,
     ) -> list[Intent]:
         """The `harvest` orders that send the harvesters of the dry fields to fresh ore, but those `excluded`; one
         `harvesters_moved` event for each field they leave for another, or with `fresh_ore_by_load` on for each field
-        they leave. Given the fields' `room`, each goes to the served field with the most room while one has any."""
+        they leave. Given the fields' `room`, each goes to the served field with the most room while one has any.
+        Given the truck `shares` of the active fields (see `truck_shares`), the load of such a field is held to its
+        share."""
         alive = {unit.id for unit in harvesters}
         self._sent = {harvester: field for harvester, field in self._sent.items() if harvester in alive}
         self._unmark_mined(harvesters)
         by_load = ctx.tuning.upkeep.fresh_ore_by_load
-        destinations = _ByLoad(harvesters, self._sent, world, ctx) if by_load else _ByLimit(self._sent, ctx)
+        destinations = _ByLoad(harvesters, self._sent, world, ctx, shares) if by_load else _ByLimit(self._sent, ctx)
         if room is not None:
             destinations = _ByRoom(room, destinations, harvesters, world, ctx)
         moves = self._moves([unit for unit in harvesters if unit.id not in excluded], destinations, world, ctx)
@@ -159,7 +180,13 @@ class FreshOre:
         idle."""
         tuning = ctx.tuning.upkeep
         since = world.tick - tuning.dry_window_seconds * TICKS_PER_SECOND
-        for harvester_id in _counted_reorders(harvester_ids, world, ctx):
+        self._retreated_at.update(dict.fromkeys(ctx.fleeing_harvesters, world.tick))
+        grace = world.tick - RETREAT_GRACE_SECONDS * TICKS_PER_SECOND
+        self._retreated_at = {truck: tick for truck, tick in self._retreated_at.items() if tick >= grace}
+        counted = _counted_reorders(harvester_ids, world, ctx)
+        if tuning.dry_field_guard:
+            counted = [harvester_id for harvester_id in counted if harvester_id not in self._retreated_at]
+        for harvester_id in counted:
             unit = world.units[harvester_id]
             for field in _fields_near(unit, world, ctx):
                 self._reorders.setdefault(field, []).append((world.tick, harvester_id))
@@ -168,7 +195,11 @@ class FreshOre:
             for field, sends in self._reorders.items()
             if (recent := [send for send in sends if send[0] > since])
         }
-        newly_dry = {field for field, sends in self._reorders.items() if _is_dry(field, sends, world, ctx)}
+        newly_dry = {
+            field
+            for field, sends in self._reorders.items()
+            if _is_dry(field, sends, world, ctx) and not (tuning.dry_field_guard and field.mines > 0)
+        }
         self._dry |= newly_dry
 
     def _unmark_mined(self, harvesters: list[Unit]) -> None:
@@ -217,6 +248,7 @@ class FreshOre:
             field
             for field in terrain.ore_patches
             if field not in self._dry
+            and (field in served or not tuning.upkeep.dry_field_guard)
             and self._is_safe(dry, field, world, ctx)
             and not _is_by_enemy_buildings(field, served, world, ctx)
             and not any(cells.is_within(field.center, start, start_reach) for start in starts)
@@ -265,11 +297,20 @@ class _ByLoad:
     """Which safe field a harvester of a dry field goes to with `fresh_ore_by_load` on: the one nearest it whose load is
     below its share, else the best. See the module's note. The loads are worked out the first time one is asked for."""
 
-    def __init__(self, harvesters: list[Unit], sent: dict[int, OrePatch], world: World, ctx: MatchContext) -> None:
+    def __init__(
+        self,
+        harvesters: list[Unit],
+        sent: dict[int, OrePatch],
+        world: World,
+        ctx: MatchContext,
+        shares: Mapping[OrePatch, int] | None = None,
+    ) -> None:
         self._harvesters, self._sent, self._ctx = harvesters, sent, ctx
         self._load: Counter[OrePatch] | None = None
-        # Field -> how many own refineries serve it, as the field room counts them.
+        # Field -> how many own refineries serve it, as the field room counts them; and the truck share of each active
+        # field, when the shares go by ore mines.
         self._serving = serving_counts(world, ctx)
+        self._shares = shares or {}
 
     def pick(self, unit: Unit, fields: list[OrePatch]) -> OrePatch | None:
         """The safe field nearest the harvester whose load is below its share; the first of `fields`, the best, when
@@ -301,8 +342,11 @@ class _ByLoad:
         return self._sent.get(unit.id) == field or cells.is_within(here, field.nearest_cell(here), reach)
 
     def _share(self, field: OrePatch) -> int:
-        """How many harvesters a field takes: `field_share_per_refinery` for each own refinery that serves it
-        (`harvester_room.serving_counts`, within `refinery_serves_cells` of [placement]), one at the least."""
+        """How many harvesters a field takes: an active field's truck share when the shares go by ore mines; else
+        `field_share_per_refinery` for each own refinery that serves it (`harvester_room.serving_counts`, within
+        `refinery_serves_cells` of [placement]), one at the least."""
+        if field in self._shares:
+            return self._shares[field]
         return self._ctx.tuning.upkeep.field_share_per_refinery * max(1, self._serving[field])
 
 

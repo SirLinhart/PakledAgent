@@ -10,20 +10,28 @@ once it has the room.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 
 from ucla_agent.games.redalert import siege
 from ucla_agent.games.redalert.batch import Intent, Priority
 from ucla_agent.games.redalert.scout_report import is_combat_unit
+from ucla_agent.games.redalert.terrain import Terrain
 from ucla_agent.games.redalert.tuning import Tuning
-from ucla_agent.games.redalert.world import Unit, World
+from ucla_agent.games.redalert.world import Cell, Unit, World
 
 
-def fall_back_moves(units: Iterable[Unit], world: World, tuning: Tuning) -> list[Intent]:
+def fall_back_moves(
+    units: Iterable[Unit],
+    world: World,
+    tuning: Tuning,
+    terrain: Terrain | None = None,
+    places: Mapping[int, Cell] | None = None,
+) -> list[Intent]:
     """An emergency move toward the base for each artillery piece and V2 among `units` that an enemy unit in sight has
-    come within its minimum range and `fallback_margin` of."""
+    come within its minimum range and `fallback_margin` of; with artillery_screen_place on, away from the enemy on the
+    terrain given, or toward its place of `places` (see `siege.fallback_cell`)."""
     enemies = [record for record in world.enemy_memory.values() if record.visible and is_combat_unit(record)]
-    stepping = siege.fall_backs(units, enemies, world, tuning.siege)
+    stepping = siege.fall_backs(units, enemies, world, tuning.siege, terrain, places)
     return [
         Intent(Priority.EMERGENCY, {"cmd": "move", "units": [unit_id], "to": list(cell)})
         for unit_id, cell in stepping.items()

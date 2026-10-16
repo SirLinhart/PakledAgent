@@ -138,12 +138,18 @@ class OpeningTuning:
     rush_hold_until_seconds: int = 330
     rush_harvester_crush: bool = True
     # With the switch on and no rush told, the opening trains lean_guard_rifles rifles for the guard, none for main and
-    # no rocket infantry for the cover against armor.
+    # no rocket infantry for the cover against armor: one guard rifle at home until the rush watch releases the full
+    # guard.
     lean_infantry: bool = True
-    lean_guard_rifles: int = 3
+    lean_guard_rifles: int = 1
     # With the switch on, once a barracks stands the opening trains one rifleman, the first scout, and no other
     # infantry but its rocket cover until a rush warning or verdict, a threat at the base or the service depot.
     single_scout_rifle: bool = False
+    # With the switch on, when the base's center and the enemy's start lie more than large_map_base_cells apart, every
+    # order but factory_first builds a power plant, two refineries, the barracks, a power plant and the war factory; a
+    # rush seen before the barracks stands or is on its way brings the barracks-first build back for the match.
+    large_map_economy_first: bool = True
+    large_map_base_cells: int = 70
 
 
 @dataclass(frozen=True)
@@ -210,6 +216,8 @@ class UpkeepTuning:
     repair_stop_above_hp: int = 95
     repair_stop_below_cash: int = 100
     repair_resend_ticks: int = 250
+    # With the switch on, a defense's repair is switched on below repair_stop_above_hp in place of repair_below_hp.
+    repair_defenses_early: bool = True
     switch_again_after_ticks: int = 75
     staging_distance_cells: int = 10
     low_power_wait_seconds: int = 10
@@ -252,10 +260,69 @@ class UpkeepTuning:
     # A field is marked dry only when its idle re-sends come from this many different harvesters, or from all its
     # harvesters when it has fewer.
     dry_distinct_harvesters: int = 3
+    # With the switch on, a field with an ore mine is never marked dry, a truck back from a retreat within 10 s is no
+    # sign of a dry field, and no truck is sent to a field no refinery of ours serves.
+    dry_field_guard: bool = True
     # With the switch on (and harvesters_to_fresh_ore), each harvester moved off a dry field goes to the nearest safe
     # field whose load is below field_share_per_refinery for each refinery serving it, at least one.
     fresh_ore_by_load: bool = True
     field_share_per_refinery: int = 2
+    # With the switch on, a field with an own refinery counted against it takes trucks_per_mine trucks for each ore mine
+    # it holds, trucks_mineless_field without one (none while dry); every truck keeps the field it is assigned to and is
+    # sent back to its ore, a new one goes to the nearest short field, and one truck of a field over its share moves to
+    # a short field at most once every truck_rebalance_seconds and at once when a new refinery stands.
+    truck_shares_by_mines: bool = True
+    trucks_per_mine: int = 2
+    trucks_mineless_field: int = 2
+    truck_rebalance_seconds: int = 10
+    # With the switch on, a truck is trained only while the trucks standing, in production and due free from a refinery
+    # that stood less than free_truck_wait_seconds ago are fewer than the active fields' shares together (harvesters_max
+    # at the most) and a field is short of its share.
+    truck_cap_by_shares: bool = True
+    free_truck_wait_seconds: int = 20
+    # With the switch on, once the opening's build is complete the spending focus is decided every focus_every_ticks
+    # from the enemy army estimate E against our army A (see `spending_focus`): military from E >= military_focus_ratio
+    # x A until E <= military_focus_end_ratio x A, economy from A >= economy_focus_ratio x E or a greedy enemy, a focus
+    # other than military kept focus_hold_seconds at least. Military trains the artillery first while main and the
+    # guard hold fewer than military_focus_first_artillery, and adds a defense toward the enemy every
+    # military_focus_defense_seconds, military_focus_defenses_max a period.
+    spending_focus: bool = True
+    focus_every_ticks: int = 250
+    military_focus_ratio: float = 1.2
+    military_focus_end_ratio: float = 1.0
+    economy_focus_ratio: float = 1.5
+    focus_hold_seconds: int = 30
+    military_focus_first_artillery: int = 2
+    military_focus_defense_seconds: int = 60
+    military_focus_defenses_max: int = 2
+    # With the switch on, the military focus starts at once, whatever the balance says, while all our combat units but
+    # aircraft are worth less than max(recovery_enemy_share x E, recovery_min_army), have lost recovery_drop_share of
+    # their highest worth in recovery_drop_seconds, or a combat unit or defense was lost under a threat within
+    # recovery_attack_seconds; it holds until none of those has held for recovery_clear_seconds.
+    military_recovery: bool = True
+    recovery_min_army: int = 800
+    recovery_enemy_share: float = 0.8
+    recovery_drop_share: float = 0.4
+    recovery_drop_seconds: int = 120
+    recovery_attack_seconds: int = 60
+    recovery_clear_seconds: int = 30
+    # The losses at the base under a threat that start the recovery, and E held to recovery_estimate_seen_share times
+    # the enemy combat units seen within recovery_seen_seconds.
+    recovery_loss_value: int = 1000
+    recovery_estimate_seen_share: float = 1.5
+    recovery_seen_seconds: int = 180
+    # With the switch on, the spending focus weighs E as the recovery holds it, and the military focus holds a new MCV
+    # back only while our army is below that E.
+    focus_capped_estimate: bool = True
+    # With the switch on, the canary's death while an attack is out, or the armies crossing, starts the canary alarm
+    # (see `canary_alarm`): a defense on the Defense queue whenever it is free, placed toward the cell
+    # canary_defense_goal_cells from the base toward the enemy's start, while the unit queues and the optional buildings
+    # wait; it ends once the threat is beaten, gone canary_alarm_quiet_seconds after the start with none closing, main
+    # is home, or canary_alarm_max_seconds after the start.
+    canary_alarm: bool = True
+    canary_defense_goal_cells: int = 8
+    canary_alarm_quiet_seconds: int = 75
+    canary_alarm_max_seconds: int = 180
 
 
 @dataclass(frozen=True)
@@ -292,6 +359,11 @@ class ProducersTuning:
     bank_factory_money: int = 2500
     bank_factory_seconds: int = 30
     idle_bank_money: int = 3000
+    # With the switch on, money of no_float_cash or more held for no_float_seconds buys one more barracks or war
+    # factory at once, whatever the plan, focus or recovery (see `bank_spending`).
+    no_float: bool = True
+    no_float_cash: int = 1500
+    no_float_seconds: int = 20
     idle_queue_seconds: int = 30
     # Ore near the storage cap: once the ore held has stayed at least storage_spend_share of what the refineries and
     # silos can hold for storage_spend_seconds, one more war factory every storage_spend_seconds up to
@@ -336,6 +408,24 @@ class PlacementTuning:
     war_factory_exit_cells: int = 2
     defense_radius_cells: int = 6
     defense_distance_cells: int = 5
+    # With the switch on, a ground defense for the main base goes in the line across the lane toward its goal (or the
+    # lane threats came by with the fewest defenses), defense_line_front_cells beyond the base's outermost building
+    # that way, slots defense_line_spacing_cells apart across the lane (see `defense_line`); defense_front then places
+    # none.
+    defense_line_across_lane: bool = True
+    # With the switch on, an unserved field smaller than mcv_site_min_ore_cells of [expansion] takes a refinery while
+    # it holds an ore mine or refinery_small_field_cells ore cells, and floating cash buys no producer before it.
+    refinery_small_fields: bool = True
+    refinery_small_field_cells: int = 20
+    defense_line_front_cells: int = 3
+    defense_line_spacing_cells: int = 3
+    # With the switch on and the enemy's start known, a ground defense with no goal of its own goes to the place nearest
+    # the point defense_front_cells beyond the base's building farthest toward the enemy, halfway to the middle of the
+    # base's ground defenses on the enemy's side when there are any, among those within defense_cluster_cells of it
+    # first; never behind the yard while the enemy's side has a place.
+    defense_front: bool = True
+    defense_front_cells: int = 3
+    defense_cluster_cells: int = 6
     ore_reach_cells: int = 20
     place_again_after_ticks: int = 50
     promise_ticks: int = 75
@@ -459,6 +549,21 @@ class ExpansionTuning:
     # site again from where it stands, deploying at home only after second_mcv_wait_seconds without one.
     second_mcv_waits: bool = True
     second_mcv_wait_seconds: int = 90
+    # With the switch on, an expansion yard's refinery claim lasts until a refinery of ours stands counted against its
+    # field (or the yard is lost): ordered only for a place placement would use, placed from the new yard with units
+    # moved off its spot, a refused spot skipped and tried again new_yard_refused_retry_seconds after its refusal.
+    new_yard_refinery_until_standing: bool = True
+    # With the switch on, the refinery a new yard claims comes first: the military focus holds it back no more, the
+    # unit queues' hold for its money does not time out, floating cash buys no producer before it, and each cycle it
+    # waits is written (new_yard_waiting).
+    new_yard_refinery_first: bool = True
+    new_yard_refused_retry_seconds: int = 60
+    # With the switch on, an expansion MCV deploys only where a refinery serving its site's field fits within
+    # mcv_refinery_fit_cells of the yard box, looked for up to mcv_fit_search_cells walking steps from the ore, checked
+    # again before the deploy; a field with no such place is passed over.
+    mcv_refinery_fit: bool = True
+    mcv_refinery_fit_cells: int = 4
+    mcv_fit_search_cells: int = 8
     short_escort_wait_ticks: int = 500
     # With the switch on, the yards allowed are 1 + income / yards_income_per_yard, max_yards at the most; an MCV, the
     # second yard's as a further one, opens a far field while the yards and MCVs are fewer, from
@@ -486,6 +591,19 @@ class ExpansionTuning:
     # there it is sited again, the field passed over, or goes home without a site.
     mcv_site_army_value: int = 600
     mcv_site_hold_seconds: int = 30
+    # With the switch on, the MCV's site is ranked by route length (far_site) or distance from the main yard (safe_site)
+    # plus a penalty of up to mcv_line_penalty_cells for a field ahead of the base near the line to the enemy's start,
+    # falling to none at mcv_line_clear_cells off the line; it only ranks, never excludes a field.
+    mcv_line_penalty: bool = True
+    mcv_line_penalty_cells: int = 20
+    mcv_line_clear_cells: int = 15
+    # With the switch on, the MCV waits, holds short or is sited again only for ground enemy units seen in 10 s within
+    # mcv_route_threat_cells of its remaining route or 15 cells of its site worth more than mcv_escort_win_ratio times
+    # its escort (mcv_site_army_value then unused), and a site chosen again lies within mcv_resite_max_cells of route.
+    mcv_escort_reliance: bool = True
+    mcv_route_threat_cells: int = 10
+    mcv_escort_win_ratio: float = 1.0
+    mcv_resite_max_cells: int = 25
 
 
 @dataclass(frozen=True)
@@ -522,6 +640,34 @@ class CompositionTuning:
     enemy_infantry_share: float = 0.6
     flamers_share: int = field(default=20, metadata={_RANGE: (0, 95)})
     v2_infantry_bonus: int = field(default=15, metadata={_RANGE: (0, 95)})
+    # With the switch on, the enemy units that fight seen in the last counter_seen_seconds turn into counter-unit
+    # quotas the unit queues fill first (see `composition`): an anti-infantry unit for each anti_infantry_per_rockets
+    # rocket soldiers and each anti_infantry_per_infantry other infantry while the enemy is infantry-heavy (at least
+    # anti_infantry_min_infantry of them and anti_infantry_enemy_share of the units counted), and a rocket soldier for
+    # each anti_armor_per_tanks tanks; none while the counter units are worth counter_max_share of our army.
+    counter_quota: bool = True
+    counter_seen_seconds: int = 120
+    anti_infantry_per_rockets: int = field(default=2, metadata={_RANGE: (1, math.inf)})
+    anti_infantry_per_infantry: int = field(default=4, metadata={_RANGE: (1, math.inf)})
+    anti_infantry_min_infantry: int = 6
+    anti_infantry_enemy_share: float = 0.4
+    anti_armor_per_tanks: int = field(default=2, metadata={_RANGE: (1, math.inf)})
+    counter_max_share: float = 0.35
+    # With the switch on, while the enemy is infantry-heavy as the counter quota has it, the war factory's block on
+    # counter infantry is lifted: base defense trains the family's counter infantry against an infantry threat, and
+    # no_army_infantry of [upkeep] lets the quota's infantry through up to its shortfall.
+    infantry_counter_lift: bool = True
+    # With the switch on, while the approach alarm is in force (see `approach_alarm`), approach_min_infantry of
+    # [base_defense] infantry counts as infantry-heavy, and the quota's counters are trained in the opening and
+    # through upkeep's economy holds.
+    counter_on_approach: bool = True
+    # With the switch on, the counter_max_share cap leaves riflemen, the base army's own infantry, out of the counters.
+    counter_cap_skips_rifles: bool = True
+    # With the switch on, the Allied anti-infantry counter is jeeps for the larger half once a war factory stands.
+    counter_prefer_jeeps: bool = True
+    # With the switch on, the quota wants 2 fast hunters (Allies light tank, else jeep; Soviets heavy tank) for each
+    # enemy artillery piece or V2 seen within counter_seen_seconds.
+    anti_artillery_quota: bool = True
 
 
 @dataclass(frozen=True)
@@ -608,6 +754,9 @@ class BaseDefenseTuning:
     threat_end_ticks: int = 125
     response_radius_cells: int = 25
     arrived_cells: int = 2
+    # With the switch on, a responder sent at an enemy keeps that attack while the enemy is in sight, rather than be
+    # sent back to the threatened cell once its walk to the enemy takes it out of arrival and of contact.
+    keep_attack_in_sight: bool = True
     harvester_flee_cells: int = 6
     harvester_safe_cells: int = 10
     harvester_return_ticks: int = 125
@@ -627,6 +776,9 @@ class BaseDefenseTuning:
     # and the defenses near it, the override is set on the answering units alone, and enemy aircraft alone move no
     # ground unit that cannot hit them.
     keep_attack_army: bool = True
+    # With the switch on, the defenses that hold the base for main are only those whose weapon reaches the threat's
+    # enemies.
+    home_defenses_in_reach: bool = True
     # With the switch on, a cheap ground defense goes up in range of a known enemy building near our base, at most
     # harass_tower_max at a time and one per enemy building.
     harass_tower: bool = True
@@ -644,6 +796,55 @@ class BaseDefenseTuning:
     closing_cells: int = 30
     intercept_front_cells: int = 8
     closing_min_ratio: float = 1.0
+    # With the switch on, a truck retreats only from threats within truck_threat_cells (or whose weapon reaches it) it
+    # cannot crush: a vehicle, an aircraft, a defense, more than truck_crushable_infantry_max infantry or two anti-armor
+    # infantry, but no lone harasser worth less than truck_harasser_max_value while it has half its health; it goes to
+    # a shelter away from them and back to its field's ore after truck_retreat_clear_seconds clear.
+    truck_retreat: bool = True
+    truck_threat_cells: int = 10
+    truck_crushable_infantry_max: int = 3
+    truck_harasser_max_value: int = 400
+    truck_retreat_clear_seconds: int = 8
+    # With the switch on, a truck's shelter has no enemy combat unit seen in the last 20 s nor enemy ground defense
+    # within truck_shelter_clear_cells, does not lie beyond the threat from our base, and is the safe one nearest
+    # base_center; base_center with none.
+    truck_shelter_safe: bool = True
+    truck_shelter_clear_cells: int = 10
+    # With the switch on (and truck_retreat), the harvester crush takes no retreating truck, runs over no group a truck
+    # must retreat from, and sends no truck back to harvest while such threats are near it.
+    crush_respects_retreat: bool = True
+    # With the switch on (and mcv_escort_reliance of [expansion]), the escort of an MCV on its way answers no threat on
+    # the base unless no other unit answers it and the defenses near it are worth less than escort_needed_ratio of it.
+    keep_mcv_escort: bool = True
+    escort_needed_ratio: float = 0.7
+    # With the switch on, the rules that order ground defenses for the main base share one cap (see `defense_cap`):
+    # none while defense_cap_main stand or are on their way before defense_cap_until_seconds, nor while
+    # defense_cap_ratio_min or more are worth defense_cap_army_ratio times our combat units, nor toward a cell with
+    # defense_cap_crowd within defense_cap_crowd_cells; the canary alarm's money then goes to the army.
+    defense_cap: bool = True
+    defense_cap_main: int = 4
+    defense_cap_until_seconds: int = 900
+    defense_cap_ratio_min: int = 3
+    defense_cap_army_ratio: float = 1.5
+    defense_cap_crowd: int = 2
+    defense_cap_crowd_cells: int = 8
+    # With the switch on, an enemy ground group seen within approach_alarm_cells of base_center in the last
+    # approach_lookback_seconds, of approach_min_infantry infantry or worth approach_min_value and approach_min_share
+    # of our combat units, coming our way, starts the approach alarm (see `approach_alarm`): a defense whenever the
+    # Defense queue is free toward it, one per approach_value_per_defense of its worth up to approach_defenses_max,
+    # placed approach_goal_cells out toward it, and the counter quota first; it ends destroyed, gone
+    # approach_gone_seconds or after approach_max_seconds.
+    approach_alarm: bool = True
+    approach_alarm_cells: int = 45
+    approach_lookback_seconds: int = 10
+    approach_min_infantry: int = 5
+    approach_min_value: int = 700
+    approach_min_share: float = 0.8
+    approach_value_per_defense: int = 1500
+    approach_defenses_max: int = 3
+    approach_goal_cells: int = 8
+    approach_gone_seconds: int = 30
+    approach_max_seconds: int = 120
 
 
 @dataclass(frozen=True)
@@ -693,7 +894,7 @@ class ScoutingTuning:
     rush_infantry: int = 6
     rush_vehicles: int = 2
     rush_near_base_cells: int = 20
-    rush_approach_value: int = 1000
+    rush_approach_value: int = 300
     rush_approach_cells: int = 30
     watcher_share: float = 0.4
     # With rush_scout_direct on, the first slot's scout passes within rush_scout_pass_cells of the enemy's start and then
@@ -702,6 +903,35 @@ class ScoutingTuning:
     rush_scout_direct: bool = True
     rush_scout_pass_cells: int = 5
     rush_exit_post_cells: int = 13
+    # With sight_by_type on, a unit sees as far as the item table says (4 cells for most infantry, the fallback), and
+    # the exit post stands sight - 1 beyond the exit cell rush_exit_watch_cells from the enemy's start, moved out of
+    # known enemy defense reach; moved out, the scout peeks in to the post in sight for scout_peek_hold_seconds every
+    # scout_peek_seconds.
+    sight_by_type: bool = True
+    rush_exit_watch_cells: int = 8
+    scout_peek_seconds: int = 15
+    scout_peek_hold_seconds: int = 4
+    # With the switch on, an infantry rush scout runs through the enemy base, hits and all: in at the entry cell
+    # (scout_run_side_cells off the line for a flank), over the enemy's start and out scout_run_exit_cells behind it,
+    # the approach turning direct, left, right with every run, the first by the session id.
+    infantry_scout_run_through: bool = True
+    scout_run_side_cells: int = 12
+    scout_run_exit_cells: int = 10
+    # With the switch on, the main-edge and home-field watch posts stand a rifleman's sight less 1 from what they watch
+    # toward our base, out of known enemy defense reach (see `scout_missions.watch_post`).
+    watch_posts_in_sight: bool = True
+    # With the switch on, where a slot's scout was killed is remembered: a hurt area, the rush scout's next run comes
+    # by an approach keeping scout_lost_avoid_cells off it, and the slot is refilled scout_slot_replace_seconds later.
+    scout_loss_memory: bool = True
+    scout_lost_avoid_cells: int = 8
+    scout_slot_replace_seconds: int = 120
+    # With the switch on, the infantry run through the enemy base has one owner, suspects an unseen defense ahead of a
+    # scout hit with no enemy in sight, moves on from a cell it is shot on, passes beside the enemy's start once a scout
+    # was lost by it, and pauses after two losses in the enemy's core (see `rush_scout`).
+    run_through_guard: bool = True
+    # With the switch on, a scout chased within 35 cells of our base retreats into our kill zone: in front of our
+    # nearest ground defense or main's middle on the enemy's side (see `scout_retreat.kill_zone`).
+    retreat_to_kill_zone: bool = True
     rush_mass_infantry: int = 8
     rush_mass_before_seconds: int = 200
     # An ore field with one of our buildings within this many cells of its center or ore is ours, and no scout is sent
@@ -757,6 +987,11 @@ class ScoutingTuning:
     # not given again for mission_blacklist_seconds. A model is not asked where the scouts go.
     scout_missions: bool = True
     mission_switch_margin: float = 1.25
+    # With the switch on, no slot is offered a mission another slot's scout holds (by key or cell), and a mission held
+    # less than mission_min_hold_seconds gives way only to one scoring mission_early_switch_ratio times its own.
+    mission_hold: bool = True
+    mission_min_hold_seconds: int = 20
+    mission_early_switch_ratio: float = 1.5
     mission_blacklist_seconds: int = 90
     mission_observe_seconds: int = 10
     # With the switch on and scout_slots on, the slots' scouts hold fire and get no attack order. A scout retreats for
@@ -778,6 +1013,49 @@ class ScoutingTuning:
     truck_guard_max_value: int = 600
     truck_guard_cells: int = 8
     truck_seen_seconds: int = 60
+    # With the switch on and scout_cautious on, a slot scout that begins a hit or outclassed retreat first fires one
+    # `attack` at the nearest enemy unit in sight within its range that it can hurt, so that some of the enemy peels off
+    # to chase it; its retreat move waits scout_bait_shot_seconds, and it makes no other such shot for
+    # scout_bait_cooldown_seconds.
+    scout_bait_shot: bool = True
+    scout_bait_shot_seconds: int = field(default=1, metadata={_RANGE: (1, math.inf)})
+    scout_bait_cooldown_seconds: int = field(default=15, metadata={_RANGE: (0, math.inf)})
+    # With the switch on and scout_cautious on, a slot scout hunts a lone enemy unit it kills within
+    # stray_hunt_max_kill_seconds and stray_hunt_win_ratio times as fast as it is killed, no other enemy unit that fights
+    # within stray_hunt_lone_cells, both farther than a defense's cover or the enemy base's ground and
+    # stray_hunt_margin_cells; for at most stray_hunt_max_seconds, until it has lost stray_hunt_max_hp_loss points of
+    # health, and a target whose hunt ended other than killed is not hunted again for stray_hunt_retry_seconds.
+    scout_stray_hunt: bool = True
+    stray_hunt_win_ratio: float = field(default=2.0, metadata={_RANGE: (1, math.inf)})
+    stray_hunt_max_kill_seconds: int = 10
+    stray_hunt_lone_cells: int = 10
+    stray_hunt_margin_cells: int = 4
+    stray_hunt_max_seconds: int = 20
+    stray_hunt_max_hp_loss: int = field(default=30, metadata={_RANGE: (1, 100)})
+    stray_hunt_retry_seconds: int = 30
+    # With the switch on and scout_cautious on, a slot scout within harass_trigger_cells of the enemy's start or a seen
+    # enemy building, with no remembered ground defense and no counted enemy unit that fights within
+    # harass_clear_cells, attacks the enemies within harass_target_cells it can hurt, engineers, trucks and the
+    # infantry that does not fight, power plants, then other buildings; for at most harass_max_seconds, ending once it
+    # has had no target for harass_idle_seconds, and it begins no other harass for harass_cooldown_seconds.
+    scout_base_harass: bool = True
+    harass_trigger_cells: int = 20
+    harass_clear_cells: int = 20
+    harass_target_cells: int = 12
+    harass_max_seconds: int = 45
+    harass_idle_seconds: int = 3
+    harass_cooldown_seconds: int = 60
+    # With the switch on, every attack that sets out posts one canary rifleman on the straight line from the enemy's
+    # start toward our base: at the first cell canary_post_cells or more from the enemy's start, short of
+    # canary_home_min_cells from our base, that is passable, outside every known ground defense's coverage plus
+    # canary_clear_margin_cells and farther than canary_building_clear_cells from every known enemy building. It is the
+    # rush watch's post rifleman while it lives, else one rifleman trained; it holds there and only reports its death
+    # (see `canary`).
+    canary_post: bool = True
+    canary_post_cells: int = 22
+    canary_home_min_cells: int = 15
+    canary_clear_margin_cells: int = 2
+    canary_building_clear_cells: int = 10
 
 
 @dataclass(frozen=True)
@@ -839,6 +1117,38 @@ class CombatTuning:
     # With the switch on, a tank or APC whose target is an enemy artillery piece or V2 drives onto its cell until it is
     # inside that weapon's minimum range less a cell, and only then attacks (see `targeting`).
     tank_charge_artillery: bool = True
+    # With the switch on, our ground units near an enemy artillery piece or V2 in sight charge it, fire back on it or
+    # leave its range (see `artillery_answer`).
+    artillery_answer: bool = True
+    artillery_escort_cells: int = 6
+    artillery_leave_margin_cells: int = 2
+    # With the switch on, a unit hit by a shooter out of sight answers the artillery remembered near it, or steps away
+    # from the enemy's start, one vehicle toward it to see the shooter (see `artillery_answer`).
+    artillery_unseen_answer: bool = True
+    artillery_memory_seconds: int = 30
+    artillery_memory_cells: int = 15
+    artillery_unseen_step_cells: int = 6
+    artillery_unseen_hold_seconds: int = 10
+    # With the switch on, main's failed attacks are remembered and an attack on an objective is gated on them and on
+    # the defenses that reach it (see `failed_attack`).
+    failed_attack_memory: bool = True
+    failed_attack_near_cells: int = 20
+    failed_attack_loss_share: float = 0.5
+    failed_attack_block_cells: int = 15
+    failed_attack_force_ratio: float = 1.5
+    failed_attack_enemy_ratio: float = 1.3
+    failed_attack_memory_seconds: int = 240
+    attack_min_objective_ratio: float = 1.2
+    attack_leg_cells: int = 10
+    # With the switch on, part of main's idle units joins a fight of ours going our way (see `reinforce_winning`).
+    reinforce_winning: bool = True
+    reinforce_winning_cells: int = 35
+    reinforce_winning_local_cells: int = 10
+    reinforce_winning_ratio: float = 1.3
+    reinforce_winning_min_value: int = 1500
+    reinforce_winning_share: float = 0.5
+    reinforce_winning_stop_ratio: float = 1.0
+    reinforce_winning_max_seconds: int = 60
     focus_unit_reach_cells: int = 4
     spill_floor: float = 0.25
     counter_power: float = 2.0
@@ -918,6 +1228,39 @@ class CombatTuning:
     crush_at_per_tanks: int = field(default=2, metadata={_RANGE: (1, math.inf)})
     crush_at_max_tanks: int = 5
     crush_at_min_infantry: int = 3
+    # With the switches on (see `safe_staging`): the gathering moves to the staging or gather point are attack moves;
+    # the staging point is moved back toward our base out of every remembered enemy combat unit's weapon range and
+    # staging_enemy_margin_cells; and while main is not on the attack the staging and gather points are held
+    # staging_behind_cells behind our front ground defense when out ahead of it or staging_defense_cells from every one.
+    gather_attack_move: bool = True
+    staging_clear_of_enemies: bool = True
+    staging_enemy_margin_cells: int = 4
+    staging_behind_defenses: bool = True
+    staging_defense_cells: int = 8
+    staging_behind_cells: int = 4
+    # With the switch on (and crush_runs on), an enemy infantry all-in, wave_min_infantry or more within
+    # wave_mass_cells of their centroid, that centroid within wave_base_cells of the base's center or wave_army_cells
+    # of our crushing vehicles, is met by one wave: the fit crushing vehicles within wave_reach_cells (wave_min_tanks
+    # to wave_max_tanks) gather wave_gather_cells outside the mass (present within wave_gather_radius_cells), launch
+    # at wave_ready_share present or after wave_max_wait_seconds on lanes wave_lane_cells apart to wave_beyond_cells
+    # past the mass, a run of wave_run_seconds at most, the stragglers as one second wave of wave_second_min_tanks or
+    # more (see `crush_wave`).
+    crush_wave: bool = True
+    wave_min_infantry: int = 8
+    wave_mass_cells: int = 6
+    wave_base_cells: int = 25
+    wave_army_cells: int = 12
+    wave_reach_cells: int = 16
+    wave_min_tanks: int = 3
+    wave_max_tanks: int = 10
+    wave_gather_cells: int = 8
+    wave_gather_radius_cells: int = 3
+    wave_ready_share: float = 0.75
+    wave_max_wait_seconds: int = 6
+    wave_lane_cells: int = 2
+    wave_beyond_cells: int = 4
+    wave_run_seconds: int = 10
+    wave_second_min_tanks: int = 2
     # With the switch on, a remembered enemy missile silo is main's first FINISH target and a raid's first target, and
     # around each launch its first sighting lets one expect (that sighting + nuke_charge_ticks - nuke_build_ticks, then
     # every nuke_charge_ticks), main gathering or standing idle is split into nuke_spread_groups groups at least
@@ -929,6 +1272,10 @@ class CombatTuning:
     nuke_spread_groups: int = field(default=3, metadata={_RANGE: (1, math.inf)})
     nuke_spread_cells: int = 8
     nuke_keep_off_cells: int = 12
+    # With the switch on, spreading holds past an expected launch until an impact (our losses of nuke_impact_lost_value
+    # or more in one state) restarts the clock, the home guard spreads too, and a known silo is struck (see `nuke`).
+    nuke_follow_up: bool = True
+    nuke_impact_lost_value: int = 3000
     # With the switch on, main setting out on an objective with an enemy defense or combat unit near it stops at the
     # last cell of its way outside every enemy's range plus staging_margin_cells, and goes on once staging_body_share of
     # its units stand within staging_body_cells of that cell and its long-range units within 4 more, or after
@@ -946,6 +1293,18 @@ class CombatTuning:
     expansion_near_cells: int = 15
     defense_near_refinery_margin_cells: int = 4
     strike_min_ratio: float = 1.5
+    # With the switch on, the strike near us is sized by its target's defenses alone, from main gathered at staging or
+    # idle anywhere, on yards and defenses however long ago seen; main as a whole strikes within
+    # strike_near_whole_cells of our base, a defense it cannot outweigh is sieged by its long-range units, and a strike
+    # on a building times out after strike_near_max_seconds (see `strike`).
+    strike_near_by_defenses: bool = True
+    strike_near_whole_cells: int = 25
+    strike_near_max_seconds: int = 120
+    # With the switch on, a must-kill enemy yard no enemy ground defense reaches is struck from main's gathered and idle
+    # home units, sized by its hit points, and not called off on its ratio there for strike_near_grace_seconds.
+    strike_near_open_building: bool = True
+    strike_near_home_cells: int = 20
+    strike_near_grace_seconds: int = 30
     # With the switch on, an enemy refinery or harvesters at an ore field more than overextended_min_enemy_start_cells
     # from the enemy's start and every known enemy yard, with no known enemy ground defense within
     # overextended_defense_clear_cells, is struck by main when it is worth strike_min_ratio there (see `strike` and
@@ -953,6 +1312,39 @@ class CombatTuning:
     strike_overextended: bool = True
     overextended_min_enemy_start_cells: int = 25
     overextended_defense_clear_cells: int = 8
+    # With the switch on, the force of an over-extended strike that ended destroyed or unseen goes on to the exposed
+    # expansion building nearest it within overextended_chain_cells rather than home (see `strike`).
+    overextended_chain: bool = True
+    overextended_chain_cells: int = 40
+    # With the switch on, main strikes out at once after a won defense or a regroup at home, when it is worth
+    # counterattack_ratio times the enemy army now (see `counterattack` and `strike`).
+    counterattack: bool = True
+    counterattack_min_kills: int = 1000
+    counterattack_window_seconds: int = 10
+    counterattack_ratio: float = 1.2
+    counterattack_seen_share: float = 1.5
+    counterattack_seen_seconds: int = 180
+    counterattack_seconds: int = 90
+    # With the switch on, a known enemy refinery or yard more than exposed_expansion_start_cells from the enemy's start,
+    # and the buildings within exposed_expansion_building_cells of it, that no ground defense reaches and no enemy unit
+    # seen in the last exposed_expansion_unit_seconds stands within exposed_expansion_clear_cells of, is struck by a
+    # force of main gathered at home worth strike_min_ratio there (see `exposed_expansion` and `strike`).
+    strike_exposed_expansion: bool = True
+    exposed_expansion_start_cells: int = 20
+    exposed_expansion_building_cells: int = 8
+    exposed_expansion_clear_cells: int = 10
+    exposed_expansion_unit_seconds: int = 30
+    exposed_expansion_max_seconds: int = 120
+    exposed_expansion_chain_cells: int = 30
+    exposed_expansion_kill_seconds: int = 60
+    exposed_expansion_kill_share: float = 2.0
+    # With the switch on, a unit of main's chasing one target alone into the enemy's base is called back to main (see
+    # `chase_leash`).
+    chase_leash: bool = True
+    chase_leash_cells: int = 15
+    chase_leash_base_cells: int = 25
+    chase_leash_near_cells: int = 6
+    chase_leash_min_units: int = 4
     # With the switch on, main whose objective lies within the weapon range and defended_margin_cells of a known enemy
     # ground defense, and is worth less than defended_engage_ratio there against those defenses and the enemy units
     # near it, goes into no covered ground: it takes an uncovered enemy yard, refinery, production building or
@@ -962,6 +1354,101 @@ class CombatTuning:
     defended_engage_ratio: float = 1.2
     defended_margin_cells: int = 2
     vision_dart_seconds: int = 30
+    # With the switches on, main's advances (stepped_advance) and its moves home (stepped_return) on a destination
+    # step_min_move_cells or more from its centroid go in steps of step_cells: each step point snapped to an open cell
+    # within step_snap_cells and kept out of every known ground defense's range plus staging_margin_cells, the next
+    # step ordered once step_arrive_share of the group stands within step_arrive_cells of it with every long-range
+    # unit within step_long_range_extra_cells more, step_straggler_seconds after half of it arrived, or step_max_seconds
+    # after the step was ordered (see `stepping`).
+    stepped_advance: bool = True
+    stepped_return: bool = True
+    step_cells: int = field(default=10, metadata={_RANGE: (1, math.inf)})
+    step_min_move_cells: int = 15
+    step_arrive_cells: int = 4
+    step_arrive_share: float = 0.8
+    step_long_range_extra_cells: int = 3
+    step_straggler_seconds: int = 12
+    step_max_seconds: int = 40
+    step_snap_cells: int = 3
+    # With the switch on, a group on a stepped advance meeting enemies (counted ground units within met_cells of one of
+    # its units, ground defenses reaching one) fights them at met_fight_ratio or more, chasing at most met_chase_cells
+    # off the step's way and stepping on met_clear_seconds after the last is gone, and steps back to the step's start
+    # otherwise; a decision is kept met_decision_seconds, a fight turning to a step back under met_abandon_ratio. A
+    # step back steps on once no counted enemy has stood within step_back_clear_cells of the abandoned step point for
+    # step_back_clear_seconds, or at met_resume_ratio against the enemies met (see `stepping`).
+    # With the switch on, a stepped move under way keeps its steps for a new plan of the same kind whose destination
+    # lies within step_cells of its own, or comes less than step_replan_seconds after it was planned; and a group of
+    # step_large_group_units or more counts as arrived within step_large_arrive_extra_cells more (see `stepping`).
+    step_plan_continuity: bool = True
+    step_replan_seconds: int = 5
+    step_large_group_units: int = 15
+    step_large_arrive_extra_cells: int = 2
+    met_enemy_decision: bool = True
+    met_cells: int = 10
+    met_fight_ratio: float = 1.0
+    met_abandon_ratio: float = 0.7
+    met_decision_seconds: int = 6
+    met_chase_cells: int = 5
+    # With the switch on, a met fight also takes the met enemies within caught_group_cells of the group's centroid, and
+    # each of its units given no target attack-moves on the nearest met enemy in sight (see `combat`).
+    met_fight_group_reach: bool = True
+    met_clear_seconds: int = 3
+    step_back_clear_cells: int = 15
+    step_back_clear_seconds: int = 8
+    met_resume_ratio: float = 1.2
+    # With the switch on, main on a move home, a step back or between step points is caught once a visible enemy has had
+    # one of its units within its weapon range and 1 in every cycle for caught_confirm_seconds, or stands within
+    # route_block_cells of its way; it then fights whatever its ratio, its units within caught_group_cells of its
+    # centroid on the enemies as near, until caught_clear_seconds clear (see `stepping`).
+    moving_returns_fire: bool = True
+    caught_confirm_seconds: int = 2
+    caught_group_cells: int = 12
+    caught_chase_cells: int = 5
+    caught_clear_seconds: int = 3
+    route_block_cells: int = 4
+    # With the switch on, while an expansion yard stands and the plan is OPENING (a war factory standing), HOLD or RAID,
+    # main gathers and the producers rally on the line to the enemy expansion_cover_forward_cells ahead of the
+    # farthest-forward expansion, within expansion_cover_reach_cells of every expansion, held back as the forward hold
+    # is (see `forward_hold.cover_point`).
+    expansion_cover_rally: bool = True
+    expansion_cover_forward_cells: int = 6
+    expansion_cover_reach_cells: int = 18
+    # With the switch on, while main's army stands more than reinforce_away_cells from its home gather point (the
+    # forward hold's gather point, else the staging point), the units joining it are held there and go to main only as
+    # one group worth reinforce_group_min_value or more, by steps with stepped_advance on (see `reinforce_hold`). Ships
+    # off: it split the army in a live game while the hold group re-stepped every cycle.
+    reinforce_hold_home: bool = False
+    reinforce_away_cells: int = 30
+    reinforce_group_min_value: int = 3000
+    # With the switch on, an attack setting out is routed by one of three approaches from main's centroid to its
+    # objective (see `attack_approach`): direct, or by a side cell flank_side_cells off the line flank_lead_cells
+    # short of the objective, the side blocked at the map edge, on impassable ground, with no walk within its step cap
+    # or longer than flank_max_length_ratio times the direct walk. A side is taken only while the direct approach is in
+    # a ground defense's coverage and its exposure (the covering defenses at defense_weight times their cost, the enemy
+    # combat units seen within flank_army_seen_seconds and flank_army_cells of it) is flank_better_share of the direct
+    # one's or less; none for an objective within flank_min_distance_cells, worked out again once the objective moves
+    # more than flank_recompute_cells while the attack is out.
+    flank_approach: bool = True
+    flank_recompute_cells: int = 10
+    flank_min_distance_cells: int = 20
+    flank_lead_cells: int = 12
+    flank_side_cells: int = 14
+    flank_max_length_ratio: float = 1.8
+    flank_army_seen_seconds: int = 30
+    flank_army_cells: int = 6
+    flank_better_share: float = 0.6
+    # With the switch on, main on an attack whose centroid is nearer the enemy's start than our base while the enemy's
+    # army heads for ours (the canary lost, an army closing on the base, enemy combat units seen within
+    # cross_seen_seconds worth cross_army_value nearer our base, or a major threat) commits to the base trade unless
+    # the reverse route is clear (no enemy seen within cross_route_clear_cells, no defense covering it), their base
+    # costly and its artillery short of cross_siege_min_long_range and cross_siege_per_defense of the covering
+    # defenses: then it goes home (see `cross_commit`).
+    commit_on_cross: bool = True
+    cross_seen_seconds: int = 10
+    cross_army_value: int = 1000
+    cross_route_clear_cells: int = 6
+    cross_siege_min_long_range: int = 3
+    cross_siege_per_defense: float = 0.5
 
 
 @dataclass(frozen=True)
@@ -998,6 +1485,16 @@ class SiegeTuning:
     slot_spacing_cells: int = 2
     slot_resend_cells: int = 3
     slot_idle_ticks: int = 50
+    # With the switch on, main's long-range units out of contact, with a screen unit within 10 cells of them, stand on
+    # a line artillery_offset_cells behind the screen's centroid (the step point while main steps) on the far side
+    # from the threat: the enemies within artillery_threat_cells of main, else the stepped move's destination or the
+    # cell a move home came from, else the enemy start; sent again once the place moved slot_resend_cells or the threat
+    # turned artillery_turn_degrees. A kite fall-back steps away from the enemy, not toward the base (see
+    # `screen_place`).
+    artillery_screen_place: bool = True
+    artillery_offset_cells: int = 3
+    artillery_threat_cells: int = 15
+    artillery_turn_degrees: int = 45
 
 
 @dataclass(frozen=True)
@@ -1121,10 +1618,23 @@ class PlanRulesTuning:
     answer_hold_ticks: int = 250
     plan_hold_ticks: int = 750
     finish_rest_ticks: int = 750
+    # With the switch on, a FINISH R6 opened stays finish_commit_seconds unless main falls under
+    # finish_commit_value_share of its strength then or base defense calls it home (see `plans`).
+    finish_commit: bool = True
+    finish_commit_seconds: int = 90
+    finish_commit_value_share: float = 0.8
     choice_every_ticks: int = 125
     choice_deadline_ms: int = 1500
     model_plan_hold: bool = True
     model_plan_hold_ticks: int = 750
+    # With the switch on, the enemy army is estimated once a cycle (see `enemy_estimate`): what was last seen of it, grown
+    # by its estimated income since (estimate_income_per_harvester a second for each enemy harvester while our own
+    # income gives no rate, estimate_army_spend_share of it on the army) for estimate_growth_max_seconds after an enemy
+    # army unit was last in sight, less what we killed.
+    enemy_army_estimate: bool = True
+    estimate_income_per_harvester: float = 8.0
+    estimate_army_spend_share: float = 0.5
+    estimate_growth_max_seconds: int = 240
 
 
 @dataclass(frozen=True)
@@ -1139,6 +1649,19 @@ class ClockTuning:
     # With the switch off, the end-of-match spending buys no defense unless a ground enemy hit an own building within
     # the last minute.
     endgame_defenses: bool = False
+    # With the switch on, in the last endgame_lead_seconds, ahead on the trade balance by endgame_lead_margin with our
+    # combat army and the enemy army estimate both worth endgame_heavy_army_value and no FINISH in sight, the plan is
+    # PRESERVE by R2E: every spare credit buys the strongest defense, up to endgame_lead_defenses_max, within
+    # endgame_defense_cluster_cells of the cell endgame_defense_forward_cells from base_center toward the enemy, where
+    # main gathers and engages only enemies within endgame_army_leash_cells (see `clock`).
+    endgame_lead_defenses: bool = True
+    endgame_lead_seconds: int = 300
+    endgame_lead_margin: int = 1000
+    endgame_heavy_army_value: int = 5000
+    endgame_lead_defenses_max: int = 15
+    endgame_defense_forward_cells: int = 10
+    endgame_defense_cluster_cells: int = 7
+    endgame_army_leash_cells: int = 8
 
 
 @dataclass(frozen=True)
@@ -1219,6 +1742,30 @@ class CommanderTuning:
     # While the gate is open and main as a whole is worth regroup_block_ratio of a seen enemy estimate or more, with
     # no fight lost lately and no major threat on the base, main is not offered to gather (see `command_army`).
     regroup_block_ratio: float = field(default=1.5, metadata={_RANGE: (0, math.inf)})
+    # With the switch on and stepped_advance of [combat] on, main's stepped move keeps its plan against a pick of the
+    # same destination, other picks wait for the step's release, and the retreat override steps main back one step
+    # without closing the forward gate (see `commander`).
+    step_commit: bool = True
+    # With the switch on, a standing action still sound that the fresh list leaves off is offered again as the
+    # continue option, letter Z (see `command_prompt`, `command_army`, `command_scout`).
+    continue_option: bool = True
+    # With the switch on, the retreat override weighs main's fight with the units of its detachments out (see
+    # `commander`).
+    override_counts_detachments: bool = True
+    # With the switch on, main's forward gate weighs main as a whole with its units away on a job of their own (the
+    # detachments', the strike force's, the helpers'), when it opens and while it stays open (see `commander`).
+    gate_counts_away: bool = True
+    # With the switch on, the forward gate weighs main against the enemy estimate held as the military recovery holds
+    # it: at most recovery_estimate_seen_share times the enemy units seen within recovery_seen_seconds (see `commander`).
+    gate_capped_estimate: bool = True
+    # With the switch on, the commander picks by script once no model answer has been used for
+    # script_fallback_seconds, until one is again (see `commander`).
+    script_fallback: bool = True
+    script_fallback_seconds: int = 8
+    # With the switch on, a scout pick with a destination is kept scout_commit_seconds rather than commit_seconds (see
+    # `commander`).
+    scout_commit: bool = True
+    scout_commit_seconds: int = 20
 
 
 @dataclass(frozen=True)

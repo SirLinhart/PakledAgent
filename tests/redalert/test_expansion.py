@@ -11,14 +11,15 @@ from fake_game import FakeRedAlert, at_seconds
 from situations import OpeningThen, ScriptedManager, ask, base_state, with_command
 from switches_off import expansion_off, new_agent, placement_off, scouting_off, tuning_off, upkeep_off
 from ucla_agent.core import records
-from ucla_agent.games.redalert import cells, expansion, placement
+from ucla_agent.games.redalert import cells, expansion, new_yard_refinery, placement
 from ucla_agent.games.redalert.composition import HOLD
 from ucla_agent.games.redalert.economy_hold import FullHold
 from ucla_agent.games.redalert.fight import strength
 from ucla_agent.games.redalert.fresh_ore import FreshOre
 from ucla_agent.games.redalert.income import IncomeEstimate
 from ucla_agent.games.redalert.ledger import CONFIRMED, REJECTED
-from ucla_agent.games.redalert.managers import MAJOR_THREAT, NO_THREAT
+from ucla_agent.games.redalert.placement import RefusedPlace
+from ucla_agent.games.redalert.managers import ECONOMY_FOCUS, MAJOR_THREAT, MILITARY_FOCUS, NO_THREAT
 from ucla_agent.games.redalert.terrain import OrePatch, Terrain
 from ucla_agent.games.redalert.tank_factories import vehicle_queue_takes_one
 from ucla_agent.games.redalert.tuning import Tuning
@@ -2167,6 +2168,247 @@ def test_new_yard_refinery_with_the_field_at_its_cap_nothing_is_claimed_and_the_
     assert [event for event in match_record("refinery_field") if event.get("rule") == "new_yard"] == []
 
 
+# -- the new yard's refinery until it stands -------------------------------------------------------------------------
+
+UNTIL_STANDING = switched(
+    NEW_YARD, placement_switches={"refused_detection": True}, new_yard_refinery_until_standing=True
+)
+NEW_YARD_SPEC = ("fact", 19, 67)
+READY_REFINERY = [situations.job("Building", "proc", ready=True)]
+# A refinery the engine put at home, 25 cells and more from every field of the map.
+AT_HOME = ("proc", 45, 30)
+# A refinery whose footprint (its top-left cell (28, 67)) stands 4 cells east of FIELD_18's ore.
+FOUR_FROM_FIELD_18 = ("proc", 29, 68)
+
+
+def claimed_by_field_18(*more_buildings, tuning: Tuning = UNTIL_STANDING) -> tuple:
+    """An agent whose MCV was sent out by FIELD_18 at 500 s, and its orders in the cycle at 520 s in which the yard
+    stands at the site with the buildings given."""
+    agent = expanding_agent(tuning, NEW_YARD_TERRAIN)
+    ask(agent, england(*BASE, DEPOT, seconds=500, units=[*HARVESTERS, mcv(), *TANKS]))
+    state = england(*BASE, DEPOT, *more_buildings, NEW_YARD_SPEC, seconds=520, units=[*HARVESTERS, *TANKS])
+    ordered = ask(agent, state)
+    return agent, ordered
+
+
+def at_the_new_yard(agent, *more_buildings, seconds: float, units=(), production=()) -> list[dict]:
+    """The agent's orders with the new yard standing and the buildings, units and production given."""
+    state = england(
+        *BASE,
+        DEPOT,
+        NEW_YARD_SPEC,
+        *more_buildings,
+        seconds=seconds,
+        units=[*HARVESTERS, *TANKS, *units],
+        production=list(production),
+    )
+    return ask(agent, state)
+
+
+def placed_cell(orders: list[dict]) -> tuple[int, int]:
+    (place,) = with_command(orders, "place")
+    return tuple(place["at"])
+
+
+def test_new_yard_claim_survives_refusal(match_record):
+    agent, ordered = claimed_by_field_18()
+    first = placed_cell(at_the_new_yard(agent, seconds=525, production=READY_REFINERY))
+    # The engine put the refinery at home, far from the place it was asked onto.
+    at_the_new_yard(agent, AT_HOME, seconds=526)
+    still = agent.ctx.new_yard_field
+    again = at_the_new_yard(agent, AT_HOME, seconds=529)
+    second = placed_cell(at_the_new_yard(agent, AT_HOME, seconds=530, production=READY_REFINERY))
+
+    box, first_box = placement.box_at("proc", second), placement.box_at("proc", first)
+    assert builds(ordered) == ["proc"] and still == FIELD_18 and builds(again) == ["proc"]
+    assert [place.box for place in agent.ctx.refused_places] == [first_box]
+    assert second != first and not box.overlaps(first_box) and placement.reaches(box, FIELD_18, 2)
+    # From the new yard's places: nearer it than the main yard.
+    assert cells.distance(box.center, NEW_YARD_SPEC[1:]) < cells.distance(box.center, MAIN_YARD)
+    reasons = [(event["reason"], event["cell"]) for event in match_record("refinery_field")]
+    assert reasons == [("new_yard", list(first)), ("new_yard_retry", list(second))]
+
+
+def test_claim_ends_when_refinery_stands(match_record):
+    agent, _ = claimed_by_field_18()
+    at_the_new_yard(agent, AT_HOME, seconds=525)
+    at_home = agent.ctx.new_yard_field
+    at_the_new_yard(agent, AT_HOME, FOUR_FROM_FIELD_18, seconds=526)
+
+    standing = [event for event in match_record("refinery_field") if event["reason"] == "new_yard_standing"]
+    assert at_home == FIELD_18 and agent.ctx.new_yard_field is None and agent.ctx.refinery_claim_due is False
+    assert [(event["rule"], event["field_center"]) for event in standing] == [("new_yard", list(FIELD_18.center))]
+
+
+def test_claim_ignores_refinery_caps():
+    # The base's two refineries are as many as the refinery caps allow.
+    capped = dataclasses.replace(UNTIL_STANDING.upkeep, claim_refineries_max=2)
+    on, ordered_on = claimed_by_field_18(tuning=dataclasses.replace(UNTIL_STANDING, upkeep=capped))
+    off_tuning = switched(dataclasses.replace(NEW_YARD, upkeep=capped), new_yard_refinery_until_standing=False)
+    off, ordered_off = claimed_by_field_18(tuning=off_tuning)
+
+    assert on.ctx.tuning.upkeep.refineries_max == 2 and on.ctx.refinery_claim_due is True
+    assert on.ctx.new_yard_field == FIELD_18 and builds(ordered_on) == ["proc"]
+    assert off.ctx.new_yard_field is None and "proc" not in builds(ordered_off)
+
+
+def test_units_cleared_off_refinery_spot():
+    clear, _ = claimed_by_field_18()
+    spot = placed_cell(at_the_new_yard(clear, seconds=525, production=READY_REFINERY))
+    blocked, _ = claimed_by_field_18()
+    tank = situations.unit(600, "2tnk", spot[0] + 1, spot[1] + 1)
+
+    moved = at_the_new_yard(blocked, seconds=525, units=[tank], production=READY_REFINERY)
+    placed = at_the_new_yard(blocked, seconds=526, production=READY_REFINERY)
+
+    (move,) = [order for order in with_command(moved, "move") if order["units"] == [600]]
+    area = placement.box_at("proc", spot).grown(1)
+    assert with_command(moved, "place") == [] and not area.holds_any({tuple(move["to"])})
+    assert placed_cell(placed) == spot
+
+
+def test_units_cleared_off_refinery_spot_the_place_goes_out_after_5_s_all_the_same():
+    agent, _ = claimed_by_field_18()
+    spot = placed_cell(at_the_new_yard(claimed_by_field_18()[0], seconds=525, production=READY_REFINERY))
+    tank = situations.unit(600, "2tnk", spot[0] + 1, spot[1] + 1)
+
+    waits = [at_the_new_yard(agent, seconds=at, units=[tank], production=READY_REFINERY) for at in (525, 530)]
+    late = at_the_new_yard(agent, seconds=530.04, units=[tank], production=READY_REFINERY)
+
+    assert [with_command(orders, "place") for orders in waits] == [[], []]
+    assert placed_cell(late) == spot
+
+
+def test_refused_spots_retried_after_60s():
+    agent, _ = claimed_by_field_18()
+    spots, refused, tick = new_yard_refinery.ClaimedSpots(), [], agent.world.tick
+    # Every place against the field refused in turn, one a second, the oldest first.
+    while (choice := spots.spot(agent.world, agent.ctx, (), refused)) is not None:
+        refused.append(RefusedPlace(placement.box_at("proc", choice.cell), tick + len(refused) * TICKS_PER_SECOND))
+    oldest = refused[0]
+
+    agent.world.tick = oldest.tick + 59 * TICKS_PER_SECOND
+    before = spots.spot(agent.world, agent.ctx, (), refused)
+    agent.world.tick = oldest.tick + 60 * TICKS_PER_SECOND
+    after = spots.spot(agent.world, agent.ctx, (), refused)
+
+    assert len(refused) >= 2 and before is None
+    assert placement.box_at("proc", after.cell).overlaps(oldest.box)
+    assert not any(placement.box_at("proc", after.cell).overlaps(place.box) for place in refused[1:])
+
+
+def test_new_yard_switch_off_the_claim_ends_once_its_refinery_is_ordered():
+    agent, ordered = claimed_by_field_18(tuning=switched(UNTIL_STANDING, new_yard_refinery_until_standing=False))
+    at_the_new_yard(agent, seconds=521)
+
+    assert SWITCHED_OFF.expansion.new_yard_refinery_until_standing is False
+    assert builds(ordered) == ["proc"] and agent.ctx.new_yard_field is None and agent.ctx.new_yard_cell is None
+
+
+# -- an MCV deploys where a refinery fits ------------------------------------------------------------------------------
+
+FIT = switched(SAFE_SITE, mcv_refinery_fit=True)
+NO_FIT_CHECK = switched(SAFE_SITE, mcv_refinery_fit=False)
+# A field of 9 ore cells east of the base, ringed 4 cells deep by ground nothing can be built on, all but the one place
+# for a refinery east of it: the box of 3 by 4 cells from (44, 40), 2 cells from the ore.
+WALLED_FIELD = square_field((41, 41))
+REFINERY_SPOT = placement.box_at("proc", (44, 40))
+WALLED_GROUND = frozenset(
+    (x, y) for x in range(36, 47) for y in range(36, 47) if not REFINERY_SPOT.holds_any({(x, y)})
+)
+WALLED_TERRAIN = Terrain(
+    (HOME_FIELD, WALLED_FIELD, FIELD_25), HOME_FIELD.cells | FIELD_25.cells | WALLED_FIELD.cells | WALLED_GROUND
+)
+# The yard boxes' top-left corners: on the refinery's one place, 2 steps from the ore, and the nearest 5 steps from it
+# from which the place lies clear of the yard and next to it.
+TWO_STEPS, FIVE_STEPS = (44, 40), (47, 45)
+# A power plant standing on the refinery's one place, and a gun turret 7 cells east of the place: its range of 6.5
+# and the margin of 2 reach it.
+POWER_ON_THE_SPOT = ("powr", 45, 41)
+GUN_BY_THE_SPOT = {"visible_enemy_buildings": [{"id": 900, "type": "gun", "x": 53, "y": 41, "hp": 100}]}
+
+
+def walled_agent(tuning: Tuning = FIT, **seen):
+    """An expanding agent on the terrain with the walled field, that has seen the base with its depot."""
+    agent = expanding_agent(tuning, WALLED_TERRAIN)
+    ask(agent, england(*BASE, DEPOT, seconds=500, units=HARVESTERS, **seen))
+    return agent
+
+
+def yard_corner(site: tuple[int, int]) -> tuple[int, int]:
+    box = expansion.yard_box(site)
+    return box.left, box.top
+
+
+def test_deploy_cell_needs_refinery_fit():
+    on, off = walled_agent(), walled_agent(NO_FIT_CHECK)
+
+    fitting = expansion._place_by(WALLED_FIELD, on.world, on.ctx)
+    nearest = expansion._place_by(WALLED_FIELD, off.world, off.ctx)
+
+    assert yard_corner(nearest) == TWO_STEPS and yard_corner(fitting) == FIVE_STEPS
+    steps = on.ctx.terrain.walked_distance(placement.box_at("fact", FIVE_STEPS).cells(), WALLED_FIELD, 8)
+    assert steps == 5 and on.ctx.tuning.expansion.mcv_deploy_cells == 4
+    assert not expansion.has_refinery_fit(nearest, WALLED_FIELD, on.world, on.ctx)
+    assert expansion.has_refinery_fit(fitting, WALLED_FIELD, on.world, on.ctx)
+
+
+def test_refused_spot_excluded_from_fit():
+    agent = walled_agent()
+    site = expansion._place_by(WALLED_FIELD, agent.world, agent.ctx)
+    agent.ctx.refused_places = (RefusedPlace(REFINERY_SPOT, agent.world.tick),)
+
+    assert not expansion.has_refinery_fit(site, WALLED_FIELD, agent.world, agent.ctx)
+    assert expansion._place_by(WALLED_FIELD, agent.world, agent.ctx) is None
+
+
+def test_enemy_defense_blocks_fit():
+    agent = walled_agent(**GUN_BY_THE_SPOT)
+
+    assert agent.world.items.get("gun").range == 6.5
+    assert not expansion.has_refinery_fit(expansion._site_of(FIVE_STEPS), WALLED_FIELD, agent.world, agent.ctx)
+    assert expansion._place_by(WALLED_FIELD, agent.world, agent.ctx) is None
+
+
+def at_the_walled_site(agent, *buildings, seconds: float, **seen) -> list[dict]:
+    """The agent's orders with its MCV on the site by the walled field and its escort by it."""
+    site = expansion._site_of(FIVE_STEPS)
+    units = [*HARVESTERS, mcv(*site), *TANKS]
+    return ask(agent, england(*BASE, DEPOT, *buildings, seconds=seconds, units=units, **seen))
+
+
+def taken_up_by_the_walled_field():
+    """An agent with fitting on whose MCV was taken up north of the main yard, sited by the walled field."""
+    agent = walled_agent()
+    ask(agent, england(*BASE, DEPOT, seconds=505, units=[*HARVESTERS, mcv(*MCV_NORTH), *TANKS]))
+    return agent
+
+
+def test_recheck_before_deploy(match_record):
+    clear = taken_up_by_the_walled_field()
+    deployed = at_the_walled_site(clear, seconds=506)
+    agent = taken_up_by_the_walled_field()
+    blocked = at_the_walled_site(agent, POWER_ON_THE_SPOT, seconds=506)
+
+    sites = [event["cell"] for event in match_record("expansion") if event["phase"] == "site"]
+    assert sites[:2] == [list(expansion._site_of(FIVE_STEPS))] * 2
+    assert {"cmd": "deploy", "units": [MCV_ID]} in mcv_orders(deployed)
+    assert {"cmd": "deploy", "units": [MCV_ID]} not in mcv_orders(blocked)
+
+
+def test_no_fit_drops_site(match_record):
+    agent = taken_up_by_the_walled_field()
+
+    orders = at_the_walled_site(agent, POWER_ON_THE_SPOT, seconds=506)
+
+    events = [(event["phase"], event["reason"], event["field_center"]) for event in match_record("expansion")]
+    assert {"cmd": "deploy", "units": [MCV_ID]} not in mcv_orders(orders)
+    assert expansion._place_by(WALLED_FIELD, agent.world, agent.ctx) is None
+    assert ("mcv_site_no_refinery_fit", "mcv_site_no_refinery_fit", list(WALLED_FIELD.center)) in events
+    assert events[0] == ("site", "nearest_safe", list(WALLED_FIELD.center))
+    assert events[-1] == ("site", "mcv_site_no_refinery_fit", list(FIELD_25.center))
+
+
 # -- MCVs to far fields -------------------------------------------------------------------------------------------------
 
 FAR_FIELDS = REPEAT
@@ -2873,3 +3115,328 @@ def test_site_army_a_deploy_out_is_dropped_when_the_group_comes_and_not_sent_aga
     assert mcv_orders(sent) == [{"cmd": "deploy", "units": [MCV_ID]}]
     assert all({"cmd": "deploy", "units": [MCV_ID]} not in mcv_orders(orders) for orders in resend_due)
     assert holds(match_record)[0][0] == 521 * TICKS_PER_SECOND
+
+
+# -- the spending focus ------------------------------------------------------------------------------------------------
+
+
+def test_military_focus_blocks_new_mcv_and_refinery(match_record):
+    balanced, military = due_agent(FAR_35), due_agent(FAR_35)
+    military.ctx.spending_focus = MILITARY_FOCUS
+
+    called = ask(balanced, england(*BASE, DEPOT, seconds=DUE_SECONDS, cash=6000, units=HARVESTERS))
+    held = ask(military, england(*BASE, DEPOT, seconds=DUE_SECONDS, cash=6000, units=HARVESTERS))
+
+    assert ("mcv", 1) in trains(called) and ("mcv", 1) not in trains(held) and "proc" not in builds(held)
+    assert not expansion.is_second_mcv_due(military.world, military.ctx) and not military.ctx.full_hold
+    assert [event["blocked_by"] for event in blocked_events(match_record)] == ["military_focus"]
+
+
+def test_military_focus_a_travelling_mcv_keeps_its_orders():
+    balanced, military = expanding_agent(WITH_TARGET), expanding_agent(WITH_TARGET)
+    military.ctx.spending_focus = MILITARY_FOCUS
+
+    out = [*HARVESTERS, mcv(), *TANKS]
+    called = ask(balanced, england(*BASE, DEPOT, seconds=500, units=out))
+    kept = ask(military, england(*BASE, DEPOT, seconds=500, units=out))
+
+    assert [order["cmd"] for order in mcv_orders(called)] == ["move"] and mcv_orders(kept) == mcv_orders(called)
+
+
+def test_economy_focus_allows_one_yard_more_up_to_max_yards():
+    agent = due_agent(income=THREE_YARDS_INCOME)
+    balanced = expansion.yards_allowed(agent.ctx)
+    agent.ctx.spending_focus = ECONOMY_FOCUS
+
+    assert (balanced, expansion.yards_allowed(agent.ctx)) == (3, 4)
+
+
+# -- the site line penalty ---------------------------------------------------------------------------------------------
+
+LINE_PENALTY = switched(REPEAT, mcv_line_penalty=True)
+# The base and the enemy's start of the line penalty's tests: the line runs east along row 50.
+LINE_BASE, LINE_ENEMY = (20, 50), (100, 50)
+# A field on the line 20 cells ahead of the base, and one 20 cells off it beside the base.
+ON_LINE = square_field((40, 50))
+OFF_LINE = square_field((30, 70))
+
+
+def line_agent(tuning: Tuning = LINE_PENALTY):
+    """An expanding agent that has seen the base, with the base's center and the enemy's start on row 50."""
+    agent = repeat_agent(ON_LINE, OFF_LINE, tuning=tuning)
+    ask(agent, england(*BASE, DEPOT, seconds=500, units=HARVESTERS))
+    agent.world.base_center, agent.world.enemy_base = LINE_BASE, LINE_ENEMY
+    return agent
+
+
+def by_route(monkeypatch, routes: dict[OrePatch, float]) -> None:
+    """Every field's place is its center, open, and reached by the route length given for it."""
+    lengths = {field.center: length for field, length in routes.items()}
+    monkeypatch.setattr(expansion, "_place_by", lambda field, world, ctx: field.center)
+    monkeypatch.setattr(expansion, "_is_open_site", lambda *args, **kwargs: True)
+    monkeypatch.setattr(expansion, "_route_length", lambda start, end, *args: lengths[end])
+
+
+def nearest_by_route(agent, fields: list[OrePatch]) -> OrePatch | None:
+    choice = expansion._nearest_by_route(fields, [LINE_BASE], LINE_BASE, None, agent.world, agent.ctx)
+    return None if choice is None else choice.field
+
+
+def test_off_line_field_beats_on_line_field(monkeypatch):
+    agent = line_agent()
+    by_route(monkeypatch, {ON_LINE: 22, OFF_LINE: 28})
+
+    tuning = agent.ctx.tuning.expansion
+
+    penalties = [expansion.line_penalty(field.center, agent.world, tuning) for field in (ON_LINE, OFF_LINE)]
+
+    # 22 + 20 = 42 against 28 + 0.
+    assert penalties == [20.0, 0.0]
+    assert nearest_by_route(agent, [ON_LINE, OFF_LINE]) == OFF_LINE
+
+
+def test_much_nearer_on_line_field_still_wins(monkeypatch):
+    agent = line_agent()
+    by_route(monkeypatch, {ON_LINE: 10, OFF_LINE: 35})
+
+    # 10 + 20 = 30 against 35.
+    assert nearest_by_route(agent, [ON_LINE, OFF_LINE]) == ON_LINE
+
+
+def test_field_behind_base_has_no_penalty():
+    agent = line_agent()
+    tuning = agent.ctx.tuning.expansion
+
+    assert expansion.line_penalty((8, 50), agent.world, tuning) == 0.0
+    # Beside the base, at no depth, nothing either; with the enemy's start unknown, nothing anywhere.
+    assert expansion.line_penalty((20, 60), agent.world, tuning) == 0.0
+    agent.world.enemy_base = None
+    assert expansion.line_penalty((40, 50), agent.world, tuning) == 0.0
+
+
+def test_only_field_on_line_is_still_chosen(monkeypatch):
+    agent = line_agent()
+    by_route(monkeypatch, {ON_LINE: 40})
+
+    assert nearest_by_route(agent, [ON_LINE]) == ON_LINE
+
+
+@pytest.mark.parametrize("off, paid", [(0, 20.0), (7.5, 10.0), (15, 0.0), (22, 0.0)])
+def test_penalty_scales_with_offset(off, paid):
+    agent = line_agent()
+    agent.world.base_center, agent.world.enemy_base = (20, 50), (20, 130)
+
+    # The line runs south along column 20; a field 30 cells down it, `off` cells to its side.
+    assert expansion.line_penalty((20 + off, 80), agent.world, agent.ctx.tuning.expansion) == pytest.approx(paid)
+
+
+def test_safe_site_orders_by_distance_plus_penalty(monkeypatch):
+    agent = line_agent(switched(SAFE_SITE, mcv_line_penalty=True))
+    monkeypatch.setattr(expansion, "_place_by", lambda field, world, ctx: field.center)
+    monkeypatch.setattr(expansion, "_is_safe_site", lambda *args: True)
+    nearer_first = [ON_LINE, OFF_LINE]
+
+    switched_off = line_agent(SAFE_SITE)
+
+    on = expansion._first_safe_by_area(nearer_first, [LINE_BASE], LINE_BASE, agent.world, agent.ctx)
+    off = expansion._first_safe_by_area(nearer_first, [LINE_BASE], LINE_BASE, switched_off.world, switched_off.ctx)
+
+    # The fields come in nearest the main yard first: 20 + 20 = 40 against 22.4 + 0 with the penalty.
+    assert (on.field, off.field) == (OFF_LINE, ON_LINE)
+
+
+def test_line_penalty_is_written_with_the_site(match_record):
+    agent = line_agent()
+    choice = expansion.SiteChoice(ON_LINE.center, ON_LINE, 20.0)
+
+    expansion._log_site(choice, "nearest_safe", agent.world, agent.ctx)
+    expansion._log_site(choice, "nearest_safe", agent.world, line_agent(REPEAT).ctx)
+
+    on, off = [event for event in match_record("expansion") if event["phase"] == "site"]
+    assert on["line_penalty"] == 20.0 and "line_penalty" not in off
+
+
+def test_switch_off_sites_as_before(monkeypatch):
+    agent = line_agent(REPEAT)
+    by_route(monkeypatch, {ON_LINE: 22, OFF_LINE: 28})
+
+    assert expansion.line_penalty(ON_LINE.center, agent.world, agent.ctx.tuning.expansion) == 0.0
+    assert nearest_by_route(agent, [ON_LINE, OFF_LINE]) == ON_LINE
+
+
+# -- the MCV relies on its escort --------------------------------------------------------------------------------------
+
+RELIANCE = switched(SAFE_SITE, mcv_escort_reliance=True)
+# Escorts of main's vehicles worth 1,500 (three jeeps) and 1,200 (a light tank and a jeep), by the base where main
+# waits.
+ESCORT_1500 = [situations.unit(510 + number, "jeep", 24 + number, 58) for number in range(3)]
+ESCORT_1200 = [situations.unit(520, "1tnk", 24, 58), situations.unit(521, "jeep", 25, 58)]
+# 9.5 cells east of the straight way from MCV_NORTH to FIELD_18's place (20, 68), and out of the 7.75 cells a light
+# tank's range and the danger margin make unsafe on it: three light tanks and three riflemen, worth 2,400.
+ARMY_2400_BY_THE_WAY = ("1tnk", "1tnk", "1tnk", "e1", "e1", "e1")
+BY_THE_WAY = (31, 57)
+
+
+def relying_agent(*fields: OrePatch, tuning: Tuning = RELIANCE, more=()):
+    """`safe_site_agent`'s agent with the managers given beside upkeep."""
+    terrain = Terrain((HOME_FIELD, *fields), frozenset().union(HOME_FIELD.cells, *(field.cells for field in fields)))
+    agent = expanding_agent(tuning, terrain, *more)
+    ask(agent, england(*BASE, DEPOT, seconds=500, units=HARVESTERS))
+    return agent
+
+
+def escorted(agent, seconds: float, cell: tuple[int, int], escort: list[dict], hp: int = 100, **seen) -> list[dict]:
+    """The orders of a cycle in which the MCV stands at `cell` with `hp` and main is the units of `escort`."""
+    unit = situations.unit(MCV_ID, "mcv", *cell, idle=False, hp=hp)
+    return ask(agent, england(*BASE, DEPOT, seconds=seconds, units=[*HARVESTERS, unit, *escort], **seen))
+
+
+def phases(match_record, phase: str) -> list[dict]:
+    return [event for event in match_record("expansion") if event["phase"] == phase]
+
+
+def test_mcv_ignores_base_threat_far_from_route(match_record):
+    threat = ScriptedManager("base_defense", major_threat)
+    agent = relying_agent(FIELD_18, FIELD_25, more=(threat,))
+    # The base's attackers, 30 cells and more east of the way.
+    attackers = enemy_group("1tnk", "1tnk", at=(55, 45))
+
+    orders = escorted(agent, 505, MCV_NORTH, ESCORT_1500, **attackers)
+
+    assert agent.ctx.threat_level == MAJOR_THREAT
+    assert mcv_orders(orders) == [{"cmd": "move", "units": [MCV_ID], "to": list(FIELD_18_SITE)}]
+    assert [event["reason"] for event in phases(match_record, "mcv_moving")] == ["escorted"]
+
+
+def test_mcv_waits_for_unbeatable_group_on_route(match_record):
+    agent = relying_agent(FIELD_18, FIELD_25)
+    group = enemy_group(*ARMY_2400_BY_THE_WAY, at=BY_THE_WAY)
+
+    orders = escorted(agent, 505, MCV_NORTH, ESCORT_1500, **group)
+
+    threat = expansion.route_threat(MCV_NORTH, [], FIELD_18_SITE, agent.world, agent.ctx)
+    assert round(sum(expansion._worth(record, agent.world) for record in threat)) == 2400
+    assert mcv_orders(orders) == []
+    assert [(event["reason"], event["field_center"]) for event in phases(match_record, "mcv_waiting")] == [
+        ("route_threat", [23, 68])
+    ]
+
+
+def test_mcv_keeps_going_past_beatable_group(match_record):
+    agent = relying_agent(FIELD_18, FIELD_25)
+    escorted(agent, 505, MCV_NORTH, ESCORT_1500)
+
+    # A light tank, a rocket soldier and two riflemen, worth 1,200, 10 cells east of the place; 100 ticks on, past the
+    # 75 within which the same move is not sent again.
+    orders = escorted(agent, 509, (22, 50), ESCORT_1500, **enemy_group("1tnk", "e3", "e1", "e1"))
+
+    assert phases(match_record, "mcv_hold") == []
+    assert mcv_orders(orders) == [{"cmd": "move", "units": [MCV_ID], "to": list(FIELD_18_SITE)}]
+
+
+ESCORT_1200_TUNING = switched(RELIANCE, mcv_escort_strength=1200)
+ARMY_2000 = ("1tnk", "1tnk", "e3", "e3")
+
+
+def test_mcv_holds_short_of_unbeatable_group_then_resites(match_record):
+    agent = relying_agent(FIELD_18, FIELD_25, tuning=ESCORT_1200_TUNING)
+    escorted(agent, 505, MCV_NORTH, ESCORT_1200)
+
+    held = escorted(agent, 506, (22, 47), ESCORT_1200, **enemy_group(*ARMY_2000))
+    escorted(agent, 506 + HOLD_SECONDS - 1, (22, 47), ESCORT_1200, **enemy_group(*ARMY_2000))
+    resited = escorted(agent, 506 + HOLD_SECONDS, (22, 47), ESCORT_1200, **enemy_group(*ARMY_2000))
+
+    (hold,) = phases(match_record, "mcv_hold")
+    site = site_reasons(match_record)[-1]
+    new_site = mcv_orders(resited)[0]["to"]
+    assert mcv_orders(held) == [{"cmd": "stop", "units": [MCV_ID]}]
+    assert (hold["reason"], hold["value"], hold["escort"], hold["units"]) == ("escort_outmatched", 2000, 1200, 4)
+    assert site == ((506 + HOLD_SECONDS) * TICKS_PER_SECOND, "escort_outmatched", [23, 25])
+    assert cells.distance((22, 47), tuple(new_site)) <= agent.ctx.tuning.expansion.mcv_resite_max_cells
+
+
+def test_hurt_mcv_keeps_site_when_escort_wins(match_record):
+    rifleman = enemy_group("e1", at=(25, 52))
+    agent, before = relying_agent(FIELD_18, FIELD_25), relying_agent(FIELD_18, FIELD_25, tuning=SAFE_SITE)
+    for each in (agent, before):
+        escorted(each, 505, MCV_NORTH, ESCORT_1500)
+        escorted(each, 506, (22, 50), ESCORT_1500, hp=90, **rifleman)
+
+    reasons = [reason for _, reason, _ in site_reasons(match_record)]
+    # The agent's choice is written first, then the one with the switch off, which is sited again for the hurt and,
+    # with no field it reaches safely past the rifleman, sent home.
+    assert reasons == ["nearest_safe", "nearest_safe", "home_fallback"]
+
+
+def test_resite_never_beyond_cap(match_record):
+    agent = relying_agent(FIELD_18, FIELD_25, tuning=ESCORT_1200_TUNING)
+    escorted(agent, 505, MCV_NORTH, ESCORT_1200)
+    near_the_site = (22, 64)
+    escorted(agent, 506, near_the_site, ESCORT_1200, **enemy_group(*ARMY_2000))
+
+    orders = escorted(agent, 506 + HOLD_SECONDS, near_the_site, ESCORT_1200, **enemy_group(*ARMY_2000))
+
+    home = expansion.home_site(agent.world, agent.ctx)
+    # FIELD_25's place lies some 40 cells north of the MCV.
+    assert cells.distance(near_the_site, FIELD_25.center) > 25 + 10
+    assert site_reasons(match_record)[-1] == ((506 + HOLD_SECONDS) * TICKS_PER_SECOND, "home_fallback", None)
+    assert mcv_orders(orders) == [{"cmd": "move", "units": [MCV_ID], "to": list(home)}]
+
+
+def test_never_deploys_beside_unbeatable_group(match_record):
+    agent = relying_agent(FIELD_18, FIELD_25, tuning=ESCORT_1200_TUNING)
+    escorted(agent, 505, MCV_NORTH, ESCORT_1200)
+    beside = [situations.unit(unit["id"], unit["type"], 21 + number, 66) for number, unit in enumerate(ESCORT_1200)]
+
+    held = escorted(agent, 520, FIELD_18_SITE, beside, **enemy_group(*ARMY_2000))
+    beaten = escorted(agent, 531, FIELD_18_SITE, beside, **enemy_group("1tnk", "e1"))
+
+    assert {"cmd": "deploy", "units": [MCV_ID]} not in mcv_orders(held)
+    assert mcv_orders(beaten) == [{"cmd": "deploy", "units": [MCV_ID]}]
+
+
+def test_route_threat_counts_ground_units_seen_lately_by_the_way_or_the_site():
+    agent = relying_agent(FIELD_18)
+    seen = {
+        "visible_enemies": [
+            {"id": 990, "type": "1tnk", "x": 31, "y": 57, "hp": 100},
+            {"id": 991, "type": "1tnk", "x": 45, "y": 57, "hp": 100},
+            {"id": 992, "type": "heli", "x": 22, "y": 56, "hp": 100},
+            {"id": 993, "type": "e1", "x": 33, "y": 68, "hp": 100},
+        ]
+    }
+    ask(agent, england(*BASE, DEPOT, seconds=505, units=HARVESTERS, **seen))
+
+    threat = expansion.route_threat(MCV_NORTH, [], FIELD_18_SITE, agent.world, agent.ctx)
+    by_legs = expansion.route_threat(MCV_NORTH, [(45, 50)], FIELD_18_SITE, agent.world, agent.ctx)
+    ask(agent, england(*BASE, DEPOT, seconds=516, units=HARVESTERS))
+    stale = expansion.route_threat(MCV_NORTH, [], FIELD_18_SITE, agent.world, agent.ctx)
+
+    # The tank 9.5 cells from the way and the rifleman 13 from the site count; the far tank and the aircraft do not,
+    # but for the way through (45, 50), which passes the far tank; none 11 s on.
+    assert sorted(record.id for record in threat) == [990, 993]
+    assert sorted(record.id for record in by_legs) == [990, 991, 993]
+    assert stale == []
+
+
+@pytest.mark.parametrize("case", ["site army", "major threat", "uncapped"])
+def test_switch_off_mcv_as_before(case, match_record):
+    off = switched(ESCORT_1200_TUNING, mcv_escort_reliance=False)
+    if case == "major threat":
+        agent = relying_agent(FIELD_18, FIELD_25, tuning=off, more=(ScriptedManager("base_defense", major_threat),))
+        orders = escorted(agent, 505, MCV_NORTH, ESCORT_1500)
+        assert mcv_orders(orders) == []
+        assert [event["reason"] for event in phases(match_record, "mcv_waiting")] == ["major_threat"]
+        return
+    agent = relying_agent(FIELD_18, FIELD_25, tuning=off)
+    escorted(agent, 505, MCV_NORTH, ESCORT_1500)
+    if case == "site army":
+        # 1,200 is more than the 600 that holds it.
+        held = escorted(agent, 506, (22, 50), ESCORT_1500, **enemy_group("1tnk", "e3", "e1", "e1"))
+        assert mcv_orders(held) == [{"cmd": "stop", "units": [MCV_ID]}]
+        assert [event["reason"] for event in phases(match_record, "mcv_hold")] == ["site_army"]
+        return
+    near_the_site = (22, 64)
+    escorted(agent, 506, near_the_site, ESCORT_1500, **enemy_group(*ARMY_2000))
+    escorted(agent, 506 + HOLD_SECONDS, near_the_site, ESCORT_1500, **enemy_group(*ARMY_2000))
+    assert site_reasons(match_record)[-1] == ((506 + HOLD_SECONDS) * TICKS_PER_SECOND, "site_army", [23, 25])

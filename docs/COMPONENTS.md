@@ -140,7 +140,7 @@ The parts and where each one is:
 | Upkeep | Placement, power, rebuilding what the opening built, harvesters and further refineries, keeping the unit queues busy, the service depot, repair, rally points, and switching consumers off when power runs short; behind switches that ship on, the base's walk from ore field to ore field from the opening on, a refinery for each field reached and one to a field first, the move of harvesters off a dry field spread by load, a second construction yard and further ones on safe new ground, more war factories sooner with the Vehicle queue kept filled, no army infantry but a few rocket soldiers after the first war factory, the unit queues waiting for the economy's next item, defenses bought only against a real threat, and less power to spare; always, money banked spent on the second war factory and on an empty Building queue, and ore near the storage cap on up to six war factories with no economy hold; behind a switch that ships on, no war factory beyond the first until the vehicle income keeps those standing 80 percent busy, and behind another, from 180 s one more war factory whenever it does. | `src/ucla_agent/games/redalert/upkeep.py`, `src/ucla_agent/games/redalert/placement.py`, `src/ucla_agent/games/redalert/production.py`, `src/ucla_agent/games/redalert/creep.py`, `src/ucla_agent/games/redalert/fresh_ore.py`, `src/ucla_agent/games/redalert/expansion.py`, `src/ucla_agent/games/redalert/tank_factories.py`, `src/ucla_agent/games/redalert/economy_hold.py`, `src/ucla_agent/games/redalert/bank_spending.py`, `src/ucla_agent/games/redalert/war_factory_load.py` |
 | Base defense | Notices an attack on the base the moment it starts and answers it in the same cycle; shelters harvesters; behind switches that ship on, answers a raid on a far harvester with main alone and leaves main on the attack unless a threat outweighs the guard and the defenses. | `src/ucla_agent/games/redalert/base_defense.py` |
 | Scouting | Behind switches that ship on, two designated scouts kept the whole match, steered round danger with a wide berth and a cap on what they spend, taking the script's missions, and a watch that tells an early rush; with the slots off, one scout at a time to the enemy's start and around its base, sent again whenever the enemy base, its army or a far ore field has gone unseen too long, by the indirect way past the ore fields behind a switch that ships off. | `src/ucla_agent/games/redalert/scouting.py`, `src/ucla_agent/games/redalert/rescout.py`, `src/ucla_agent/games/redalert/sight.py`, `src/ucla_agent/games/redalert/scout_route.py`, `src/ucla_agent/games/redalert/rush_watch.py` |
-| Combat | The army gathers at a staging point, goes forward only as a whole and when strong enough for the plan, and engages or retreats on the estimate of the fight; behind switches that ship on, main's screened advance marches while no enemy is near, and under FINISH it keeps one target, the enemy's production first, until the target is lost, and setting out on an objective the enemy holds it stops just out of the enemy's reach until its body and its artillery are there, its joining units meeting it there, and an enemy MCV or yard near our buildings or harvested fields, or an enemy defense whose reach takes in a refinery, is struck at once by the fewest of main's units worth 1.5 times it, which no plan change or commander pick recalls until it is destroyed; behind a switch that ships off, under HOLD it stands at a forward point on the line toward the enemy, fights what comes near it there and falls back when outmatched; and behind a switch that ships on, main sends no order into the coverage of enemy defenses it cannot beat, going on an uncovered attack point instead, shelling a lone defense, or sieging from beyond the coverage with its tanks screening behind. | `src/ucla_agent/games/redalert/combat.py`, `src/ucla_agent/games/redalert/strike.py`, `src/ucla_agent/games/redalert/forward_staging.py`, `src/ucla_agent/games/redalert/fight.py`, `src/ucla_agent/games/redalert/targeting.py`, `src/ucla_agent/games/redalert/groups.py`, `src/ucla_agent/games/redalert/forward_hold.py`, `src/ucla_agent/games/redalert/finish_target.py`, `src/ucla_agent/games/redalert/defended.py` |
+| Combat | The army gathers at a staging point, goes forward only as a whole and when strong enough for the plan, and engages or retreats on the estimate of the fight; behind switches that ship on, main's screened advance marches while no enemy is near, and under FINISH it keeps one target, the enemy's production first, until the target is lost, and setting out on an objective the enemy holds it stops just out of the enemy's reach until its body and its artillery are there, its joining units meeting it there, and an enemy MCV or yard near our buildings or harvested fields, or an enemy defense whose reach takes in a refinery, is struck at once by the fewest of main's units worth 1.5 times it, which no plan change or commander pick recalls until it is destroyed; behind a switch that ships off, under HOLD it stands at a forward point on the line toward the enemy, fights what comes near it there and falls back when outmatched; and behind a switch that ships on, main sends no order into the coverage of enemy defenses it cannot beat, going on an uncovered attack point instead, shelling a lone defense, or sieging from beyond the coverage with its tanks screening behind. | `src/ucla_agent/games/redalert/combat.py`, `src/ucla_agent/games/redalert/strike.py`, `src/ucla_agent/games/redalert/forward_staging.py`, `src/ucla_agent/games/redalert/stepping.py`, `src/ucla_agent/games/redalert/fight.py`, `src/ucla_agent/games/redalert/targeting.py`, `src/ucla_agent/games/redalert/groups.py`, `src/ucla_agent/games/redalert/forward_hold.py`, `src/ucla_agent/games/redalert/finish_target.py`, `src/ucla_agent/games/redalert/defended.py` |
 | Raids | A small fast group hits the enemy's harvesters and economy where no remembered defense covers them, by a way around the defenses, and breaks off at once when the fight turns; behind a switch that ships on, RAID is open only while a raid could set out now. | `src/ucla_agent/games/redalert/raids.py`, `src/ucla_agent/games/redalert/raid_targets.py`, `src/ucla_agent/games/redalert/raid_routes.py`, `src/ucla_agent/games/redalert/coverage.py` |
 | Plans | The plan selector, by rules R1 to R7, and what each plan produces. | `src/ucla_agent/games/redalert/plans.py`, `src/ucla_agent/games/redalert/composition.py` |
 | Plan choice briefing | What a model choosing the R7 plan reads with `model_briefing` on: the match in plain words, in six sections, and a glossary line for each type it names. | `src/ucla_agent/games/redalert/briefing.py`, `src/ucla_agent/games/redalert/glossary.py` |
@@ -321,6 +321,38 @@ jeep or the dog, until a rush warning or verdict, a threat at the base or
 the depot standing; the rocket cover, base defense's counter and the rush
 counter's infantry are never held, and a shorthand `tr` line for infantry is
 refused meanwhile.
+
+The large map's economy-first build. With `large_map_economy_first` of
+`[opening]` on (as shipped), the opening decides once, in the first cycle in
+which both the base's center and the enemy's start are known, how far apart
+the bases are: the straight distance in cells, never the map's name. With
+more than 70 cells (`large_map_base_cells`) the map is large, and the
+barracks-first, refinery-first and reach-first orders build a power plant,
+two refineries, the barracks (`tent` / `barr`), a second power plant and the
+war factory; the build is complete when the war factory stands, as before.
+The factory-first build, and every build on a map of 70 cells or less, is
+as before. The pool's base distances are 52 (sidestep), 57 (trapped) and 88
+(shadowfiend-ii): on shadowfiend-ii the enemy grows its economy instead of
+rushing, and the early barracks with its rifles held the second refinery
+back. While the barracks neither stands nor is on its way, a rush warning,
+the rush verdict `rush` or a threat at the base that is not of aircraft
+alone pulls the barracks forward for the match: the build is the
+barracks-first one from then on, its steps already standing passed over.
+The decision is one `opening_map_size` event (`distance` to a tenth of a
+cell, `large`), and a pull a second one with `pulled` true. Rush detection,
+the rush counter and the infantry are unchanged. Off, the build is the
+configured order's on every map.
+
+    [opening]      large_map_economy_first = true
+                   large_map_base_cells = 70
+
+Watch it off with:
+
+    python scripts/watch_game.py --set tuning:opening.large_map_economy_first=false
+
+and follow the decision in a match record with:
+
+    grep '"opening_map_size"' runs/<run>/<match folder>/events.jsonl
 
 `scripts/watch_game.py` lets a model choose the plan unless `--model none`
 is given, so the agent as it ships is watched with
@@ -1212,6 +1244,35 @@ one for each harvester. It works with `harvesters_to_fresh_ore`:
 
     python scripts/watch_game.py --set tuning:upkeep.harvesters_to_fresh_ore=true --set tuning:upkeep.fresh_ore_by_load=true
 
+With `truck_shares_by_mines` of `[upkeep]` (on), the ore trucks are shared
+out by the ore mines of the fields: the groups of mine cells (`M`) of the
+map picture, which grow a field's ore back (`OrePatch.mines`). A field is
+active while an own refinery stands counted against it (serving it within
+`refinery_serves_cells`, else within `refinery_counts_cells` of
+`[placement]`), and takes `trucks_per_mine` (2) trucks for each mine,
+`trucks_mineless_field` (2) without one, none while it is marked dry and has
+no mine. Every truck keeps the field it is assigned to until it is lost or
+moved by this rule or the move to fresh ore, and every order that sends it
+back to harvest (the idle re-send, the return after fleeing, parking's end,
+the harvester crush's end) names that field's ore cell nearest it. A new
+truck goes to the nearest active field short of its share, else to the
+nearest active field; while a field is short, one truck of a field over its
+share, the nearest, moves there at most once every
+`truck_rebalance_seconds` (10) and at once when a new refinery stands, as a
+`harvesters_rebalanced` event, never taking a field below its share. The
+move to fresh ore by load holds an active field to the same share.
+
+With `truck_cap_by_shares` of `[upkeep]` (on), trucks are trained only up to
+the fields' shares, in place of the harvester target: the cap is the active
+fields' shares together (by the truck shares, else by the field room's
+share), `harvesters_max` (22) at the most, one a refinery under the full
+hold when that is fewer. The trucks standing, in production and the free
+truck of each own refinery that stood less than `free_truck_wait_seconds`
+(20) ago, while no new truck has shown up within 6 cells of it, count
+against the cap, and a truck is trained only while they are fewer and an
+active field has fewer trucks (assigned, with its refineries' free ones
+still due) than its share. A planned expansion or an MCV adds nothing.
+
 `dry_distinct_harvesters` (3) of `[upkeep]` keeps one harvester that keeps
 going idle from calling its field dry: the idle re-sends that reach
 `dry_idle_count` within `dry_window_seconds` mark the field dry only when at
@@ -1576,6 +1637,138 @@ and watch it off with:
 
     python scripts/watch_game.py --set tuning:scouting.scout_cautious=false
 
+`scout_bait_shot` of `[scouting]` has a careful slot scout fire once before
+it runs. It is not measured, ships on, and changes nothing while
+`scout_slots` or `scout_cautious` is off. The one shot is bait: it makes
+part of the enemy force peel off and chase the scout, away from where it was
+going. With it on:
+
+- When a retreat begins for a slot scout (cause `hit` or `outclassed`, the
+  rush slot's scout included), its order of that cycle is one `attack` on
+  the nearest enemy in sight that is a unit that fights (never a building,
+  so never a defense, which cannot chase), that it can hurt by the damage
+  table (`fight.can_hurt`: a dog does nothing to a jeep) and that stands
+  within its weapon range against it (a jeep's 4 cells), ties by the lower
+  id. The order goes at the scouting priority, as urgent as a flight, and
+  counts within `scout_orders_per_batch`. A retreat kept on or sent anew
+  makes no shot, and neither does one begun with no such enemy: it runs
+  as before.
+- The retreat's move is held back until 1 second (`scout_bait_shot_seconds`)
+  after the shot, and goes from the first cycle after that; the retreat
+  still lasts 8 seconds from when it began. No other attack is made for
+  that retreat, and the scout makes no other bait shot for 15 seconds
+  (`scout_bait_cooldown_seconds`): a retreat begun sooner runs without one.
+- The scout stays in `hold_fire`, which only governs what it shoots at of
+  its own accord. The attack strip keeps the shot: the slots mark their own
+  attacks (`Intent.scout_rule`), and every other manager's attack on a
+  scout is still stripped.
+- The `retreat` event gains `bait`: the id and type of the shot's target,
+  or null when no shot was made.
+
+Watch it off with:
+
+    python scripts/watch_game.py --set tuning:scouting.scout_bait_shot=false
+
+`scout_stray_hunt` of `[scouting]` has a careful slot scout kill a lone
+enemy unit it clearly outfights, such as a stray enemy scout, which it
+would otherwise only run from. It is not measured, ships on, and changes
+nothing while `scout_slots` or `scout_cautious` is off. With it on:
+
+- A unit of type a kills one of type b in b's hit points times its share of
+  health over a's damage a second against b, by the damage table; never when
+  that damage is 0 or a type is unknown. The scout wins the matchup when it
+  kills the target within 10 seconds (`stray_hunt_max_kill_seconds`) and at
+  least 2 times as fast as the target kills it (`stray_hunt_win_ratio`), at
+  the health both have now. At full health a jeep wins against a rifleman
+  (1.3 s against 30 s), a dog and a rocket soldier, not against a jeep (20 s
+  each) or a flak truck; a rifleman against a rocket soldier, an engineer, a
+  spy or a medic, not against a rifleman or a dog; a dog against a rifleman,
+  not against a jeep; a flak truck against a jeep. An ore truck or MCV takes
+  too long to kill.
+- A target is an enemy in sight that is not a building, an aircraft, an ore
+  truck or an MCV, that the scout wins against, and that is lone: no other
+  enemy unit that fights, in sight or seen in the last 30 seconds
+  (`fight.is_counted`), within 10 cells (`stray_hunt_lone_cells`) of it or of
+  the scout. Its cell and the scout's are each farther than every remembered
+  ground defense's cover and 4 cells (`stray_hunt_margin_cells`; 12 from a
+  pillbox) and than 12 cells (`scout_enemy_base_cells` and the margin) from
+  every remembered enemy building but a wall.
+- A slot scout in the field that is not retreating, not harassing and not
+  the rush slot's scout while the rush scout rule steers it (the pass and
+  the exit post until `rush_watch_until_seconds`) hunts the nearest target,
+  unless that target's last hunt ended other than `killed` within 30
+  seconds (`stray_hunt_retry_seconds`). Its order is one `attack` on the
+  target at the scouting priority, as urgent as a flight, within
+  `scout_orders_per_batch`, marked as the slots' own so that the attack
+  strip keeps it, and made again every 2 seconds while the scout stands
+  idle. Its steering, its mission (kept for later) and the commander's
+  scout order are set aside, and its retreat's `hit` and `outclassed`
+  causes are not taken while it hunts.
+- The hunt ends, judged in every cycle, first match: `killed` (the target
+  is gone or out of sight), `base_reach` (the target or the scout is no
+  longer away from the base), `not_lone`, `outmatched` (the matchup no
+  longer wins), `hurt` (30 points of health lost since it began,
+  `stray_hunt_max_hp_loss`), `timeout` (20 seconds, `stray_hunt_max_seconds`).
+  After `killed`, `base_reach` and `timeout` the scout takes up its mission
+  again; after `not_lone` and `outmatched` it begins a retreat with cause
+  `outclassed`, after `hurt` with cause `hit`, both without a bait shot,
+  its health of the last state taken as its health then.
+- Each hunt begun is a `scout_slot` event `hunt` with the target's
+  `target_id` and `target_type` and the scout's `cell`, and each hunt ended
+  one of kind `hunt_end` with the `target_id` and the `reason`.
+
+Watch it off with:
+
+    python scripts/watch_game.py --set tuning:scouting.scout_stray_hunt=false
+
+`scout_base_harass` of `[scouting]` has a careful slot scout harass an enemy
+base it finds open, mostly to force the enemy to react (pull units home,
+build defenses), not to win it. It is not measured, ships on, changes
+nothing while `scout_slots` or `scout_cautious` is off, and does not trigger
+the decisive strike on an undefended enemy. With it on:
+
+- A slot scout in the field that is not retreating, not hunting, not the
+  rush slot's scout while the rush scout rule steers it, and whose last
+  harass ended 60 seconds ago or more (`harass_cooldown_seconds`) begins a
+  harass when it stands within 20 cells (`harass_trigger_cells`) of the
+  enemy's start or of a remembered enemy building but a wall, no remembered
+  ground defense and no enemy unit that fights, in sight or seen in the
+  last 30 seconds, stands within 20 cells of it (`harass_clear_cells`), and
+  it has a target.
+- Its targets are the enemies in sight within 12 cells (`harass_target_cells`)
+  that it can hurt by the damage table, no wall, none a remembered ground
+  defense covers, in four tiers: engineers (`e6`); ore trucks and the
+  infantry that does not fight (`harv`, `medi`, `mech`, `spy`, `thf`); power
+  plants (`powr`, `apwr`); every other building. Within a tier the nearest,
+  ties by the lower id. A unit that fights is no target: it ends the
+  harass. A dog hurts neither a truck nor a building, so it only ever
+  harasses infantry, and with none in reach it does not harass.
+- Its order is one `attack` on its chosen target at the scouting priority,
+  as urgent as a flight, within `scout_orders_per_batch`, marked as the
+  slots' own so that the attack strip keeps it; anew when the chosen target
+  is no target any more or one of a better tier comes into sight, and again
+  every 2 seconds while the scout stands idle. The enemy base's ground is no
+  danger to it meanwhile: its steering, its mission (kept for later) and
+  the commander's scout order are set aside, and its retreat's causes are
+  not taken. It stays in `hold_fire`.
+- The harass ends, judged in every cycle, first match: `defense` (a ground
+  defense within 20 cells), `enemy_unit` (an enemy unit that fights within
+  20 cells), `hit` (health down `scout_retreat_hp_drop` or more since the
+  last state), `timeout` (45 seconds, `harass_max_seconds`), `no_target`
+  (no target for 3 seconds, `harass_idle_seconds`). After `defense` and
+  `enemy_unit` the scout begins a retreat with cause `outclassed`, after
+  `hit` with cause `hit` (the cell it was hit on becomes a hurt area); each
+  takes the bait shot. After `timeout` and `no_target` it takes up its
+  mission again.
+- Each harass begun is a `scout_slot` event `harass` with the scout's
+  `cell` and its first target's `target_id` and `target_type`, and each
+  harass ended one of kind `harass_end` with the `reason` and the count of
+  attack orders it made (`orders`).
+
+Watch it off with:
+
+    python scripts/watch_game.py --set tuning:scouting.scout_base_harass=false
+
 `exposed_trucks` of `[scouting]` notes enemy harvesters at work far from the
 enemy's start, with little guard and no defense over them, as raid
 opportunities. It is not measured and ships on: it only records, and an
@@ -1659,6 +1852,27 @@ it. Each step is a `base_defense` event with the threat's cell: `sent`,
 with:
 
     python scripts/watch_game.py --set tuning:base_defense.harvester_group_response=true
+
+With `truck_retreat` of `[base_defense]` (on), an ore truck retreats only
+from what it cannot crush, in place of fleeing from any enemy within
+`harvester_flee_cells`. Its threats are the enemy units seen in the last
+10 s and the known enemy ground defenses within `truck_threat_cells` (10),
+every enemy ground defense whose weapon range and a cell reach it, and,
+while base defense names the truck as attacked, every enemy unit in sight
+whose weapon reaches it. It retreats when they hold a vehicle, an aircraft
+or a defense, more than `truck_crushable_infantry_max` (3) infantry, or two
+rocket or shock troopers, but not from a lone unit worth less than
+`truck_harasser_max_value` (400), neither a defense nor an aircraft, while it
+has half its health or more. Its shelter is the nearest of the own
+refineries with an own ground defense (not an AA gun or SAM) within 8 cells
+and the middles of main and the guard with a unit fit to fight that lie
+farther from the threats' middle than the truck, else base_center; the move
+goes again every 3 s while it stands idle short of it. After
+`truck_retreat_clear_seconds` (8) with no such threat it harvests its
+field's ore again (its truck share's field). Retreating trucks count as
+fleeing for the other truck rules; each retreat and return is a
+`base_defense` event of the reason `truck_retreat` (truck, threat kinds,
+shelter) or `truck_return` (truck, field).
 
 `keep_attack_army` of `[base_defense]` keeps main on the attack. It is not
 measured and ships on, in the watched game's set. With it on, while the plan is PRESS, STRIKE or
@@ -1761,6 +1975,208 @@ units main holds (`main_units`). Follow it in a match record's events with:
 
     grep '"counter_skipped_tanks"' runs/<run>/<match folder>/events.jsonl
 
+The enemy army estimate, the spending focus and the counter quota. Four
+switches, all on and none measured yet, weigh the enemy army that is out of
+sight and answer it; none calls a model.
+
+- The enemy army estimate. `enemy_army_estimate` of `[plan_rules]` has the
+  plan rules bring an estimate E of the enemy army, in credits, up to date
+  once a cycle (`enemy_estimate`): the seen value V (the remembered enemy
+  units that fight on the ground and are not stale), or, when more, the last
+  E grown by the enemy's income on its army (its harvesters, the more of the
+  harvesters and refineries remembered, times our own income a harvester or
+  `estimate_income_per_harvester` 8.0 a second, `estimate_army_spend_share`
+  0.5 of it to the army, for up to `estimate_growth_max_seconds` 240 after an
+  army unit was last in sight) less what we killed since. E is never below V
+  or 0 and is unknown until an army unit was seen; one `enemy_estimate`
+  event at most every 30 s gives it.
+- The spending focus. `spending_focus` of `[upkeep]` has upkeep pick, every
+  `focus_every_ticks` (250) once the opening's build is complete, where the
+  money goes (`spending_focus`): military while E is known, E is at least
+  `military_focus_ratio` (1.2) x our army A (the cost of the combat units in
+  main, the guard and the escort) and either is 1,000 or more, until E is at
+  most `military_focus_end_ratio` (1.0) x A; economy while A is at least
+  `economy_focus_ratio` (1.5) x E (until it falls under 1.3 x E) or the
+  enemy is greedy (2 or more refineries remembered, worth E or more at 1,400
+  each); balanced otherwise, before the opening is done and while E is
+  unknown and the enemy not greedy. A focus other than military holds
+  `focus_hold_seconds` (30); a change to military is at once. Under military
+  no new MCV is wanted (`second_mcv_blocked` names `military_focus`) and no
+  claim, growth, third or fourth or bank refinery is ordered or saved for,
+  while an MCV out and a refinery on order go on and the harvesters for the
+  refineries standing are trained; the Vehicle queue's next army vehicle is
+  the family's artillery (arty, v2rl) while main and the guard hold fewer
+  than `military_focus_first_artillery` (2); and one ground defense goes up
+  every `military_focus_defense_seconds` (60), `military_focus_defenses_max`
+  (2) a military period, on the side of the base facing the enemy's start,
+  the defense against armor while vehicles make up `vehicle_heavy_share` of
+  the enemy seen, else the one against infantry, whatever
+  `defenses_on_threat_only` says. Under economy the yards allowed are one
+  more, `max_yards` at the most, and a due harvester goes into the Vehicle
+  queue before the army's next vehicle. Each change is a `spending_focus`
+  event with the focus, its reason (`enemy_ahead`, `matched`, `army_ahead`,
+  `greedy_enemy`, `balanced`), E and A.
+- The counter quota. `counter_quota` of `[composition]` turns the enemy
+  units that fight seen in the last `counter_seen_seconds` (120), aircraft
+  left out, into counter units the unit queues train first, the item the
+  army is furthest short of, infantry `infantry_at_a_time` at a time
+  (`counter_units`). While the enemy is infantry-heavy (its infantry at
+  least `anti_infantry_min_infantry` 6 and `anti_infantry_enemy_share` 0.4
+  of the units counted), one anti-infantry unit for every
+  `anti_infantry_per_rockets` (2) rocket soldiers and every
+  `anti_infantry_per_infantry` (4) other infantry, rounded up: the family's
+  artillery while it is on offer and in the row, else Soviet flamethrowers,
+  never grenadiers (one flame tower is ordered for them, once a match,
+  toward the enemy), else Allied riflemen with half of them Ranger jeeps
+  once a war factory stands. While 4 or more enemy tanks are seen, one
+  rocket soldier for each `anti_armor_per_tanks` (2). No counter unit is
+  trained while those of the quota's items are worth `counter_max_share`
+  (0.35) of main, the guard and the escort: the main tank keeps the rest.
+  Each change is a `counter_quota` event.
+- The infantry counter lift. `infantry_counter_lift` of `[composition]`
+  lifts the tank army's block above while the enemy is infantry-heavy: an
+  infantry threat gets the family's counter infantry (the Soviet
+  flamethrower while on offer, else the rifleman, never the grenadier) and
+  one `base_defense` event of reason `counter_lifted_infantry_heavy` instead
+  of `counter_skipped_tanks`, and `no_army_infantry` lets the quota's
+  riflemen through up to the army's shortfall of them. Once the enemy is no
+  longer infantry-heavy the block holds as before.
+
+Follow them in a match record's events with:
+
+    grep -E '"(enemy_estimate|spending_focus|counter_quota)"' runs/<run>/<match folder>/events.jsonl
+    grep '"counter_lifted_infantry_heavy"' runs/<run>/<match folder>/events.jsonl
+
+Their keys, as shipped:
+
+    [plan_rules]
+    enemy_army_estimate = true
+    estimate_income_per_harvester = 8.0
+    estimate_army_spend_share = 0.5
+    estimate_growth_max_seconds = 240
+    [upkeep]
+    spending_focus = true
+    focus_every_ticks = 250
+    military_focus_ratio = 1.2
+    military_focus_end_ratio = 1.0
+    economy_focus_ratio = 1.5
+    focus_hold_seconds = 30
+    military_focus_first_artillery = 2
+    military_focus_defense_seconds = 60
+    military_focus_defenses_max = 2
+    [composition]
+    counter_quota = true
+    counter_seen_seconds = 120
+    anti_infantry_per_rockets = 2
+    anti_infantry_per_infantry = 4
+    anti_infantry_min_infantry = 6
+    anti_infantry_enemy_share = 0.4
+    anti_armor_per_tanks = 2
+    counter_max_share = 0.35
+    infantry_counter_lift = true
+
+The endgame lead, the expansion sites and the cover of the expansions. Four
+switches, all on and none measured yet, keep a late lead and the expansions;
+none calls a model, and with each off the agent plays as before.
+
+- The endgame lead defenses. `endgame_lead_defenses` of `[clock]` adds the
+  clock rule R2E (`endgame_lead`, `plans`): in the last
+  `endgame_lead_seconds` (300), with the trade balance B (kills less
+  losses, the time-limit tiebreak) at `endgame_lead_margin` (1,000) or more,
+  our army A (main, guard and escort at cost) and the enemy army estimate E
+  both worth `endgame_heavy_army_value` (5,000) or more and R6 not applying,
+  the plan is PRESERVE by R2E (after R6 with `finish_over_preserve` on,
+  before R2 to R4). It stays, whatever the armies, until B has stood at 0 or
+  below for `clock_switch_ticks` (250) in a row, or R6 applies. Meanwhile
+  (`clock.EndgameLeadDefense`) the Defense queue, whenever it is free and
+  the money covers it, gets the Tesla coil (Soviets) or the turret (Allies),
+  the defense against infantry when neither is on offer, held to the power
+  target with a power plant first, up to `endgame_lead_defenses_max` (15),
+  the production reserve, `defenses_on_threat_only` and `endgame_defenses`
+  not holding it back; its goal is the lead point C,
+  `endgame_defense_forward_cells` (10) from base_center toward the enemy's
+  start, so that placement puts it on the placeable cell nearest C, within
+  `endgame_defense_cluster_cells` (7) of it; with no such cell, where
+  placement puts any defense, on the side facing the enemy. The unit
+  queues and the end-of-match spending get only the money above the next
+  defense's price, and PreserveDefense's defense a minute does not run.
+  Main gathers at C, the producers rally there, and main engages only
+  enemies within `endgame_army_leash_cells` (8) of C (the recall of groups
+  beyond `preserve_recall_cells` stays). Each defense ordered is a `clock`
+  event of the reason `endgame_lead_defense` with the item, C, B, A and E.
+- The site line penalty. `mcv_line_penalty` of `[expansion]` ranks the MCV's
+  sites with a penalty for a field ahead of the base near the line from
+  base_center to the enemy's start (`expansion.line_penalty`):
+  `mcv_line_penalty_cells` (20) on the line, falling evenly to 0 at
+  `mcv_line_clear_cells` (15) off it, none behind the base (no positive
+  depth) or with the enemy's start unknown. `far_site` takes the least route
+  length plus penalty, `safe_site` tries each group of fields by distance
+  from the main yard plus penalty; no field is ruled out by it. The `site`
+  event gives `line_penalty`.
+- The MCV's escort reliance. `mcv_escort_reliance` of `[expansion]` has the
+  MCV heed only its route threat (`expansion.route_threat`): the ground
+  enemy units that fight seen in the last 10 s within
+  `mcv_route_threat_cells` (10) of its remaining route (its waypoint way,
+  else the straight line) or 15 cells of its site, worth W, and only when
+  W > `mcv_escort_win_ratio` (1.0) x its escort S (waiting, the escort it
+  would take; travelling, the escort's units within 15 cells of it). A major
+  threat on the base no longer keeps it home by itself; such a group makes
+  it wait (`mcv_waiting` reason `route_threat`), hold short (`mcv_hold`
+  reason `escort_outmatched` with W and S, sited again after
+  `mcv_site_hold_seconds` with that reason) and never deploy beside it; a
+  group it beats does not stop it, and the `rerouted` choice when it is hurt
+  or near unsafe ground is made only for a group it cannot beat. Every site
+  chosen again (escort_outmatched, rerouted, taken, enemy_building_near,
+  own_side) lies within `mcv_resite_max_cells` (25) of route from the MCV,
+  else it goes home (`home_fallback`) or waits (`repeat_no_site`).
+  `mcv_site_army_value` (600) is read only with the switch off.
+- The rally covering the expansions. `expansion_cover_rally` of `[combat]`
+  has main, under OPENING (once a war factory stands), HOLD and RAID while
+  an own construction yard other than the main yard stands, gather at the
+  cover point whatever its strength (`forward_hold.cover_point`), and the
+  barracks and war factories rally there: on the line from base_center to
+  the enemy's start, `expansion_cover_forward_cells` (6) beyond the deepest
+  expansion yard, stepped back half a cell at a time to the first cell at
+  most halfway, outside every remembered defense's reach plus
+  `forward_hold_defense_clear_cells` (4) and within
+  `expansion_cover_reach_cells` (18) of every expansion yard; with no such
+  cell on the line, 6 cells from the farthest-forward yard toward the enemy,
+  pulled back the same way; else the staging point. It is worked out again
+  when the yards or the remembered defenses change and every 125 ticks.
+  Main fights, chases and falls back there as at forward_hold's point, and
+  it replaces that point with both switches on; each change is a
+  `hold_position` event of the reason `cover_expansions`. Under PRESS,
+  STRIKE, FINISH and PRESERVE, and without an expansion, nothing changes.
+
+Follow them in a match record's events with:
+
+    grep '"endgame_lead_defense"' runs/<run>/<match folder>/events.jsonl
+    grep -E '"(R2E|escort_outmatched|route_threat|cover_expansions)"' runs/<run>/<match folder>/events.jsonl
+
+Their keys, as shipped:
+
+    [clock]
+    endgame_lead_defenses = true
+    endgame_lead_seconds = 300
+    endgame_lead_margin = 1000
+    endgame_heavy_army_value = 5000
+    endgame_lead_defenses_max = 15
+    endgame_defense_forward_cells = 10
+    endgame_defense_cluster_cells = 7
+    endgame_army_leash_cells = 8
+    [expansion]
+    mcv_line_penalty = true
+    mcv_line_penalty_cells = 20
+    mcv_line_clear_cells = 15
+    mcv_escort_reliance = true
+    mcv_route_threat_cells = 10
+    mcv_escort_win_ratio = 1.0
+    mcv_resite_max_cells = 25
+    [combat]
+    expansion_cover_rally = true
+    expansion_cover_forward_cells = 6
+    expansion_cover_reach_cells = 18
+
 The switch of the opening's defenses was measured too: with `rush_detection`
 on, it won 95 games at a mean kd of 9,983, and 7 games fewer for Russia
 against the Rush bot. It ships on all the same, in the watched game's set:
@@ -1791,7 +2207,7 @@ first sight of enemy armor.
 One more opening switch, `lean_infantry` of `[opening]`, is not measured and
 ships on, in the watched game's set. To watch a game with it off, run
 `python scripts/watch_game.py --set tuning:opening.lean_infantry=false`. With
-it on, the opening trains `lean_guard_rifles` (3) rifle soldiers for the
+it on, the opening trains `lean_guard_rifles` (1) rifle soldier for the
 home guard in place of five, none for main in place of six, and never
 chooses rocket soldiers as its cover against armor: the cover is the gun,
 else a second defense against infantry. Once the rush watch says `rush`
@@ -1921,6 +2337,42 @@ opening's pillbox for an unknown verdict on, with:
 and follow the towers in a match record's events with:
 
     grep '"harass_tower"' runs/<run>/<match folder>/events.jsonl
+
+**Defenses at the front.** With `defense_front` of `[placement]` on (as
+shipped) and the enemy's start known, every ground defense placed without a
+goal of its own (the opening's, the rush counter's, a lost defense's
+replacement, the lead-preserving and end-of-match ones, and an AA defense
+before enemy air is seen) stands at the enemy-facing front of its base. The
+base is the construction yard the defense is laid out around (the first
+yard; with several, the one nearest the defense's point, as before) and the
+own buildings but defenses whose nearest yard it is. Its front building is
+the one whose middle lies farthest along the line from the yard's middle
+toward the enemy's start, and the point is 3 cells (`defense_front_cells`)
+beyond that building's middle toward the enemy; with ground defenses of the
+base already on the enemy's side of the yard, the goal is halfway between
+that point and their middle, so that the front's defenses stand together.
+The places are those of the yard's ring and every free place within
+`defense_adjacent_cells` (7) of a building of the base, on the usual ground
+(bounds, gaps, blocked terrain, refused places, the MCV's site), with no
+`defense_radius_cells` clamp; those whose middle lies behind the yard are
+left out while one on the enemy's side remains. The defense takes the place
+nearest the goal among those within `defense_cluster_cells` (6) of it, else
+the nearest, the one nearer the yard of two as near. Base defense's extra
+defense toward its threat, the Tesla coil's side, the harassment tower, an
+AA defense once enemy air is seen and a remote base's AA defense are placed
+as before, as is every other building; with the enemy's start unknown the
+old point, `defense_distance_cells` (5) from the yard within
+`defense_radius_cells` (6) of it, holds. In the final platform games the
+base crept away from its first yard and the defenses aimed 5 cells from it
+were built in the middle of the base. Off, every placement is as before.
+
+    [placement]    defense_front = true
+                   defense_front_cells = 3
+                   defense_cluster_cells = 6
+
+Watch it off with:
+
+    python scripts/watch_game.py --set tuning:placement.defense_front=false
 
 Four more switches of `[upkeep]` are not measured either, and each ships
 on, in the watched game's set; each can be watched off with its `--set`
@@ -2344,6 +2796,37 @@ refinery came 3 min 30 s after the deploy, placed toward the crawl target.
   `held_for_mcv` names the field held. In game 20261014T030940Z the site was
   chosen at 04:33, a `second_when_stuck` refinery went onto the served home
   field (64, 57) at 05:07 and the MCV was trained only at 05:13.
+- With `new_yard_refinery_until_standing` of `[expansion]` (on), the new
+  yard's claim lasts until a refinery of ours stands counted against its
+  field (serving it within `refinery_serves_cells`, else within
+  `refinery_counts_cells`), or the yard is lost, whatever the refinery caps
+  say; a refinery refused and put elsewhere leaves it open. The refinery is
+  ordered only while a place against the field exists that placement would
+  use: ordering keeps off the places asked for lately and those the engine
+  refused, as placement does, so no refinery waits unplaced to be cancelled
+  and ordered again. It is placed from the new yard's places, the own units
+  on the place or a cell around it moved off first (5 s at the most); a
+  refused place is skipped for the next, and with every place refused, those
+  refused `new_yard_refused_retry_seconds` (60) or more ago are tried again,
+  the oldest first. A later placement of the same claim is a `refinery_field`
+  event of the reason `new_yard_retry`, and the claim's end one of the reason
+  `new_yard_standing`. In the game vs Yuriko Red of 2026-10-14 the yard at
+  [77,17] had its refinery refused at [80,15] and put at home, and the base
+  ordered, held and cancelled a refinery about every 50 s to the end.
+- With `mcv_refinery_fit` of `[expansion]` (on), an expansion MCV deploys
+  only at a cell from which a refinery fits against its site's field: a
+  place whose nearest cell lies within `mcv_refinery_fit_cells` (4) of the
+  future yard box, on ground placement would take with that yard standing
+  (the gap around buildings and the places asked for lately, blocked
+  terrain, the cells kept free and the places the engine refused), reaching
+  the field within `refinery_ore_cells` and serving it, and out of a known
+  enemy ground defense's range plus 2. The cell is the nearest the ore
+  within `mcv_deploy_cells` walking steps, else within
+  `mcv_fit_search_cells` (8); a field with none is passed over by the site
+  choice. As the MCV is to deploy the check runs again: failing, it moves to
+  the next such cell, or with none drops the site, an `expansion` event of
+  phase `mcv_site_no_refinery_fit`, and is sited again from where it stands.
+  The home yard's first deploy is not affected.
 
 The new yard's refinery is a `refinery_field` event with the rule and the
 reason `new_yard`:
@@ -2462,6 +2945,18 @@ against a rated 1.76, and came 17 to 55 seconds late to the fight. Watch the
 slots wider apart with:
 
     python scripts/watch_game.py --set tuning:siege.slot_spacing_cells=3
+
+The screened place is not measured, and ships on: with `artillery_screen_place` of `[siege]` on, main's artillery and
+V2 out of contact (and one standing unscreened on the threat's side of the screen), with a screen unit within 10 cells
+of them, stand on a line 3 cells (`artillery_offset_cells`) behind the screen's centroid, or the current step point,
+on its far side from the threat (the enemies within 15 cells of main, `artillery_threat_cells`, else the stepped
+move's destination or the cell a move home came from, else the enemy start), 2 cells apart on open ground out of
+every known ground defense's range, at step points, wherever main gathers or holds and in a fight with an enemy near;
+sent again once a place moved 3 cells or the threat turned 45 degrees (`artillery_turn_degrees`), and a kite
+fall-back goes 4 cells straight away from the enemy, never nearer to another, instead of toward the base (see
+`src/ucla_agent/games/redalert/screen_place.py`). Watch it off with:
+
+    python scripts/watch_game.py --set tuning:siege.artillery_screen_place=false
 
 The sticky target of main's FINISH attack is not measured, and ships on in
 the watched game's set. With it off, main under FINISH goes in each cycle on
@@ -2585,6 +3080,20 @@ to). A cluster is told at most once in 10 seconds for its centroid rounded to
 4 cells. The event changes nothing a run does. Watch it off with:
 
     python scripts/watch_game.py --set tuning:combat.crush_runs=false
+
+The crush wave is not measured, and ships on: with `crush_wave` of `[combat]` on (and `crush_runs`), an enemy
+infantry all-in, 8 or more infantry within 6 cells of their centroid (`wave_min_infantry`, `wave_mass_cells`) within
+25 cells of the base's center or 12 of our crushing vehicles, is met by one wave instead of the script's runs of
+three: every fit crushing vehicle within 16 cells (3 to 10 of them) gathers at a point 8 cells outside the mass on
+their side, moved out of any known ground defense's coverage, and once 75 percent of them stand within 3 cells of it,
+or after 6 seconds with 2 or more there, all those there are ordered through the mass in one cycle on lanes 2 cells
+apart to 4 cells past it, a wave run of 10 seconds at most from which no tank is released on arrival; the stragglers
+go as one second wave of 2 or more, never alone. The wave is the one crush run while it is out (no script run, no
+run-over of the commander's, no other manager's order), and writes `combat` events of reason `crush_wave` (wave,
+mass, gather, tanks, present, total, waited_s, launch) and `crush_run` with its `wave` (see
+`src/ucla_agent/games/redalert/crush_wave.py`). Watch it off with:
+
+    python scripts/watch_game.py --set tuning:combat.crush_wave=false
 
 The nuke spread is not measured, and ships on: it acts only once an enemy
 missile silo (`mslo`, which the item table does not list; a variant is known
@@ -2915,6 +3424,78 @@ Watch the match record's `combat` events of reason `staging`, and the agent
 with it off with:
 
     python scripts/watch_game.py --set tuning:combat.forward_staging=false
+
+The reinforcements held home are not measured, and ship on: with `reinforce_hold_home` of `[combat]` on, while main's
+army stands more than 30 cells (`reinforce_away_cells`) from its home gather point (the forward hold's gather point,
+else the staging point), the units joining it (the plan's reinforcements, forward staging's joiners and the commander
+gate's joiners) gather and defend there instead of trickling out, and set out only as one group worth 3,000 or more
+(`reinforce_group_min_value`), by steps to main's centroid with `stepped_advance` on, joining main within 6 cells of
+it; main back near home, they join it by their own rules again (`combat` events of reason `reinforce`, phases `held`
+and `sent`; see `src/ucla_agent/games/redalert/reinforce_hold.py`). Watch it off with:
+
+    python scripts/watch_game.py --set tuning:combat.reinforce_hold_home=false
+
+The stepped movement is not measured, and ships on: with `stepped_advance` and `stepped_return` of `[combat]` on, main
+goes to a destination 15 cells or more (`step_min_move_cells`) from its centroid, out or home, in steps of 10 cells
+(`step_cells`) along its route, each step point snapped off blocked ground and kept out of every known ground defense's
+range plus 3 cells, and orders the next step once 80 percent of it (`step_arrive_share`) stands within 4 cells of the
+step point with every artillery and V2 within 7, 12 seconds after half of it arrived, or 40 seconds after the step was
+ordered, writing `combat` events of reason `step` (phases `start`, `release` and `end`) and taking the place of the
+forward staging for a stepped move (see `src/ucla_agent/games/redalert/stepping.py`).
+With `step_commit` of `[commander]` on, the model commander keeps main's stepped move against an answer of the same
+destination, holds any other answer (a `fallback` of reason `step_commit`) until the step releases unless main's threat
+or gate changed, the pick sends a detachment or base defense calls main home, and has its retreat override step main
+back one step without closing the forward gate (`override_retreat` with `step_back` and `cell`).
+With `met_enemy_decision` of `[combat]` on, a group on a stepped advance that meets enemies (counted ground units within
+10 cells of one of its units, ground defenses reaching one by their range and 2) fights them at a ratio of 1.0 or more,
+chasing none farther than 5 cells off the step's way and stepping on 3 seconds after the last is gone, and otherwise
+steps back together to its previous step point, a decision kept 6 seconds and a fight given up under 0.7, stepping on
+once no counted enemy has stood within 15 cells of the abandoned step point for 8 seconds or its ratio reaches 1.2, and
+one more step back when met again there under 1.0 (`combat` events `met` and `met_end`); the plan's RETREAT on a
+stepped advance is such a step back.
+With `moving_returns_fire` of `[combat]` on, main on a move home, a step back or between step points that is caught (a
+visible enemy has had one of its units within its range and 1 cell for 2 seconds, or stands within 4 cells of its way
+ahead) stops and fights together whatever its ratio, no unit sent farther than 5 cells from where it was caught and the
+units more than 12 cells off moved there, the retreat override's and the regroup's moves waiting, and goes on 3 seconds
+after the enemy is gone (`combat` events `caught` and `caught_end`).
+With `continue_option` of `[commander]` on, a standing advance, flank or siege of main's, or a mission of the scout's,
+that the fresh question leaves off while it is still sound (not arrived, its target remembered, no attack on the base
+nor a fight lost where main stands, the gate open with no retreat override or regroup due, near home while main is
+behind; for the scout no danger flight and a safe way) is offered again as `Z`, `continue: ` and its line, marked
+current, in a place left or in that of the lowest-ranked action that may give way; an answer naming it keeps the
+standing action, and the commander's summary counts `continue_offered` and `continue_picked` (see
+`src/ucla_agent/games/redalert/command_prompt.py`).
+
+The attack's approach, the canary and the commit when the armies cross are not measured, and ship on. While any of
+`flank_approach` and `commit_on_cross` of `[combat]`, `canary_post` of `[scouting]` and `canary_alarm` of `[upkeep]` is
+on, the combat manager keeps whether main's attack is out (`MatchContext.attack_out`): it sets out when the commander's
+forward gate opens or main goes forward as a whole by its plan, and ends when main is sent home, base defense takes it
+or calls it home, or main is back within 14 cells of the base (`combat` events `attack_out` and `attack_home`).
+With `flank_approach` on, the attack setting out weighs three approaches (direct, and by a side cell 14 cells off the
+line 12 cells short of the objective, a side blocked at the map edge, on impassable ground, with no walk within its step
+cap or a walk over 1.8 times the direct one) by their exposure (the ground defenses covering them at twice their cost,
+the enemy units seen within 30 seconds within 6 cells of them) and sends the whole of main by a side cell only while the
+direct way is defended and the side's exposure is 0.6 of the direct one's or less: the plan's march, its steps and its
+staging go by it, and so do the commander's advance, siege and attack on a far group, the commander offering no `flank`
+meanwhile (`combat` event `approach`; see `src/ucla_agent/games/redalert/attack_approach.py`).
+With `canary_post` on, every attack that sets out posts one canary rifleman on the line from the enemy's start toward
+our base, 22 cells or more from it, outside its known defenses' coverage and 10 cells from its buildings and 15 or more
+from our base: the canary alive, else the rush watch's post rifleman, else one rifleman trained; it holds fire there,
+takes no other manager's order, and its death is published (`scout_slot` events of kind `canary`; see
+`src/ucla_agent/games/redalert/canary.py`).
+With `canary_alarm` on, the canary's death while an attack is out, or the armies crossing, starts the alarm: base
+defense orders the anti-armor or anti-infantry defense whenever the Defense queue is free, placed toward the cell 8
+cells from the base toward the enemy's start, while upkeep's unit queues train nothing (a harvester only for a refinery
+that has none) and no MCV, refinery beyond the second, barracks or war factory beyond the first, radar or tech building
+is ordered; it ends beaten, gone after 75 quiet seconds, with main home, or after 180 seconds (`base_defense` events of
+reason `canary_alarm`; see `src/ucla_agent/games/redalert/canary_alarm.py`).
+With `commit_on_cross` on, main deep in the enemy's ground (nearer their start than our base) while their army heads for
+ours (the canary lost, an army closing on the base, their units seen nearer our base, a major threat) decides once: it
+commits to the base trade while the way home is not clear, sieges the covering defenses with three artillery or more
+when their base is costly by its defenses, commits while their base is beatable (1.2 or more), and goes home by its
+reverse route only otherwise; while committed nothing recalls it, base defense, the retreat override and the model's
+answers included (`combat` events `armies_crossed`, `cross_decision` and `cross_end`; see
+`src/ucla_agent/games/redalert/cross_commit.py`).
 
 No fight under enemy guns is not measured, and ships on. Against an enemy
 army standing under its base defenses, crushing the infantry and rushing the

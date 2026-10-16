@@ -45,6 +45,22 @@ are on their way, past `max_war_factories`, and one in
 order, the power plant the power target puts first included, is an
 `economy` event of the same reason with its item.
 
+With `no_float` on, cash is never left to float: once the money
+(`spendable`) has been at least `no_float_cash` in every state of the last
+`no_float_seconds`, a refinery standing, whatever the plan, the spending
+focus or the military recovery, the producer rule orders one more producer at
+once (`float_producer`): a barracks or a war factory, the one whose unit
+queue was the busier, up to `max_infantry_producers` and `max_war_factories`
+(the other when the busier one is at its most), or the power plant it waits
+for; one such order in `no_float_seconds` at most. More producers spend more
+at once: the unit queues fill every free producer as ever, and the money
+held back from MCVs and refineries under the military focus goes to them.
+It comes before the idle bank, which waits for idle_bank_money with the
+Building queue empty. Each order is an `economy` event of the reason
+`no_float` with the item and the cash. In the live games of 20261016 4,000
+floated at 5:00 under the military focus with one barracks and one war
+factory, the idle bank first ordering at 3,389.
+
 Nothing here sends an order: the bank and the Building queue are followed
 from state to state, and the producer rule orders.
 """
@@ -66,6 +82,8 @@ BANK_FACTORY = "bank_factory"
 IDLE_BANK = "idle_bank"
 # The reason an `economy` event of the storage rule gives, when it comes into force and for each order it makes.
 STORAGE_NEAR_CAP = "storage_near_cap"
+# The reason of an order for a producer on floating cash.
+NO_FLOAT = "no_float"
 
 
 class BankWatch:
@@ -80,6 +98,9 @@ class BankWatch:
         self._idle_since: int | None = None
         # The tick of the last order made for an empty Building queue; None before the first.
         self._idle_ordered_at: int | None = None
+        # The same run for the states whose money was at least no_float_cash, and the tick of the last order on it.
+        self._floating_since: int | None = None
+        self._float_ordered_at: int | None = None
 
     def note(self, world: World, tuning: Tuning) -> None:
         """Take in one fresh state."""
@@ -87,6 +108,34 @@ class BankWatch:
         self._banked_since = _run_start(self._banked_since, is_banked, world.tick)
         is_idle = not world.production.get(BUILDING_QUEUE)
         self._idle_since = _run_start(self._idle_since, is_idle, world.tick)
+        is_floating = world.economy.spendable >= tuning.producers.no_float_cash
+        self._floating_since = _run_start(self._floating_since, is_floating, world.tick)
+
+    def is_floating(self, world: World, tuning: Tuning) -> bool:
+        """With no_float on, whether the money has stayed at least `no_float_cash` for `no_float_seconds`, and no
+        order was made on it in the last `no_float_seconds`."""
+        producers = tuning.producers
+        if not producers.no_float:
+            return False
+        rested = self._float_ordered_at is None or _has_lasted(
+            self._float_ordered_at, producers.no_float_seconds, world.tick
+        )
+        return rested and _has_lasted(self._floating_since, producers.no_float_seconds, world.tick)
+
+    def float_orders(self, orders: list[Intent], world: World) -> list[Intent]:
+        """Note the orders made on floating cash, so that the next waits `no_float_seconds`, write each as an
+        `economy` event of the reason `no_float` with the cash, and give them back."""
+        if orders:
+            self._float_ordered_at = world.tick
+        for intent in orders:
+            data = {
+                "tick": world.tick,
+                "reason": NO_FLOAT,
+                "item": intent.order["item"],
+                "cash": world.economy.spendable,
+            }
+            records.log(ECONOMY_EVENT, data)
+        return orders
 
     def has_banked(self, world: World, tuning: Tuning) -> bool:
         """Whether the money has stayed at least `bank_factory_money` above the reserve for `bank_factory_seconds`."""

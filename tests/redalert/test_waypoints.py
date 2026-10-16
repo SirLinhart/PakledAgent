@@ -12,7 +12,7 @@ import pytest
 
 from fake_game import FakeRedAlert
 from situations import REPO_ROOT, OpeningThen, StubChooser, ask, base_state, context, tracked_items
-from switches_off import expansion_off, new_agent, placement_off, tuning_off
+from switches_off import expansion_off, new_agent, placement_off, stepping_off, tuning_off
 from ucla_agent.core.config import ConfigError
 from ucla_agent.games.redalert import cells, command_army, coverage, expansion, raid_routes, scout_steering
 from ucla_agent.games.redalert.combat import CombatManager
@@ -594,8 +594,12 @@ def test_scouts_a_mission_way_drawn_again_every_cycle_writes_its_route_once_and_
 WAR_FACTORY, FLANK_PILLBOX = enemy(641, "weap", 72, 52), enemy(600, "pbox", 56, 48)
 FLANK_FIELDS = [(44, 64), (60, 64)]
 FLANK_LEGS = ((44, 64), (60, 64), (72, 52))
-# An advance is the plain attack-move on the objective.
-NO_MARCH = dataclasses.replace(Tuning(), siege=dataclasses.replace(Tuning().siege, march_when_clear=False))
+# An advance is the plain attack-move on the objective, and main's flank one move to each cell of its way, unstepped.
+# The commander's flank is offered only while the script does not flank by the attack's approach (see
+# `attack_approach`): stepping_off turns the approach off as well.
+NO_MARCH = stepping_off(
+    dataclasses.replace(Tuning(), siege=dataclasses.replace(Tuning().siege, march_when_clear=False))
+)
 FLANK_ON = dataclasses.replace(NO_MARCH, routing=RoutingTuning(waypoints=True))
 
 

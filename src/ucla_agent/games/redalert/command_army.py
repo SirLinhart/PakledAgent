@@ -114,6 +114,13 @@ Then the active actions, in this order:
   cell (`via (x,y)`); without such a way it is left out while main has no
   artillery or V2 launcher, unless no other active action is offered.
 
+With `flank_approach` of `[combat]` on, the script flanks (see
+`attack_approach`): `flank` is not offered, and while the attack out goes by
+a side cell the advance goes by it (`via (x,y)`) and is never left out for
+its straight way; the combat manager sends main's standing advance, siege
+and attack on a group farther than near_attack_cells by that cell as well
+(`routed`).
+
 The task options on the targets near main (see `command_tasks`): `run
 over` a cluster of infantry with main's tanks, `kill` a defense with its
 artillery or V2 launchers, `hit` a group with the units of main that counter
@@ -210,7 +217,7 @@ from dataclasses import dataclass, field, replace
 from functools import partial
 from typing import Any, Mapping, Sequence
 
-from ucla_agent.games.redalert import cells, coverage, finish_target, raid_routes
+from ucla_agent.games.redalert import attack_approach, cells, coverage, finish_target, raid_routes, safe_staging
 from ucla_agent.games.redalert.command_economy import economy_target
 from ucla_agent.games.redalert.command_state import (
     REINFORCING,
@@ -222,6 +229,9 @@ from ucla_agent.games.redalert.command_state import (
 )
 from ucla_agent.games.redalert.command_prompt import (
     ARMY_DETAILS,
+    ARRIVED_CELLS,
+    CONTINUE,
+    CONTINUE_ID,
     SHORT_LIST_TYPES,
     Action,
     Current,
@@ -238,10 +248,11 @@ from ucla_agent.games.redalert.command_prompt import (
     named,
     picks_line,
     seconds_ago,
+    with_continue,
 )
 from ucla_agent.games.redalert.command_targets import LocalTarget, local_targets, range_cells, reaches, targets_lines
 from ucla_agent.games.redalert.command_tasks import HIT_GROUP, KILL_DEFENSE, RUN_OVER, TASK_IDS, task_actions
-from ucla_agent.games.redalert.command_threat import ClosingWatch, Threat, threat
+from ucla_agent.games.redalert.command_threat import BASE_ATTACKED, LOSING_HERE, ClosingWatch, Threat, threat
 from ucla_agent.games.redalert.fight import (
     Point,
     centroid,
@@ -300,11 +311,17 @@ ARMY_IDS = {
     **TASK_IDS,
     ECONOMY: "M",
     EXPANSION: "X",
+    CONTINUE: CONTINUE_ID,
 }
 # The kinds of action that bring main back toward home; every other kind with a cell is on an enemy target.
 HOME_KINDS = frozenset({GATHER, RETREAT_HOME, PULL_BACK})
 # The order the actions but the defensive ones are kept in when more are offered than options_max.
 KEPT_FIRST = (ADVANCE, RUN_OVER, HIT_GROUP, KILL_DEFENSE, ATTACK, RAID_TRUCKS, SIEGE, FLANK, GATHER)
+# The kinds of standing action that may be offered again as the continue option when the fresh list left them off.
+CONTINUED_KINDS = frozenset({ADVANCE, FLANK, SIEGE})
+# The actions the continue option may take the place of, the lowest-ranked first: the economy and expansion targets,
+# then the kinds kept in the cut from the last; never a defensive action nor gather.
+GIVING_WAY = (ECONOMY, EXPANSION, *reversed([kind for kind in KEPT_FIRST if kind != GATHER]))
 # How many places the defensive actions always leave to the others, and how many active actions the flank makes up
 # to; while main is behind, fewer may be offered.
 ACTIVE_MIN = 2
@@ -396,6 +413,16 @@ class Regroup:
     whole_value: float
     lost_lately: bool = False
     pulled_back: bool = False
+
+
+@dataclass(frozen=True)
+class Continuing:
+    """What main's continue option is read from (see `army_actions`): the standing action, and whether the retreat
+    override has main or a regroup is due in the cycle."""
+
+    standing: Action
+    is_pulled_back: bool = False
+    is_regroup_due: bool = False
 
 
 @dataclass(frozen=True)
@@ -506,7 +533,15 @@ def asked(
     Raises `ValueError` when it cannot be held to `MAX_PROMPT_CHARS`.
     """
     state = military_state(found.army, names, world, ctx, found.closing, found.labels)
-    told = tuple(replace(action, consequence=consequence(action, found, state, world, ctx)) for action in actions)
+    # The continue option keeps the consequence it was offered with: none for a standing action offered as taken.
+    told = tuple(
+        (
+            action
+            if action.offered_as == CONTINUE
+            else replace(action, consequence=consequence(action, found, state, world, ctx))
+        )
+        for action in actions
+    )
     now = current_line(current, told, world)
     lines_at = partial(_lines, found, state, picks, now, names, world, ctx)
     told_object = state_object(found, state, picks, now, names, world, ctx)
@@ -621,13 +656,16 @@ def army_actions(
     may_detach: bool = True,
     targeted: frozenset[int] = frozenset(),
     regroup: Regroup | None = None,
+    continuing: Continuing | None = None,
 ) -> tuple[Action, ...]:
     """main's actions, lettered by kind: the defensive ones while a threat holds, the active ones, the task options
     (see `command_tasks`) and gather; while the forward gate is closed only the task options on the targets near main,
     a near attack and gather besides the defensive ones; no task option and no raid trucks without `may_detach`, while
     the commander's detachments are as many as may be out, nor on an enemy of `targeted`, which one of them is on; at
     most options_max of them, kept in the order of the module's note. While the gate is open, gather is told from
-    `regroup`, main as a whole (none told without it): forward while main is ahead, left out while it wins."""
+    `regroup`, main as a whole (none told without it): forward while main is ahead, left out while it wins. With
+    `continuing`, the standing action the list leaves off is offered again as the continue option while it is still
+    sound (see `_with_continue`)."""
     view, most = found.view, ctx.tuning.commander.options_max
     defensive = _defensive(found, world, ctx)[: max(0, most - ACTIVE_MIN)] if found.danger.is_threatened else []
     regroup = _while_open(regroup, is_gate_open)
@@ -655,7 +693,7 @@ def army_actions(
     if is_gate_open:
         raid = _raid_trucks(view, world, ctx, targeted) if may_detach else None
         aimed = _within_means(
-            [*_active(view, found.goal, names, world, ctx, raid), *tasks], units, found.estimate, world, ctx
+            [*_active_actions(view, found.goal, names, world, ctx, raid), *tasks], units, found.estimate, world, ctx
         )
         others = sorted([*aimed, gather], key=lambda action: KEPT_FIRST.index(action.kind))
         others, gather = _unless_winning(others, gather, regroup, found, names, ctx)
@@ -666,7 +704,69 @@ def army_actions(
         others = [gather, *_within_means([*tasks, *near], units, found.estimate, world, ctx)]
     kept = _kept([*defensive, *others], gather, most)
     added = [*expansion, *_apart_from(economy, expanded if expansion else (), ctx)]
-    return lettered(_with_added(kept, added, defensive, gather, most), ARMY_IDS)
+    listed = lettered(_with_added(kept, added, defensive, gather, most), ARMY_IDS)
+    if continuing is None:
+        return listed
+    candidates = [*defensive, *others, *added]
+    return _with_continue(listed, candidates, continuing, found, is_gate_open, world, ctx)
+
+
+def _with_continue(
+    listed: tuple[Action, ...],
+    candidates: Sequence[Action],
+    continuing: Continuing,
+    found: ArmyBrief,
+    is_gate_open: bool,
+    world: World,
+    ctx: MatchContext,
+) -> tuple[Action, ...]:
+    """The actions with main's standing action offered again as the continue option, when the list leaves it off and
+    it is still sound (see `_may_continue`): the cycle's candidate of its key the options_max cut dropped, else the
+    standing action as taken; an advance, flank or siege only. In a place left, else in that of the lowest-ranked of
+    GIVING_WAY; not offered when none is listed."""
+    standing = continuing.standing
+    if standing.kind not in CONTINUED_KINDS or any(action.key == standing.key for action in listed):
+        return listed
+    option = next((action for action in candidates if action.key == standing.key), replace(standing, consequence=""))
+    if not _may_continue(option, continuing, found, is_gate_open, world, ctx):
+        return listed
+    return with_continue(listed, option, giving_way(listed), ctx.tuning.commander.options_max)
+
+
+def giving_way(actions: Sequence[Action]) -> list[Action]:
+    """The actions main's continue option may take the place of, the lowest-ranked first (see GIVING_WAY): never a
+    defensive action nor gather."""
+    able = [action for action in actions if action.offered_as in GIVING_WAY]
+    return sorted(able, key=lambda action: GIVING_WAY.index(action.offered_as))
+
+
+def _may_continue(
+    option: Action, continuing: Continuing, found: ArmyBrief, is_gate_open: bool, world: World, ctx: MatchContext
+) -> bool:
+    """Whether main's standing action is still sound to go on with: main has not arrived within ARRIVED_CELLS of its
+    cell, its target is still remembered, main is neither attacked at home nor losing where it stands, the forward
+    gate is open with no retreat override nor regroup due, and while main is behind its cell lies near home."""
+    cell = option.cell
+    if cell is None or cells.is_within(found.view.center, cell, ARRIVED_CELLS):
+        return False
+    if not _is_remembered(option, found, world):
+        return False
+    if found.danger.kind in (BASE_ATTACKED, LOSING_HERE):
+        return False
+    if not is_gate_open or continuing.is_pulled_back or continuing.is_regroup_due:
+        return False
+    units = [*found.view.body, *found.view.reinforcements]
+    return bool(_within_means([option], units, found.estimate, world, ctx))
+
+
+def _is_remembered(option: Action, found: ArmyBrief, world: World) -> bool:
+    """Whether a continued action's target is still known: a siege's defense among the known enemy defenses with a
+    long-range unit of main's left; an advance's or a flank's cell the enemy's start or that of a remembered enemy."""
+    if option.kind == SIEGE:
+        defense_ids = {record.id for record in world.known_enemy_defenses}
+        return option.key[-1] in defense_ids and _has_long_range(found.view)
+    remembered = [*world.enemy_memory.values(), *world.known_enemy_defenses]
+    return option.cell == enemy_start(world) or any(_cell(record) == option.cell for record in remembered)
 
 
 def _expansion(
@@ -822,6 +922,38 @@ def _active(
     others = [*found, *([flank] if flank is not None and is_flank_wanted else [])]
     is_withheld = goal.covering is not None and advance.via is None and not _has_long_range(view) and others
     return [*others, *([] if is_withheld else [advance])]
+
+
+def _active_actions(
+    view: ArmyView, goal: Objective, names: Mapping[str, str], world: World, ctx: MatchContext, raid: Action | None
+) -> list[Action]:
+    """The active actions (see `_active`); with flank_approach of `[combat]` on, where the script flanks by the attack's
+    approach, the raid trucks given, attack and siege when they apply and the advance by the approach's side cell,
+    no flank and the advance never left out for its straight way."""
+    if not ctx.tuning.combat.flank_approach:
+        return _active(view, goal, names, world, ctx, raid)
+    optional = (raid, _attack(view, names, world, ctx), _siege(view, names, world, ctx))
+    return [
+        *(action for action in optional if action is not None),
+        routed(_advance(view, goal, names, ctx), view.center, ctx),
+    ]
+
+
+def routed(action: Action | None, center: Cell, ctx: MatchContext) -> Action | None:
+    """An action as the attack's approach routes it (see `attack_approach`): an advance, a siege, or an attack on a cell
+    farther than near_attack_cells of `[commander]` from `center`, by the side cell main is still to pass while its
+    cell is the attack's objective; any other action, or one with no side cell to go by, as it is."""
+    if action is None or action.cell is None or action.kind not in (ADVANCE, SIEGE, ATTACK):
+        return action
+    if action.kind == ATTACK and cells.is_within(center, action.cell, ctx.tuning.commander.near_attack_cells):
+        return action
+    side = attack_approach.side_for(action.cell, ctx)
+    if side is None or action.via == side:
+        return action
+    head = action.head
+    if action.kind == ADVANCE:
+        head = f"advance via {at(side)} to {action.label.removeprefix('advance to ')} {at(action.cell)}"
+    return replace(action, via=side, route=None, head=head)
 
 
 def _has_long_range(view: ArmyView) -> bool:
@@ -1056,7 +1188,7 @@ def _forward_cell(found: ArmyBrief, world: World) -> Cell:
 
 
 def _staging(world: World, ctx: MatchContext) -> Cell:
-    return cells.staging_point(world, ctx.tuning.upkeep.staging_distance_cells)
+    return safe_staging.staging_point(world, ctx.tuning, ctx)
 
 
 def _lines(

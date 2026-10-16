@@ -33,6 +33,17 @@ drives over, as a tank does. So when nothing else can, a harvester does:
   then. One harvester runs at a time; a new run may start from the next
   cycle.
 
+With `crush_respects_retreat` and `truck_retreat` of [base_defense] on, the
+crush leaves the trucks to their retreat (see `truck_retreat`): no truck
+retreating (`MatchContext.fleeing_harvesters`) is taken, no cluster a truck
+must retreat from (`truck_retreat.must_retreat`: more than
+truck_crushable_infantry_max infantry, or two anti-armor infantry) is run
+over, and no truck is sent back to harvest after a run while threats it must
+retreat from are near it: the retreat takes it from the next cycle, and its
+clear time sends it back. In the live games of 20261016 a truck the retreat
+had judged unable to crush 4 infantry was driven into them, and sent back to
+harvest beside them when the run ended.
+
 Each run, when it ends, is a `combat` event with the reason
 `harvester_crush`: the tick, the tick it started, the centroid's cell, the
 cluster's size, the harvester, whether it was lost, and why the run ended.
@@ -45,7 +56,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ucla_agent.core import records
-from ucla_agent.games.redalert import cells
+from ucla_agent.games.redalert import cells, truck_retreat, truck_shares
 from ucla_agent.games.redalert.batch import Intent, Priority
 from ucla_agent.games.redalert.crush import (
     ARRIVED_CELLS,
@@ -113,25 +124,26 @@ class HarvesterCrush:
         ctx.harvester_crush = {}
         if self._run is not None:
             return self._follow(world, ctx)
-        resent = self._resend(world)
+        resent = self._resend(world, ctx)
         if not ctx.tuning.opening.rush_harvester_crush or not is_counter_called(ctx) or world.base_center is None:
             return resent
         self._run = _start(world, ctx)
         return resent if self._run is None else resent + self._move(ctx)
 
-    def _resend(self, world: World) -> list[Intent]:
+    def _resend(self, world: World, ctx: MatchContext) -> list[Intent]:
         """The harvest order sent once more RESEND_SECONDS after the last run ended, when its harvester stands idle or
-        is not harvesting; none else."""
+        is not harvesting; none else. A truck that works a field of its truck share is sent to that field."""
         if self._ended is None or world.tick - self._ended[1] < RESEND_SECONDS * TICKS_PER_SECOND:
             return []
         harvester_id, self._ended = self._ended[0], None
         harvester = world.units.get(harvester_id)
         if harvester is None or (not harvester.idle and harvester.activity == HARVESTING):
             return []
-        return [Intent(Priority.EMERGENCY, {"cmd": "harvest", "units": [harvester_id]})]
+        return _harvest_unless_threatened(harvester, world, ctx)
 
     def _follow(self, world: World, ctx: MatchContext) -> list[Intent]:
-        """The run's move while it lasts; once it has ended, its event and the harvester's order to harvest again."""
+        """The run's move while it lasts; once it has ended, its event and the harvester's order to harvest again, to
+        the field of its truck share when it works one."""
         run = self._run
         ended = _ended(run, world, ctx)
         if ended is None:
@@ -141,7 +153,8 @@ class HarvesterCrush:
         if ended == HARVESTER_LOST:
             return []
         self._ended = (run.harvester, world.tick)
-        return [Intent(Priority.EMERGENCY, {"cmd": "harvest", "units": [run.harvester]})]
+        harvester = world.units.get(run.harvester)
+        return [] if harvester is None else _harvest_unless_threatened(harvester, world, ctx)
 
     def _move(self, ctx: MatchContext) -> list[Intent]:
         """The run's move to its cell, the run published on the match context."""
@@ -156,8 +169,10 @@ def _start(world: World, ctx: MatchContext) -> HarvesterRun | None:
     cluster = largest_cluster(infantry_in_sight(world), combat.crush_cluster_cells)
     if cluster is None or not _qualifies(cluster, world, ctx):
         return None
-    harvester = _nearest_fit_harvester(cluster, world)
+    harvester = _nearest_fit_harvester(cluster, world, ctx)
     if harvester is None:
+        return None
+    if _respects_retreat(ctx) and truck_retreat.must_retreat(harvester, list(cluster.infantry), world, ctx):
         return None
     cell = cells.clamped((round(cluster.centroid[0]), round(cluster.centroid[1])), world.map_bounds)
     return HarvesterRun(harvester.id, cell, cluster, world.tick, min_infantry(cluster, combat))
@@ -195,9 +210,31 @@ def _is_handled(cluster: Cluster, worth: int, world: World) -> bool:
     return sum(_cost(unit.type, world) for unit in near) >= worth
 
 
-def _nearest_fit_harvester(cluster: Cluster, world: World) -> Unit | None:
-    """The own harvester nearest the cluster's centroid with MIN_HP percent of its health or more; None for none."""
-    fit = [unit for unit in world.units.values() if unit.type == HARVESTER and unit.hp >= MIN_HP]
+def _respects_retreat(ctx: MatchContext) -> bool:
+    """Whether the crush leaves the trucks to their retreat: crush_respects_retreat and truck_retreat are on."""
+    tuning = ctx.tuning.base_defense
+    return tuning.crush_respects_retreat and truck_retreat.is_on(ctx)
+
+
+def _harvest_unless_threatened(harvester: Unit, world: World, ctx: MatchContext) -> list[Intent]:
+    """The order that sends a harvester back to harvest after a run (to the field of its truck share when it works
+    one); none while it retreats, or has threats near it it must retreat from, with the retreat respected."""
+    if _respects_retreat(ctx):
+        threats = truck_retreat.threats_to(harvester, world, ctx, is_attacked=False)
+        if harvester.id in ctx.fleeing_harvesters or truck_retreat.must_retreat(harvester, threats, world, ctx):
+            return []
+    return truck_shares.harvest_orders([harvester.id], world, ctx, Priority.EMERGENCY)
+
+
+def _nearest_fit_harvester(cluster: Cluster, world: World, ctx: MatchContext) -> Unit | None:
+    """The own harvester nearest the cluster's centroid with MIN_HP percent of its health or more, none retreating
+    with the retreat respected; None for none."""
+    fleeing = ctx.fleeing_harvesters if _respects_retreat(ctx) else frozenset()
+    fit = [
+        unit
+        for unit in world.units.values()
+        if unit.type == HARVESTER and unit.hp >= MIN_HP and unit.id not in fleeing
+    ]
     x, y = cluster.centroid
     return min(fit, key=lambda unit: ((unit.x - x) ** 2 + (unit.y - y) ** 2, unit.id), default=None)
 

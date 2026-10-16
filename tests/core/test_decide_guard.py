@@ -216,11 +216,11 @@ def test_after_three_timeouts_in_a_row_the_source_is_not_called_and_the_answer_c
     assert seconds < CIRCUIT_OPEN_LIMIT_SECONDS
 
 
-def test_thirty_seconds_later_the_source_is_called_again(circuit_clock):
+def test_twelve_seconds_later_the_source_is_called_again(circuit_clock):
     guard = SourceGuard("local:fast")
     for _ in range(3):
         guard.call(_request(), _Exchange(httpx.ConnectError("connection refused")))
-    circuit_clock["now"] += 29.0
+    circuit_clock["now"] += 11.0
     skipped = guard.call(_request(), _Exchange())
     circuit_clock["now"] += 1.0
     exchange = _Exchange(Answer("HOLD"))
@@ -238,14 +238,25 @@ def test_a_skipped_call_does_not_count_as_a_failure_of_the_source(circuit_clock)
         guard.call(_request(), _Exchange(SourceError("http_503")))
     for _ in range(5):
         guard.call(_request(), _Exchange())
-    circuit_clock["now"] += 30.0
+    circuit_clock["now"] += 12.0
 
-    for _ in range(2):
-        guard.call(_request(), _Exchange(SourceError("http_503")))
+    # The pause is over whatever the five calls skipped meanwhile: the source is probed.
     exchange = _Exchange()
     guard.call(_request(), exchange)
 
     assert len(exchange.http_timeouts) == 1
+
+
+def test_a_probe_that_fails_pauses_the_source_again_at_once(circuit_clock):
+    guard = SourceGuard("local:fast")
+    for _ in range(3):
+        guard.call(_request(), _Exchange(SourceError("http_503")))
+    circuit_clock["now"] += 12.0
+    guard.call(_request(), _Exchange(SourceError("http_503")))
+
+    skipped = guard.call(_request(), _Exchange())
+
+    assert (skipped.outcome, skipped.reason) == ("error", "circuit_open")
 
 
 def test_a_used_answer_between_failures_keeps_the_circuit_closed(circuit_clock):

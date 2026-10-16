@@ -87,6 +87,7 @@ class HarassTowers:
         tower, target = found
         self._towers.append(tower)
         ctx.defense_goals[tower.item] = tower.cell
+        ctx.exact_defense_goals.add(tower.item)
         _log(tower, target, world)
         return [ctx.production.build(tower.item)]
 

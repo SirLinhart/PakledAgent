@@ -60,6 +60,9 @@ GUARD = "guard"
 MAIN = "main"
 RAID = "raid"
 SCOUT = "scout"
+# The one rifleman posted on the line to the enemy's start while an attack is out, whose death warns of their army
+# (see `canary`): it takes no other manager's orders.
+CANARY = "canary"
 # The long-range units: Allied artillery and the Soviet V2 launcher.
 SIEGE_TYPES = frozenset({"arty", "v2rl"})
 

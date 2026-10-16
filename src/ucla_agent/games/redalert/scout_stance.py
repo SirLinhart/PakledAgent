@@ -16,7 +16,9 @@ and any manager may propose one for a unit near an enemy: base defense for a
 unit new in the cycle that has not yet taken its slot, main's focus fire for a
 unit in contact. So the agent also takes every unit of the scout group out of
 the cycle's `attack` and `attack_move` orders (`without_scout_attacks`): a
-slot's scout is only ever moved.
+slot's scout is only ever moved, but for the attacks the scout slots' own rules
+order for it on purpose (the bait shot, the hunt and the harass of
+`scout_attacks`), which the stance does not stop either.
 
 A scout released from its slot too hurt to scout goes home first
 (`ReturningScouts`): it stays in the scout group, out of every attack, and in
@@ -159,7 +161,8 @@ def _home_move(unit_ids: list[int], staging: Cell) -> Intent:
 
 def without_scout_attacks(intents: Iterable[Intent], ctx: MatchContext) -> list[Intent]:
     """The cycle's intents with the units of the scout group taken out of every attack and attack_move order while the
-    slots' scouts are careful; an order left with no unit is dropped. As they are otherwise."""
+    slots' scouts are careful, but for the attacks the scout slots' own rules make (`Intent.scout_rule`, see
+    `scout_attacks`); an order left with no unit is dropped. As they are otherwise."""
     intents = list(intents)
     if not is_cautious(ctx.tuning.scouting):
         return intents
@@ -169,7 +172,8 @@ def without_scout_attacks(intents: Iterable[Intent], ctx: MatchContext) -> list[
     kept = []
     for intent in intents:
         order = intent.order
-        if order.get("cmd") not in ATTACK_COMMANDS or not scouts.intersection(order.get("units", ())):
+        is_strippable = order.get("cmd") in ATTACK_COMMANDS and not intent.scout_rule
+        if not is_strippable or not scouts.intersection(order.get("units", ())):
             kept.append(intent)
             continue
         units = [unit_id for unit_id in order["units"] if unit_id not in scouts]

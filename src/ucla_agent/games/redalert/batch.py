@@ -118,6 +118,9 @@ class Intent:
     resend: bool = False
     # The model commander's order (see `commander`), which goes in the batch slot kept for it.
     commander: bool = False
+    # An attack the scout slots make for a scout of their own on purpose (see `scout_attacks`), which the attack strip
+    # of the careful scouts keeps: every other attack on a scout is stripped.
+    scout_rule: bool = False
 
 
 @dataclass(frozen=True)
